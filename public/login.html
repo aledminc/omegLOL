@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>omegLOL — log in</title>
+<link rel="stylesheet" href="/css/base.css" />
+</head>
+<body>
+<header id="site-nav"></header>
+<main class="page" style="max-width:420px">
+  <h1>Log in</h1>
+  <p class="muted">Sign in to keep your rank across devices. Account sign-in is coming in a later phase — for now, jump in as a guest.</p>
+  <div class="panel">
+    <label>Username <input id="u" autocomplete="username" /></label>
+    <label>Password <input id="p" type="password" autocomplete="current-password" /></label>
+    <button class="btn" id="loginBtn" style="width:100%">Log in</button>
+  </div>
+  <p style="margin-top:16px"><a href="/play">Continue as guest →</a></p>
+</main>
+<script>
+  // Real auth is a later phase. For the skeleton, both buttons lead to the play page.
+  document.getElementById("loginBtn").addEventListener("click", () => { location.href = "/play"; });
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>
