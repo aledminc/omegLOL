@@ -102,5 +102,37 @@ export function makeDb(pool) {
     return rows;
   }
 
-  return { initSchema, getOrCreateUser, recordMatch, topPlayers };
+  async function getUserByToken(token) {
+    if (!token) return null;
+    const { rows } = await pool.query("SELECT * FROM users WHERE token = $1", [token]);
+    return rows[0] || null;
+  }
+
+  // a player's recent matches, each normalized to THAT player's point of view
+  async function recentMatches(userId, n = 10) {
+    const { rows } = await pool.query(
+      `SELECT m.*, ua.name AS name_a, ub.name AS name_b
+         FROM matches m
+         JOIN users ua ON ua.id = m.player_a
+         JOIN users ub ON ub.id = m.player_b
+        WHERE m.player_a = $1 OR m.player_b = $1
+        ORDER BY m.id DESC LIMIT $2`,
+      [userId, n]
+    );
+    return rows.map(r => {
+      const meA = String(r.player_a) === String(userId);
+      const before = meA ? r.rating_a_before : r.rating_b_before;
+      const after  = meA ? r.rating_a_after  : r.rating_b_after;
+      let outcome = r.outcome_a;                                   // stored from A's view
+      if (!meA) outcome = outcome === "win" ? "lose" : outcome === "lose" ? "win" : "draw";
+      return {
+        opponent: meA ? r.name_b : r.name_a,
+        outcome, before, after, delta: after - before,
+        scoreMe:   meA ? r.score_a : r.score_b,
+        scoreThem: meA ? r.score_b : r.score_a,
+      };
+    });
+  }
+
+  return { initSchema, getOrCreateUser, recordMatch, topPlayers, getUserByToken, recentMatches };
 }

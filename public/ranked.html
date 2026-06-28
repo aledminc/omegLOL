@@ -6,37 +6,33 @@
 <title>omegLOL — ranked</title>
 <link rel="stylesheet" href="/css/base.css" />
 <style>
-  .toggle { display:inline-flex; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:3px; margin:6px 0 20px; }
-  .seg { padding:8px 16px; border:0; background:transparent; color:var(--dim); font:inherit; font-weight:600; border-radius:7px; cursor:pointer; }
-  .seg.active { background:var(--accent); color:var(--accent-ink); }
+  /* Layout-only; visual treatment lives in /css/base.css */
+  .toggle { display:inline-flex; border-radius:10px; padding:3px; margin:6px 0 20px; }
+  .seg { padding:8px 16px; border:0; background:transparent; font:inherit; font-weight:600; border-radius:7px; cursor:pointer; }
 
   .rankhead { display:flex; align-items:center; justify-content:space-between; gap:12px; }
   .rankname { font-size:27px; font-weight:800; letter-spacing:-.5px; }
-  .info { width:23px; height:23px; border-radius:50%; border:1px solid var(--line); background:var(--bg); color:var(--dim);
-    font-style:italic; font-weight:700; font-size:13px; line-height:1; cursor:pointer; }
-  .info:hover { color:var(--ink); border-color:var(--dim); }
+  .info { width:23px; height:23px; border-radius:50%; font-style:italic; font-weight:700; font-size:13px; line-height:1; cursor:pointer; }
 
-  .match { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14px; }
-  .match:last-child { border-bottom:0; }
+  .match { display:flex; align-items:center; gap:10px; padding:9px 0; font-size:14px; }
+  .match:last-child { border-bottom:0 !important; }
   .res { width:24px; height:24px; border-radius:6px; display:grid; place-items:center; font-weight:700; font-size:12px; }
-  .res.win { background:#1f4d3a; color:#5dcaa5; } .res.lose { background:#4d2230; color:#ff8aa0; } .res.draw { background:#33312b; color:#c2c0b6; }
-  .opp { flex:1; } .elo { color:var(--dim); font-variant-numeric:tabular-nums; }
-  .elo b.up { color:#5dcaa5; } .elo b.down { color:#ff8aa0; }
+  .opp { flex:1; } .elo { font-variant-numeric:tabular-nums; }
 
   #board { list-style:none; margin:0; padding:0; }
-  #board li { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
-  #board li:last-child { border-bottom:0; }
-  .pos { width:22px; color:var(--dim); font-variant-numeric:tabular-nums; }
-  .who { flex:1; font-weight:500; } .rk { font-size:13px; font-weight:700; } .rt { color:var(--dim); font-variant-numeric:tabular-nums; font-size:13px; }
+  #board li { display:flex; align-items:center; gap:12px; padding:10px 0; }
+  #board li:last-child { border-bottom:0 !important; }
+  .pos { width:22px; font-variant-numeric:tabular-nums; }
+  .who { flex:1; font-weight:500; } .rk { font-size:13px; font-weight:700; } .rt { font-variant-numeric:tabular-nums; font-size:13px; }
 
-  .modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
+  .modal { position:fixed; inset:0; background:rgba(11,22,34,.6); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
   .modal.hidden { display:none; }
-  .modal .box { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px; max-width:380px; width:100%; }
+  .modal .box { border-radius:14px; padding:22px; max-width:380px; width:100%; }
   .modal h3 { margin:0 0 12px; }
   .tiers { list-style:none; margin:0; padding:0; }
-  .tiers li { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); }
-  .tiers li:last-child { border-bottom:0; }
-  .modal .close { float:right; cursor:pointer; color:var(--dim); border:0; background:0; font-size:18px; }
+  .tiers li { display:flex; justify-content:space-between; padding:8px 0; }
+  .tiers li:last-child { border-bottom:0 !important; }
+  .modal .close { float:right; cursor:pointer; border:0; background:0; font-size:18px; }
 </style>
 </head>
 <body>
@@ -60,7 +56,7 @@
 </main>
 
 <div id="infoModal" class="modal hidden">
-  <div class="box">
+  <div class="box panel">
     <button class="close" id="infoClose" aria-label="close">×</button>
     <h3>Rank tiers</h3>
     <ul class="tiers" id="tierList"></ul>
@@ -72,7 +68,6 @@ import { TIERS, rankFor, rankRange } from "/js/ranks.mjs";
 const $ = id => document.getElementById(id);
 const token = localStorage.getItem("lastlaugh_token");
 
-// ----- toggle -----
 function switchView(v) {
   $("viewRank").hidden = v !== "rank"; $("viewBoard").hidden = v !== "board";
   $("tabRank").classList.toggle("active", v === "rank");
@@ -81,7 +76,6 @@ function switchView(v) {
 $("tabRank").onclick = () => switchView("rank");
 $("tabBoard").onclick = () => switchView("board");
 
-// ----- info modal -----
 $("tierList").innerHTML = TIERS.map((t, i) =>
   `<li><span style="color:${t.color};font-weight:700">${t.name}</span><span class="muted">${rankRange(i)} Elo</span></li>`).join("");
 function openInfo() { $("infoModal").classList.remove("hidden"); }
@@ -89,7 +83,6 @@ function closeInfo() { $("infoModal").classList.add("hidden"); }
 $("infoClose").onclick = closeInfo;
 $("infoModal").addEventListener("click", e => { if (e.target === $("infoModal")) closeInfo(); });
 
-// ----- your rank -----
 function notRanked() {
   $("rankBox").innerHTML = `<p class="muted" style="margin:0">Play a ranked game to earn a rank. <a href="/play">Take the stage →</a></p>`;
   $("history").textContent = "";
@@ -122,7 +115,6 @@ function renderHistory(matches) {
   }
 }
 
-// ----- leaderboard -----
 function renderBoard(rows) {
   if (!rows.length) { $("board").innerHTML = "<li>no games played yet</li>"; return; }
   $("board").innerHTML = "";
@@ -136,7 +128,6 @@ function renderBoard(rows) {
   });
 }
 
-// ----- load -----
 (async () => {
   try { renderBoard(await (await fetch("/api/leaderboard")).json()); }
   catch { $("board").innerHTML = "<li>leaderboard unavailable</li>"; }

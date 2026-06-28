@@ -8,14 +8,42 @@
 </head>
 <body>
 <header id="site-nav"></header>
-<main class="page">
-  <h1>omeg<span style="color:var(--accent)">LOL</span></h1>
-  <p class="muted" style="font-size:19px; max-width:580px">
-    Talk to strangers. Try not to laugh. It's Omegle turned into a 1-v-1 comedy duel —
-    you get 30 seconds to make a stranger crack, they get 30 to break you, and the camera keeps score.
-  </p>
 
-  <div class="panel" style="margin:24px 0; max-width:580px">
+<section class="hero-wrap">
+  <div class="crt">
+    <div class="hero-cam" aria-hidden="true"></div>
+    <h1 class="hero-logo">omeg<span class="lol">LOL</span></h1>
+    <p class="hero-tag">Talk to strangers. Try not to laugh. A 1-v-1 comedy duel, live on cam.</p>
+    <div class="hero-cta">
+      <a class="btn" href="/login">Log in</a>
+      <a class="btn ghost" href="/play">Play as guest</a>
+    </div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature">
+      <span class="badge">01</span>
+      <h4>Get matched</h4>
+      <p>Auto-paired with a random opponent, webcam to webcam.</p>
+    </div>
+    <div class="feature">
+      <span class="badge">02</span>
+      <h4>30-second duel</h4>
+      <p>One performs, one keeps a straight face. Then you swap.</p>
+    </div>
+    <div class="feature">
+      <span class="badge">03</span>
+      <h4>Camera scores it</h4>
+      <p>Every smile and laugh is detected and tallied in real time.</p>
+    </div>
+    <div class="feature">
+      <span class="badge">04</span>
+      <h4>Climb the ladder</h4>
+      <p>Win to gain Elo. Lose, learn, come back funnier.</p>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-top:22px">
     <h3>How it works</h3>
     <ol class="muted" style="margin:0; padding-left:20px">
       <li>You're matched live with a random opponent.</li>
@@ -24,12 +52,8 @@
       <li>Swap, tally, and climb the ranked ladder.</li>
     </ol>
   </div>
+</section>
 
-  <div style="display:flex; gap:12px">
-    <a class="btn" href="/login">Log in</a>
-    <a class="btn ghost" href="/play">Play as guest</a>
-  </div>
-</main>
 <script src="/js/nav.js"></script>
 </body>
 </html>

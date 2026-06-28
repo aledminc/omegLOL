@@ -7,8 +7,9 @@ const links = [
 ];
 const el = document.getElementById("site-nav");
 if (el) {
-  el.className = "nav";
   el.innerHTML =
-    `<a class="brand" href="/">omeg<b>LOL</b></a>` +
-    links.map(l => `<a class="link ${here === l.href ? "active" : ""}" href="${l.href}">${l.label}</a>`).join("");
+    `<a class="brand" href="/"><span class="dot"></span>omeg<span class="lol">LOL</span></a>` +
+    `<nav>` +
+    links.map(l => `<a class="${here === l.href ? "active" : ""}" href="${l.href}">${l.label}</a>`).join("") +
+    `</nav>`;
 }

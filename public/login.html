@@ -5,18 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>omegLOL — log in</title>
 <link rel="stylesheet" href="/css/base.css" />
+<style>
+  .login-cam {
+    width: 88px; height: 60px; margin: 4px auto 14px;
+    border: 4px solid #2A3B52; border-radius: 10px;
+    background: radial-gradient(circle at 35% 35%, #4DF3FF55 0%, transparent 55%), #0B1622;
+    box-shadow: inset 0 0 0 2px #1E2A38, 0 4px 0 #1E2A38;
+    position: relative; display: grid; place-items: center;
+  }
+  .login-cam::after {
+    content: ""; width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff 0 12%, #6EFF8E 13% 55%, #1E2A38 56% 100%);
+    box-shadow: 0 0 8px #6EFF8E;
+  }
+</style>
 </head>
 <body>
 <header id="site-nav"></header>
-<main class="page" style="max-width:420px">
-  <h1>Log in</h1>
-  <p class="muted">Sign in to keep your rank across devices. Account sign-in is coming in a later phase — for now, jump in as a guest.</p>
+<main class="page" style="max-width:440px">
+  <div class="login-cam" aria-hidden="true"></div>
+  <h1 style="font-size:22px; text-align:center">Log in</h1>
+  <p class="muted" style="text-align:center">Sign in to keep your rank across devices. Account sign-in is coming soon — for now, jump in as a guest.</p>
   <div class="panel">
-    <label>Username <input id="u" autocomplete="username" /></label>
-    <label>Password <input id="p" type="password" autocomplete="current-password" /></label>
-    <button class="btn" id="loginBtn" style="width:100%">Log in</button>
+    <label>Username <input id="u" autocomplete="username" placeholder="screenname" /></label>
+    <label>Password <input id="p" type="password" autocomplete="current-password" placeholder="••••••••" /></label>
+    <button class="btn" id="loginBtn" style="width:100%; margin-top:4px">Log in</button>
   </div>
-  <p style="margin-top:16px"><a href="/play">Continue as guest →</a></p>
+  <p style="margin-top:16px; text-align:center"><a href="/play">Continue as guest →</a></p>
 </main>
 <script>
   // Real auth is a later phase. For the skeleton, both buttons lead to the play page.

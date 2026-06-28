@@ -31,6 +31,19 @@ export function startServer({ db, port = PORT }) {
     try { res.json(await db.topPlayers(10)); }
     catch { res.status(500).json({ error: "unavailable" }); }
   });
+  app.get("/api/me", async (req, res) => {                  // the signed-in player's profile + history
+    const token = req.get("x-token");
+    if (!token) return res.status(401).json({ error: "no token" });
+    try {
+      const user = await db.getUserByToken(token);
+      if (!user) return res.status(404).json({ error: "unknown" });
+      const matches = await db.recentMatches(user.id, 10);
+      res.json({
+        profile: { name: user.name, rating: user.rating, wins: user.wins, losses: user.losses, draws: user.draws, games: user.games },
+        matches,
+      });
+    } catch { res.status(500).json({ error: "unavailable" }); }
+  });
 
   // ---------- one HTTP server; the WebSocket shares it (upgrade on the same port) ----------
   const server = http.createServer(app);
@@ -50,11 +63,17 @@ export function startServer({ db, port = PORT }) {
       const partnerId = waiting; waiting = null; pair(id, partnerId);
     } else { c.state = "waiting"; waiting = id; send(id, { type: "waiting" }); }
   }
-  function pair(a, b) {
+  async function pair(a, b) {
     const ca = clients.get(a), cb = clients.get(b);
     ca.partner = b; ca.state = "paired"; cb.partner = a; cb.state = "paired";
-    send(a, { type: "matched", initiator: true });
-    send(b, { type: "matched", initiator: false });
+    // Hand each player their opponent's card: name, rating (rank is derived client-side) + recent form.
+    let formA = [], formB = [];
+    try {
+      const [ra, rb] = await Promise.all([db.recentMatches(ca.userId, 5), db.recentMatches(cb.userId, 5)]);
+      formA = ra.map(m => m.outcome); formB = rb.map(m => m.outcome);
+    } catch (e) { console.error("recentMatches (pair) failed:", e.message); }
+    send(a, { type: "matched", initiator: true,  opponent: { name: cb.name, rating: cb.rating, form: formB } });
+    send(b, { type: "matched", initiator: false, opponent: { name: ca.name, rating: ca.rating, form: formA } });
     const game = { players: [a, b], scores: { [a]: 0, [b]: 0 }, performer: null, watcher: null, phase: null, timer: null };
     ca.game = game; cb.game = game;
     startCountdown(game);
@@ -102,13 +121,15 @@ export function startServer({ db, port = PORT }) {
     }
   }
 
-  function handleScore(id, msg) {
+  function handleReaction(id, msg) {
     const game = clients.get(id)?.game;
     if (!game || (game.phase !== "round1" && game.phase !== "round2")) return;
-    if (id !== game.watcher) return;
+    if (id !== game.watcher) return;                                   // only the watcher reacts
     const delta = Math.max(0, Math.min(50, +msg.delta || 0));
-    game.scores[game.performer] += delta;
-    broadcastScores(game);
+    const tier = msg.tier === "laugh" ? "laugh" : msg.tier === "big" ? "big" : "small";
+    game.scores[game.performer] += delta;       // the number: continuous + authoritative
+    broadcastScores(game);                       // meters, to both players
+    send(game.performer, { type: "reaction", tier, delta });   // the juice: performer's reward popups
   }
 
   function leavePartner(id) {
@@ -132,16 +153,19 @@ export function startServer({ db, port = PORT }) {
       if (msg.type === "auth") {
         const user = await db.getOrCreateUser({ token: msg.token, name: msg.name });
         c.userId = user.id; c.name = user.name; c.rating = user.rating;
+        let form = [];
+        try { form = (await db.recentMatches(user.id, 5)).map(m => m.outcome); }
+        catch (e) { console.error("recentMatches (auth) failed:", e.message); }
         send(id, { type: "authed", token: user.token, profile: {
-          name: user.name, rating: user.rating, wins: user.wins, losses: user.losses, draws: user.draws, games: user.games } });
+          name: user.name, rating: user.rating, wins: user.wins, losses: user.losses, draws: user.draws, games: user.games, form } });
       } else if (msg.type === "leaderboard") {
         send(id, { type: "leaderboard", top: await db.topPlayers(10) });
       } else if (msg.type === "find") {
         findMatch(id);
       } else if (msg.type === "next") {
         leavePartner(id); findMatch(id);
-      } else if (msg.type === "score") {
-        handleScore(id, msg);
+      } else if (msg.type === "reaction") {
+        handleReaction(id, msg);
       } else if (c.state === "paired") {
         send(c.partner, msg);
       }
