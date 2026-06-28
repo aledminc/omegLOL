@@ -5,41 +5,150 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>omegLOL — ranked</title>
 <link rel="stylesheet" href="/css/base.css" />
+<style>
+  .toggle { display:inline-flex; background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:3px; margin:6px 0 20px; }
+  .seg { padding:8px 16px; border:0; background:transparent; color:var(--dim); font:inherit; font-weight:600; border-radius:7px; cursor:pointer; }
+  .seg.active { background:var(--accent); color:var(--accent-ink); }
+
+  .rankhead { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .rankname { font-size:27px; font-weight:800; letter-spacing:-.5px; }
+  .info { width:23px; height:23px; border-radius:50%; border:1px solid var(--line); background:var(--bg); color:var(--dim);
+    font-style:italic; font-weight:700; font-size:13px; line-height:1; cursor:pointer; }
+  .info:hover { color:var(--ink); border-color:var(--dim); }
+
+  .match { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14px; }
+  .match:last-child { border-bottom:0; }
+  .res { width:24px; height:24px; border-radius:6px; display:grid; place-items:center; font-weight:700; font-size:12px; }
+  .res.win { background:#1f4d3a; color:#5dcaa5; } .res.lose { background:#4d2230; color:#ff8aa0; } .res.draw { background:#33312b; color:#c2c0b6; }
+  .opp { flex:1; } .elo { color:var(--dim); font-variant-numeric:tabular-nums; }
+  .elo b.up { color:#5dcaa5; } .elo b.down { color:#ff8aa0; }
+
+  #board { list-style:none; margin:0; padding:0; }
+  #board li { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--line); }
+  #board li:last-child { border-bottom:0; }
+  .pos { width:22px; color:var(--dim); font-variant-numeric:tabular-nums; }
+  .who { flex:1; font-weight:500; } .rk { font-size:13px; font-weight:700; } .rt { color:var(--dim); font-variant-numeric:tabular-nums; font-size:13px; }
+
+  .modal { position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
+  .modal.hidden { display:none; }
+  .modal .box { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px; max-width:380px; width:100%; }
+  .modal h3 { margin:0 0 12px; }
+  .tiers { list-style:none; margin:0; padding:0; }
+  .tiers li { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); }
+  .tiers li:last-child { border-bottom:0; }
+  .modal .close { float:right; cursor:pointer; color:var(--dim); border:0; background:0; font-size:18px; }
+</style>
 </head>
 <body>
 <header id="site-nav"></header>
 <main class="page">
   <h1>Ranked</h1>
-  <p class="muted">Win duels, climb the ladder.</p>
-
-  <div class="panel" style="margin:18px 0">
-    <h3>Your rank</h3>
-    <p class="muted">Sign in and play to earn a rank. <em>(Rank tiers TBD.)</em></p>
+  <div class="toggle">
+    <button id="tabRank" class="seg active">Your rank</button>
+    <button id="tabBoard" class="seg">Leaderboard</button>
   </div>
 
-  <div class="panel" style="margin:18px 0">
-    <h3>Rank tiers</h3>
-    <p class="muted">Coming soon — a tiered ladder (Bronze → Diamond, placeholder).</p>
-  </div>
+  <section id="viewRank">
+    <div id="rankBox" class="panel">loading…</div>
+    <h3 style="margin:22px 0 6px">Recent matches</h3>
+    <div id="history" class="muted">loading…</div>
+  </section>
 
-  <div class="panel">
-    <h3>Global leaderboard</h3>
-    <ol id="board" class="muted" style="padding-left:22px"><li>loading…</li></ol>
-  </div>
+  <section id="viewBoard" hidden>
+    <div class="panel"><ol id="board"><li>loading…</li></ol></div>
+  </section>
 </main>
-<script>
-  // Leaderboard is real data, fetched over plain HTTP (not the game socket).
-  fetch("/api/leaderboard").then(r => r.json()).then(rows => {
-    const ol = document.getElementById("board");
-    if (!rows.length) { ol.innerHTML = "<li>no games played yet</li>"; return; }
-    ol.innerHTML = "";
-    for (const r of rows) {
-      const li = document.createElement("li");
-      li.style.cssText = "display:flex; justify-content:space-between; padding:2px 0";
-      li.innerHTML = `<span style="color:var(--ink)">${r.name}</span><span style="color:var(--accent)">${r.rating}</span>`;
-      ol.appendChild(li);
-    }
-  }).catch(() => { document.getElementById("board").innerHTML = "<li>leaderboard unavailable</li>"; });
+
+<div id="infoModal" class="modal hidden">
+  <div class="box">
+    <button class="close" id="infoClose" aria-label="close">×</button>
+    <h3>Rank tiers</h3>
+    <ul class="tiers" id="tierList"></ul>
+  </div>
+</div>
+
+<script type="module">
+import { TIERS, rankFor, rankRange } from "/js/ranks.mjs";
+const $ = id => document.getElementById(id);
+const token = localStorage.getItem("lastlaugh_token");
+
+// ----- toggle -----
+function switchView(v) {
+  $("viewRank").hidden = v !== "rank"; $("viewBoard").hidden = v !== "board";
+  $("tabRank").classList.toggle("active", v === "rank");
+  $("tabBoard").classList.toggle("active", v === "board");
+}
+$("tabRank").onclick = () => switchView("rank");
+$("tabBoard").onclick = () => switchView("board");
+
+// ----- info modal -----
+$("tierList").innerHTML = TIERS.map((t, i) =>
+  `<li><span style="color:${t.color};font-weight:700">${t.name}</span><span class="muted">${rankRange(i)} Elo</span></li>`).join("");
+function openInfo() { $("infoModal").classList.remove("hidden"); }
+function closeInfo() { $("infoModal").classList.add("hidden"); }
+$("infoClose").onclick = closeInfo;
+$("infoModal").addEventListener("click", e => { if (e.target === $("infoModal")) closeInfo(); });
+
+// ----- your rank -----
+function notRanked() {
+  $("rankBox").innerHTML = `<p class="muted" style="margin:0">Play a ranked game to earn a rank. <a href="/play">Take the stage →</a></p>`;
+  $("history").textContent = "";
+}
+function renderRank(p) {
+  const t = rankFor(p.rating);
+  $("rankBox").innerHTML = `
+    <div class="rankhead">
+      <div>
+        <div class="rankname" style="color:${t.color}">${t.name}</div>
+        <div class="muted">${p.rating} Elo · ${p.wins}W ${p.losses}L ${p.draws}D</div>
+      </div>
+      <button class="info" id="infoBtn" title="rank info" aria-label="rank info">i</button>
+    </div>`;
+  $("infoBtn").onclick = openInfo;
+}
+function renderHistory(matches) {
+  if (!matches.length) { $("history").textContent = "no matches yet — play a ranked game."; return; }
+  $("history").innerHTML = "";
+  for (const m of matches) {
+    const sign = m.delta >= 0 ? "+" : "";
+    const letter = m.outcome === "win" ? "W" : m.outcome === "lose" ? "L" : "D";
+    const row = document.createElement("div");
+    row.className = "match";
+    row.innerHTML =
+      `<span class="res ${m.outcome}">${letter}</span>
+       <span class="opp">vs ${m.opponent}</span>
+       <span class="elo">${m.before} → ${m.after} <b class="${m.delta >= 0 ? "up" : "down"}">${sign}${m.delta}</b></span>`;
+    $("history").appendChild(row);
+  }
+}
+
+// ----- leaderboard -----
+function renderBoard(rows) {
+  if (!rows.length) { $("board").innerHTML = "<li>no games played yet</li>"; return; }
+  $("board").innerHTML = "";
+  rows.forEach((r, i) => {
+    const t = rankFor(r.rating);
+    const li = document.createElement("li");
+    li.innerHTML =
+      `<span class="pos">${i + 1}</span><span class="who">${r.name}</span>
+       <span class="rk" style="color:${t.color}">${t.name}</span><span class="rt">${r.rating}</span>`;
+    $("board").appendChild(li);
+  });
+}
+
+// ----- load -----
+(async () => {
+  try { renderBoard(await (await fetch("/api/leaderboard")).json()); }
+  catch { $("board").innerHTML = "<li>leaderboard unavailable</li>"; }
+
+  if (!token) { notRanked(); return; }
+  try {
+    const r = await fetch("/api/me", { headers: { "x-token": token } });
+    if (!r.ok) { notRanked(); return; }
+    const { profile, matches } = await r.json();
+    renderRank(profile); renderHistory(matches);
+  } catch { notRanked(); }
+})();
 </script>
 <script src="/js/nav.js"></script>
 </body>
