@@ -7,12 +7,12 @@
 <link rel="stylesheet" href="/css/base.css" />
 <style>
   /* Layout-only rules; visual treatment lives in /css/base.css */
-  .app { width:100%; max-width:880px; margin:18px auto; padding:0 14px; }
-  .profile { display:flex; justify-content:space-between; align-items:baseline; gap:10px; padding:8px 2px 12px; font-size:14px; }
-  .profile .name { font-weight:600; }
-  .profile .rating { font-variant-numeric:tabular-nums; }
-  .profile .record { font-size:13px; }
+  .app { width:100%; max-width:1160px; margin:18px auto; padding:0 14px; }
   .status { font-size:13px; padding:0 2px 10px; }
+
+  .play-shell { display:grid; grid-template-columns:240px minmax(0, 1fr); gap:14px; align-items:start; }
+  .control-panel { display:flex; flex-direction:column; gap:12px; min-width:0; }
+  .match-panel { min-width:0; }
 
   /* cam + player cards side by side */
   .arena { display:flex; gap:12px; align-items:stretch; }
@@ -26,7 +26,12 @@
   }
 
   .stage { flex:1; min-width:0; position:relative; aspect-ratio:4/3; overflow:hidden; transition: box-shadow .15s ease; }
-  #remote { width:100%; height:100%; object-fit:cover; }
+  .remote-grid { width:100%; height:100%; display:grid; grid-template-columns:1fr; grid-auto-rows:1fr; background:#07111c; }
+  .remote-grid[data-count="2"], .remote-grid[data-count="3"] { grid-template-columns:repeat(2, minmax(0, 1fr)); }
+  .remote-tile { position:relative; min-width:0; min-height:0; overflow:hidden; background:#07111c; }
+  .remote-tile video { width:100%; height:100%; object-fit:cover; display:block; }
+  .remote-tile .remote-label { position:absolute; left:8px; bottom:8px; z-index:2; max-width:calc(100% - 16px);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:2px 7px; font-size:12px; font-weight:800; }
   #local { position:absolute; bottom:12px; right:12px; width:30%; max-width:150px; aspect-ratio:4/3;
     object-fit:cover; transform:scaleX(-1); z-index:3; }
 
@@ -66,6 +71,40 @@
   .gate h1 { font-size:22px; margin:0; }
   .gate input { padding:11px 14px; font:inherit; width:240px; }
   .gate button { padding:11px 20px; font:inherit; font-weight:600; cursor:pointer; }
+
+  /* mode filters */
+  .modebar { display:flex; gap:10px; flex-wrap:wrap; margin:0; padding:12px; }
+  .modebar .toggle { display:inline-flex; padding:3px; border-radius:10px; }
+  .modebar .seg { padding:7px 14px; border:0; background:transparent; font:inherit; font-weight:800; border-radius:7px; cursor:pointer; }
+
+  /* friends panel */
+  .friends { width:auto; flex:none; }
+  .friends .pcard { padding:12px; height:100%; display:flex; flex-direction:column; gap:8px; }
+  .fr-code { font-size:13px; }
+  .fr-add { display:flex; gap:6px; }
+  .fr-add input { flex:1; min-width:0; padding:7px 9px; font:inherit; }
+  .fr-add .btn { padding:7px 10px; }
+  .fr-list { display:flex; flex-direction:column; gap:6px; margin-top:2px; overflow-y:auto; }
+  .fr-row { display:flex; align-items:center; gap:7px; }
+  .fr-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; font-size:14px; }
+  .fr-dot { width:9px; height:9px; border-radius:50%; flex:none; }
+  .fr-invite { padding:5px 9px !important; font-size:12px !important; }
+
+  /* duo lobby + invite toast */
+  .lobby { padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
+  .lobby.hidden { display:none; }
+  .lobby-mems { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  .lobby-actions { display:flex; gap:8px; }
+  .invite-prompt { position:fixed; top:54px; left:50%; transform:translateX(-50%); z-index:30;
+    display:flex; gap:10px; align-items:center; padding:12px 16px; }
+  .invite-prompt.hidden { display:none; }
+
+  @media (max-width:880px) {
+    .play-shell { grid-template-columns:1fr; }
+    .control-panel { order:2; }
+    .match-panel { order:1; }
+  }
+  @media (max-width:680px) { .friends { width:auto; } }
 </style>
 </head>
 <body data-phase="idle" data-role="">
@@ -77,16 +116,59 @@
 
 <header id="site-nav"></header>
 
-<div class="app">
-  <div class="profile">
-    <span class="name" id="profName">—</span>
-    <span><span class="rating" id="profRating">—</span> <span class="record" id="profRecord"></span></span>
-  </div>
-  <div class="status" id="status">connecting…</div>
+<div class="invite-prompt hidden" id="invitePrompt">
+  <span id="inviteText"></span>
+  <button class="btn gold" id="inviteAccept">Accept</button>
+  <button class="btn ghost" id="inviteDecline">Decline</button>
+</div>
 
-  <div class="arena">
+<div class="app">
+  <div class="status is-busy" id="status">
+    <span class="status-led" aria-hidden="true"></span>
+    <span class="status-spinner" aria-hidden="true"></span>
+    <span id="statusText">connecting…</span>
+  </div>
+
+  <div class="play-shell">
+    <aside class="control-panel">
+      <div class="modebar panel">
+        <div class="toggle" id="topMode">
+          <button class="seg active" data-mode="pvp">PvP</button>
+          <button class="seg" data-mode="br">Battle Royale</button>
+        </div>
+        <div class="toggle" id="pvpMode">
+          <button class="seg active" data-pvp="solo">Solo</button>
+          <button class="seg" data-pvp="duos">Duos</button>
+        </div>
+      </div>
+
+      <aside class="friends">
+        <div class="pcard" id="friendsCard">
+          <span class="pc-tag">Friends</span>
+          <div class="fr-code">your code: <b id="myCode">—</b></div>
+          <div class="fr-add">
+            <input id="codeInput" placeholder="friend code" maxlength="9" />
+            <button class="btn ghost" id="addFriendBtn">Add</button>
+          </div>
+          <div class="fr-list" id="friendList"></div>
+        </div>
+      </aside>
+
+      <div class="lobby hidden" id="lobbyBox">
+        <span class="pc-tag">Duo Lobby</span>
+        <div class="lobby-mems" id="lobbyMembers"></div>
+        <div class="lobby-actions">
+          <button class="btn gold" id="queueDuosBtn">Queue for Duos</button>
+          <button class="btn ghost" id="leaveLobbyBtn">Leave</button>
+        </div>
+      </div>
+    </aside>
+
+    <main class="match-panel">
+      <div class="arena">
+
     <div class="stage">
-      <video id="remote" autoplay playsinline></video>
+      <div class="remote-grid" id="remoteGrid" data-count="0"></div>
       <video id="local" autoplay playsinline muted></video>
       <div class="fx" id="fx"></div>
       <div class="banner hidden" id="banner">
@@ -97,7 +179,7 @@
       </div>
     </div>
 
-    <aside class="players">
+    <aside class="players" id="playerCards">
       <div class="pcard" id="selfCard">
         <span class="pc-tag">You</span>
         <div class="pc-name" id="selfName">—</div>
@@ -116,13 +198,15 @@
   </div>
 
   <div class="scorebar">
-    <div class="side"><div class="lab"><span>you</span><span id="youNum">0</span></div><div class="track"><div class="fill you" id="youBar"></div></div></div>
-    <div class="side"><div class="lab"><span>them</span><span id="themNum">0</span></div><div class="track"><div class="fill them" id="themBar"></div></div></div>
+    <div class="side"><div class="lab"><span id="youLabel">you</span><span id="youNum">0</span></div><div class="track"><div class="fill you" id="youBar"></div></div></div>
+    <div class="side"><div class="lab"><span id="themLabel">them</span><span id="themNum">0</span></div><div class="track"><div class="fill them" id="themBar"></div></div></div>
   </div>
 
   <div class="gamebar">
     <button id="find" disabled>Find a match</button>
     <button id="next" class="ghost" disabled>Next</button>
+  </div>
+  </main>
   </div>
 </div>
 
@@ -151,7 +235,7 @@ import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@m
 import { rankFor } from "/js/ranks.mjs";
 
 const $ = id => document.getElementById(id);
-const statusEl = $("status"), banner = $("banner"), localVideo = $("local"), remoteVideo = $("remote");
+const statusEl = $("status"), statusText = $("statusText"), banner = $("banner"), localVideo = $("local"), remoteGrid = $("remoteGrid");
 const fx = $("fx"), stageEl = document.querySelector(".stage");
 const TOKEN_KEY = "lastlaugh_token";
 
@@ -159,11 +243,14 @@ const SMILE_FLOOR = 0.30, JAW_FLOOR = 0.25, LAUGH_GAIN = 3.0, RATE = 10.0;
 const ICE = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
 
 const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host);
-let pc = null, localStream = null, remoteSet = false, pendingCandidates = [];
+let peerConnections = new Map(), localStream = null, myPeerId = null, activePeers = [];
 let detector = null;
 
 function signal(m) { ws.send(JSON.stringify(m)); }
-function setStatus(s) { statusEl.textContent = s; }
+function setStatus(s) {
+  statusText.textContent = s;
+  statusEl.classList.toggle("is-busy", /searching|queueing|connecting/i.test(s));
+}
 function setBodyState(phase, role) { document.body.dataset.phase = phase || ""; document.body.dataset.role = role || ""; }
 
 // ---------- juice: popups + edge flashes ----------
@@ -196,7 +283,7 @@ function authenticate() {
   else $("nameGate").classList.remove("hidden");
 }
 $("nameBtn").addEventListener("click", () => signal({ type: "auth", name: $("nameInput").value.trim() || "Anon" }));
-function applyProfile(p) { $("profName").textContent = p.name; $("profRating").textContent = p.rating; $("profRecord").textContent = `${p.wins}W ${p.losses}L`; }
+function applyProfile(_p) {}
 
 // ---------- player cards beside the cam ----------
 let selfProfile = null;
@@ -221,12 +308,101 @@ function renderCard(who, p) {
   $(who + "Elo").textContent = p.rating;
   renderForm($(who + "Form"), p.form);
 }
+function removeExtraCards() {
+  document.querySelectorAll(".match-peer-card").forEach(el => el.remove());
+  $("oppCard").style.display = "";
+  $("oppCard").querySelector(".pc-tag").textContent = "Opponent";
+}
+function makePeerCard(label, p) {
+  const card = document.createElement("div");
+  card.className = "pcard match-peer-card";
+  const t = rankFor(p.rating);
+  card.innerHTML = `
+    <span class="pc-tag">${label}</span>
+    <div class="pc-name"></div>
+    <div class="pc-rank"></div>
+    <div class="pc-elo"><b></b> ELO</div>
+    <div class="pc-form"></div>`;
+  card.querySelector(".pc-name").textContent = p.name;
+  const rank = card.querySelector(".pc-rank");
+  rank.textContent = t.name; rank.style.color = t.color;
+  card.querySelector(".pc-elo b").textContent = p.rating;
+  renderForm(card.querySelector(".pc-form"), p.form);
+  return card;
+}
+function renderMatchCards(msg) {
+  removeExtraCards();
+  const peers = msg.peers || [];
+  const enemies = peers.filter(p => p.team !== "ally");
+  const allies = peers.filter(p => p.team === "ally");
+  if (enemies[0]) renderCard("opp", enemies[0]);
+  else clearOpponent();
+  $("oppCard").querySelector(".pc-tag").textContent = msg.mode === "duos" ? "Opponent 1" : "Opponent";
+  for (const ally of allies) $("playerCards").appendChild(makePeerCard("Duo", ally));
+  enemies.slice(1).forEach((p, i) => $("playerCards").appendChild(makePeerCard("Opponent " + (i + 2), p)));
+}
 function clearOpponent() {
+  removeExtraCards();
   $("oppName").textContent = "—";
   $("oppRank").textContent = "—"; $("oppRank").style.color = "";
   $("oppElo").textContent = "—";
   $("oppForm").innerHTML = "";
 }
+
+// ---------- friends, lobby, modes ----------
+let mode = "solo", topMode = "pvp", currentMatchMode = "solo", lobby = null, myUserId = null, friends = [], pendingInvite = null, isSearching = false;
+const friendReason = { not_found: "no player with that code", self: "that's your own code", offline: "they're offline", unavailable: "they're busy", empty: "enter a code" };
+
+function renderFriends() {
+  const wrap = $("friendList"); wrap.innerHTML = "";
+  if (!friends.length) { wrap.innerHTML = `<div class="fr-empty">add a friend by code</div>`; return; }
+  for (const f of friends) {
+    const row = document.createElement("div"); row.className = "fr-row";
+    const dot = document.createElement("span"); dot.className = "fr-dot" + (f.online ? " on" : "");
+    const nm = document.createElement("span"); nm.className = "fr-name"; nm.textContent = f.name;
+    const btn = document.createElement("button"); btn.className = "btn ghost fr-invite";
+    btn.textContent = f.online ? "Invite" : "offline";
+    btn.disabled = !(f.online && mode === "duos" && !lobby && $("next").disabled);     // invite only makes sense in duos, pre-lobby
+    btn.onclick = () => { signal({ type: "invite", friendId: f.id }); setStatus("invited " + f.name + "…"); };
+    row.append(dot, nm, btn); wrap.appendChild(row);
+  }
+}
+function renderLobby() {
+  const box = $("lobbyBox");
+  if (!lobby) { box.classList.add("hidden"); return; }
+  box.classList.remove("hidden");
+  $("lobbyMembers").innerHTML = lobby.members
+    .map(m => `<span class="lobby-mem">${m.name}${String(m.id) === String(lobby.leader) ? " 👑" : ""}</span>`).join("");
+  const leader = String(lobby.leader) === String(myUserId);
+  $("queueDuosBtn").disabled = !leader;
+  $("queueDuosBtn").textContent = leader ? "Queue for Duos" : "waiting for leader…";
+}
+function updateModeUI() {
+  for (const b of $("topMode").children) b.classList.toggle("active", b.dataset.mode === topMode);
+  for (const b of $("pvpMode").children) b.classList.toggle("active", b.dataset.pvp === mode);
+  $("pvpMode").style.visibility = topMode === "pvp" ? "visible" : "hidden";
+  const find = $("find");
+  find.classList.toggle("cancel-search", isSearching);
+  if (isSearching) { find.disabled = false; find.textContent = "Cancel search"; renderFriends(); return; }
+  if (topMode === "br") { find.disabled = true; find.textContent = "Battle Royale (soon)"; }
+  else if (mode === "duos") { find.disabled = true; find.textContent = "Duos — invite a friend"; }
+  else { find.disabled = false; find.textContent = "Find a match"; }
+  renderFriends();
+}
+$("topMode").addEventListener("click", e => { const b = e.target.closest("[data-mode]"); if (b) { topMode = b.dataset.mode; updateModeUI(); } });
+$("pvpMode").addEventListener("click", e => { const b = e.target.closest("[data-pvp]"); if (b) { mode = b.dataset.pvp; updateModeUI(); } });
+$("addFriendBtn").addEventListener("click", () => {
+  const code = $("codeInput").value.trim(); if (!code) return;
+  signal({ type: "addFriend", code }); $("codeInput").value = "";
+});
+$("queueDuosBtn").addEventListener("click", () => { signal({ type: "queueDuos" }); setStatus("queueing duo…"); });
+$("leaveLobbyBtn").addEventListener("click", () => { signal({ type: "leaveLobby" }); lobby = null; renderLobby(); updateModeUI(); setStatus("left lobby"); });
+function showInvite(from) {
+  pendingInvite = from; $("inviteText").textContent = `${from.name} invited you to a duo`;
+  $("invitePrompt").classList.remove("hidden");
+}
+$("inviteAccept").addEventListener("click", () => { if (pendingInvite) signal({ type: "acceptInvite", fromId: pendingInvite.id }); $("invitePrompt").classList.add("hidden"); pendingInvite = null; });
+$("inviteDecline").addEventListener("click", () => { if (pendingInvite) signal({ type: "declineInvite", fromId: pendingInvite.id }); $("invitePrompt").classList.add("hidden"); pendingInvite = null; });
 
 // ---------- media + WebRTC ----------
 async function ensureCamera() {
@@ -234,15 +410,76 @@ async function ensureCamera() {
   localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
   localVideo.srcObject = localStream;
 }
-function startCall(isInitiator) {
-  pc = new RTCPeerConnection(ICE); remoteSet = false; pendingCandidates = [];
-  for (const t of localStream.getTracks()) pc.addTrack(t, localStream);
-  pc.ontrack = e => { remoteVideo.srcObject = e.streams[0]; };
-  pc.onicecandidate = e => { if (e.candidate) signal({ type: "candidate", candidate: e.candidate }); };
-  if (isInitiator) pc.createOffer().then(o => pc.setLocalDescription(o)).then(() => signal({ type: "offer", sdp: pc.localDescription }));
+function tileFor(peer) {
+  let tile = remoteGrid.querySelector(`[data-peer="${peer.id}"]`);
+  if (tile) return tile;
+  tile = document.createElement("div");
+  tile.className = "remote-tile";
+  tile.dataset.peer = peer.id;
+  const video = document.createElement("video");
+  video.autoplay = true; video.playsInline = true;
+  const label = document.createElement("span");
+  label.className = "remote-label";
+  label.textContent = peer.name || "Player";
+  tile.append(video, label);
+  remoteGrid.appendChild(tile);
+  remoteGrid.dataset.count = remoteGrid.children.length;
+  return tile;
 }
-async function flushCandidates() { for (const c of pendingCandidates) { try { await pc.addIceCandidate(c); } catch {} } pendingCandidates = []; }
-function endCall() { if (pc) { pc.close(); pc = null; } remoteVideo.srcObject = null; remoteSet = false; pendingCandidates = []; }
+function createPeer(peer) {
+  const existing = peerConnections.get(peer.id);
+  if (existing) return existing;
+  const pc = new RTCPeerConnection(ICE);
+  const state = { pc, remoteSet: false, pendingCandidates: [], peer };
+  peerConnections.set(peer.id, state);
+  tileFor(peer);
+  for (const t of localStream.getTracks()) pc.addTrack(t, localStream);
+  pc.ontrack = e => { tileFor(peer).querySelector("video").srcObject = e.streams[0]; };
+  pc.onicecandidate = e => { if (e.candidate) signal({ type: "candidate", target: peer.id, candidate: e.candidate }); };
+  return state;
+}
+async function flushCandidates(state) {
+  for (const c of state.pendingCandidates) { try { await state.pc.addIceCandidate(c); } catch {} }
+  state.pendingCandidates = [];
+}
+async function startMesh(peers) {
+  endCall();
+  await ensureCamera();
+  activePeers = peers || [];
+  remoteGrid.innerHTML = "";
+  remoteGrid.dataset.count = "0";
+  for (const peer of activePeers) {
+    const state = createPeer(peer);
+    if (peer.initiator) {
+      await state.pc.setLocalDescription(await state.pc.createOffer());
+      signal({ type: "offer", target: peer.id, sdp: state.pc.localDescription });
+    }
+  }
+}
+async function acceptOffer(msg) {
+  await ensureCamera();
+  const peer = activePeers.find(p => String(p.id) === String(msg.from)) || { id: msg.from, name: "Player" };
+  const state = createPeer(peer);
+  await state.pc.setRemoteDescription(msg.sdp); state.remoteSet = true; await flushCandidates(state);
+  await state.pc.setLocalDescription(await state.pc.createAnswer());
+  signal({ type: "answer", target: msg.from, sdp: state.pc.localDescription });
+}
+async function acceptAnswer(msg) {
+  const state = peerConnections.get(msg.from);
+  if (!state) return;
+  await state.pc.setRemoteDescription(msg.sdp); state.remoteSet = true; await flushCandidates(state);
+}
+async function acceptCandidate(msg) {
+  const state = peerConnections.get(msg.from);
+  if (!state) return;
+  if (state.remoteSet) { try { await state.pc.addIceCandidate(msg.candidate); } catch {} }
+  else state.pendingCandidates.push(msg.candidate);
+}
+function endCall() {
+  for (const state of peerConnections.values()) state.pc.close();
+  peerConnections.clear(); activePeers = [];
+  remoteGrid.innerHTML = ""; remoteGrid.dataset.count = "0";
+}
 
 // ---------- detector + the reaction beat (watcher side) ----------
 async function ensureDetector() {
@@ -302,6 +539,15 @@ function setScores(s) {
   const max = Math.max(10, s.you, s.them);
   $("youBar").style.width = (s.you / max * 100) + "%"; $("themBar").style.width = (s.them / max * 100) + "%";
 }
+function resetMatchUi() {
+  isSearching = false;
+  currentMatchMode = "solo";
+  myPeerId = null;
+  $("youLabel").textContent = "you";
+  $("themLabel").textContent = "them";
+  clearOpponent();
+  setScores({ you: 0, them: 0 });
+}
 let countdownTimer = null;
 function localCountdown(from, label, sub) {
   clearInterval(countdownTimer);
@@ -325,14 +571,14 @@ function applyGameState(msg) {
       clearInterval(countdownTimer);
       const word = msg.outcome === "win" ? "You win" : msg.outcome === "lose" ? "You lose" : "Draw";
       showBanner(word, "", `${Math.round(msg.scores.you)} – ${Math.round(msg.scores.them)}`);
-      if (selfProfile && msg.outcome) { selfProfile.form = [msg.outcome, ...(selfProfile.form || [])]; renderForm($("selfForm"), selfProfile.form); }
+      if (selfProfile && msg.outcome && currentMatchMode === "solo") { selfProfile.form = [msg.outcome, ...(selfProfile.form || [])]; renderForm($("selfForm"), selfProfile.form); }
       break;
     }
   }
 }
 
 ws.addEventListener("open", () => { setStatus("connecting…"); authenticate(); });
-ws.addEventListener("close", () => { setStatus("disconnected"); endCall(); stopScoring(); setBodyState("idle", ""); });
+ws.addEventListener("close", () => { isSearching = false; updateModeUI(); setStatus("disconnected"); endCall(); stopScoring(); setBodyState("idle", ""); });
 ws.addEventListener("message", async (e) => {
   const msg = JSON.parse(e.data);
   switch (msg.type) {
@@ -340,20 +586,27 @@ ws.addEventListener("message", async (e) => {
       localStorage.setItem(TOKEN_KEY, msg.token);
       $("nameGate").classList.add("hidden"); applyProfile(msg.profile);
       selfProfile = msg.profile; renderCard("self", selfProfile);
-      setStatus("ready — find a match"); $("find").disabled = false; break;
-    case "waiting": setStatus("searching…"); setBodyState("searching", ""); break;
+      myUserId = msg.profile.id;
+      if (msg.profile.friendCode) $("myCode").textContent = msg.profile.friendCode;
+      updateModeUI();
+      setStatus("ready — find a match"); break;
+    case "waiting": isSearching = true; updateModeUI(); setStatus("searching…"); setBodyState("searching", ""); break;
     case "matched":
-      if (msg.opponent) renderCard("opp", msg.opponent);
-      await ensureCamera(); ensureDetector(); startCall(msg.initiator);
-      setStatus("opponent found"); setBodyState("matched", ""); $("find").disabled = true; $("next").disabled = false; break;
+      isSearching = false; $("find").classList.remove("cancel-search");
+      lobby = null; renderLobby(); renderFriends();
+      myPeerId = msg.peerId; currentMatchMode = msg.mode || "solo";
+      $("youLabel").textContent = currentMatchMode === "duos" ? "your team" : "you";
+      $("themLabel").textContent = currentMatchMode === "duos" ? "their team" : "them";
+      renderMatchCards(msg);
+      await startMesh(msg.peers || []); ensureDetector();
+      setStatus(currentMatchMode === "duos" ? "duos match found" : "opponent found");
+      setBodyState("matched", ""); $("find").disabled = true; $("next").disabled = false; renderFriends(); break;
     case "offer":
-      if (!pc) startCall(false);
-      await pc.setRemoteDescription(msg.sdp); remoteSet = true; await flushCandidates();
-      await pc.setLocalDescription(await pc.createAnswer()); signal({ type: "answer", sdp: pc.localDescription }); break;
+      await acceptOffer(msg); break;
     case "answer":
-      await pc.setRemoteDescription(msg.sdp); remoteSet = true; await flushCandidates(); break;
+      await acceptAnswer(msg); break;
     case "candidate":
-      if (remoteSet) { try { await pc.addIceCandidate(msg.candidate); } catch {} } else pendingCandidates.push(msg.candidate); break;
+      await acceptCandidate(msg); break;
     case "gameState": applyGameState(msg); break;
     case "score": setScores(msg.scores); break;
     case "reaction":
@@ -363,26 +616,44 @@ ws.addEventListener("message", async (e) => {
       break;
     case "ranked":
       $("bannerDelta").textContent = (msg.delta >= 0 ? "+" : "") + msg.delta + "  →  " + msg.rating;
-      $("profRating").textContent = msg.rating;
       if (selfProfile) { selfProfile.rating = msg.rating; renderCard("self", selfProfile); }
       break;
+    case "friends": friends = msg.list; renderFriends(); break;
+    case "friendError": setStatus(friendReason[msg.reason] || msg.reason); break;
+    case "invited": showInvite(msg.from); break;
+    case "lobby": lobby = msg.lobby; renderLobby(); updateModeUI(); setStatus("in a duo lobby"); break;
+    case "lobbyClosed": lobby = null; renderLobby(); updateModeUI(); setStatus("lobby closed"); break;
+    case "inviteDeclined": setStatus((msg.by || "they") + " declined the invite"); break;
+    case "duosWaiting": setStatus("searching for another duo…"); break;
+    case "searchCanceled": isSearching = false; updateModeUI(); setStatus("ready - find a match"); setBodyState("idle", ""); break;
     case "gameReset":
-      stopScoring(); endCall(); hideBanner(); setBodyState("idle", ""); clearOpponent();
+      stopScoring(); endCall(); hideBanner(); setBodyState("idle", ""); resetMatchUi();
       setStatus("game over — find another"); setScores({ you: 0, them: 0 });
-      $("find").disabled = false; $("next").disabled = true; break;
+      $("next").disabled = true; updateModeUI(); break;
     case "partnerLeft":
-      stopScoring(); endCall(); hideBanner(); setBodyState("idle", ""); clearOpponent();
+      stopScoring(); endCall(); hideBanner(); setBodyState("idle", ""); resetMatchUi();
       setStatus("opponent left — find another"); setScores({ you: 0, them: 0 });
-      $("find").disabled = false; $("next").disabled = true; break;
+      $("next").disabled = true; updateModeUI(); break;
   }
 });
 
 $("find").addEventListener("click", async () => {
+  if (isSearching) {
+    isSearching = false;
+    signal({ type: "cancelSearch" });
+    updateModeUI();
+    setStatus("ready - find a match");
+    setBodyState("idle", "");
+    return;
+  }
   try { await ensureCamera(); } catch (err) { setStatus("camera blocked: " + err.message); return; }
-  signal({ type: "find" }); $("find").disabled = true; setStatus("searching…");
+  isSearching = true;
+  signal({ type: "find" }); updateModeUI(); setStatus("searching…");
 });
 $("next").addEventListener("click", () => {
-  stopScoring(); endCall(); hideBanner(); clearOpponent(); signal({ type: "next" });
+  const wasDuos = currentMatchMode === "duos";
+  stopScoring(); endCall(); hideBanner(); resetMatchUi(); signal({ type: "next" });
+  if (wasDuos) { $("next").disabled = true; updateModeUI(); setStatus("left duos match"); return; }
   setScores({ you: 0, them: 0 }); $("find").disabled = true; setStatus("searching…");
 });
 </script>

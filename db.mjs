@@ -1,6 +1,14 @@
 import crypto from "node:crypto";
 import { resultFromScores, updatedRatings } from "./elo.mjs";
 
+// Short, shareable, non-secret handle. No ambiguous chars (0/O, 1/I/L). e.g. "K7M-3PQ".
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function genCode() {
+  let s = "";
+  for (let i = 0; i < 6; i++) s += CODE_ALPHABET[crypto.randomInt(CODE_ALPHABET.length)];
+  return s.slice(0, 3) + "-" + s.slice(3);
+}
+
 // makeDb takes a connection pool (real pg, or pg-mem in tests) and returns the
 // data-access functions. Keeping the pool injected means this file never imports
 // pg directly, so the same code is testable in-memory.
@@ -8,15 +16,22 @@ export function makeDb(pool) {
   async function initSchema() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS users (
-        id      BIGSERIAL PRIMARY KEY,
-        name    TEXT NOT NULL,
-        token   TEXT NOT NULL UNIQUE,
+        id          BIGSERIAL PRIMARY KEY,
+        name        TEXT NOT NULL,
+        token       TEXT NOT NULL UNIQUE,
+        friend_code TEXT,
         rating  INTEGER NOT NULL DEFAULT 1000,
         wins    INTEGER NOT NULL DEFAULT 0,
         losses  INTEGER NOT NULL DEFAULT 0,
         draws   INTEGER NOT NULL DEFAULT 0,
         games   INTEGER NOT NULL DEFAULT 0
       );`);
+    // migrate user tables that predate friend codes, then backfill + enforce uniqueness
+    try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS friend_code TEXT`); } catch {}
+    const missing = await pool.query(`SELECT id FROM users WHERE friend_code IS NULL`);
+    for (const r of missing.rows) await pool.query(`UPDATE users SET friend_code = $1 WHERE id = $2`, [genCode(), r.id]);
+    try { await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_friend_code_idx ON users (friend_code)`); } catch {}
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS matches (
         id              BIGSERIAL PRIMARY KEY,
@@ -30,6 +45,12 @@ export function makeDb(pool) {
         rating_b_before INTEGER NOT NULL,
         rating_b_after  INTEGER NOT NULL
       );`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS friends (
+        user_id   BIGINT NOT NULL,
+        friend_id BIGINT NOT NULL,
+        UNIQUE (user_id, friend_id)
+      );`);
   }
 
   // Resolve a browser to an account. Known token -> that user. Otherwise mint a
@@ -42,8 +63,8 @@ export function makeDb(pool) {
     const newToken = crypto.randomUUID();
     const safeName = (name || "Anon").trim().slice(0, 24) || "Anon";
     const { rows } = await pool.query(
-      "INSERT INTO users (name, token) VALUES ($1, $2) RETURNING *",
-      [safeName, newToken]
+      "INSERT INTO users (name, token, friend_code) VALUES ($1, $2, $3) RETURNING *",
+      [safeName, newToken, genCode()]
     );
     return rows[0];
   }
@@ -134,5 +155,39 @@ export function makeDb(pool) {
     });
   }
 
-  return { initSchema, getOrCreateUser, recordMatch, topPlayers, getUserByToken, recentMatches };
+  async function getUserById(id) {
+    const { rows } = await pool.query("SELECT * FROM users WHERE id = $1", [id]);
+    return rows[0] || null;
+  }
+
+  // Add a friend by their shareable code. Mutual + idempotent (two directed rows).
+  async function addFriendByCode(userId, code) {
+    let norm = (code || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+    if (norm.length === 6) norm = norm.slice(0, 3) + "-" + norm.slice(3);
+    if (!norm) return { ok: false, reason: "empty" };
+    const { rows } = await pool.query("SELECT * FROM users WHERE friend_code = $1", [norm]);
+    const friend = rows[0];
+    if (!friend) return { ok: false, reason: "not_found" };
+    if (String(friend.id) === String(userId)) return { ok: false, reason: "self" };
+    const link = async (a, b) => {
+      const { rows: ex } = await pool.query("SELECT 1 FROM friends WHERE user_id = $1 AND friend_id = $2", [a, b]);
+      if (!ex.length) await pool.query("INSERT INTO friends (user_id, friend_id) VALUES ($1, $2)", [a, b]);
+    };
+    await link(userId, friend.id);
+    await link(friend.id, userId);
+    return { ok: true, friend: { id: friend.id, name: friend.name, rating: friend.rating } };
+  }
+
+  async function listFriends(userId) {
+    const { rows } = await pool.query(
+      `SELECT u.id, u.name, u.rating, u.friend_code
+         FROM friends f JOIN users u ON u.id = f.friend_id
+        WHERE f.user_id = $1
+        ORDER BY u.name ASC`,
+      [userId]
+    );
+    return rows;
+  }
+
+  return { initSchema, getOrCreateUser, recordMatch, topPlayers, getUserByToken, recentMatches, getUserById, addFriendByCode, listFriends };
 }
