@@ -115,6 +115,50 @@ export function makeDb(pool) {
     }
   }
 
+  // Duos rating: each of the 4 players is updated INDIVIDUALLY, as if they'd played a solo
+  // game against the average rating of the opposing team. Both teammates share an outcome
+  // (their team won/lost/drew) but get different deltas based on their own rating. No 2v2
+  // match row is written (the matches table is 1v1-shaped); only ratings + W/L/D/games move.
+  // teamA / teamB are arrays of two user ids; scores are the team scores.
+  async function recordDuosRatings(teamA, teamB, rawScoreA, rawScoreB) {
+    const scoreA = Math.round(rawScoreA), scoreB = Math.round(rawScoreB);
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      const load = async ids => {
+        const out = [];
+        for (const id of ids) out.push((await client.query("SELECT * FROM users WHERE id = $1", [id])).rows[0]);
+        return out;
+      };
+      const a = await load(teamA), b = await load(teamB);
+      const resultA = resultFromScores(scoreA, scoreB);          // 1 / 0.5 / 0 for team A
+      const avg = arr => arr.reduce((s, u) => s + u.rating, 0) / arr.length;
+      const avgA = avg(a), avgB = avg(b);
+      const results = {};
+      const apply = async (players, oppAvg, result) => {
+        const outcome = result === 1 ? "win" : result === 0 ? "lose" : "draw";
+        for (const u of players) {
+          const { a: after } = updatedRatings(u.rating, oppAvg, result);   // .a = this player's new rating
+          await client.query(
+            `UPDATE users SET rating = $1, games = games + 1,
+               wins = wins + $2, losses = losses + $3, draws = draws + $4 WHERE id = $5`,
+            [after, result === 1 ? 1 : 0, result === 0 ? 1 : 0, result === 0.5 ? 1 : 0, u.id]
+          );
+          results[String(u.id)] = { before: u.rating, after, delta: after - u.rating, outcome };
+        }
+      };
+      await apply(a, avgB, resultA);
+      await apply(b, avgA, 1 - resultA);
+      await client.query("COMMIT");
+      return results;                                            // { userId(str) -> {before, after, delta, outcome} }
+    } catch (e) {
+      await client.query("ROLLBACK");
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
   async function topPlayers(n = 10) {
     const { rows } = await pool.query(
       "SELECT name, rating, wins, losses FROM users ORDER BY rating DESC, games DESC LIMIT $1",
@@ -189,5 +233,5 @@ export function makeDb(pool) {
     return rows;
   }
 
-  return { initSchema, getOrCreateUser, recordMatch, topPlayers, getUserByToken, recentMatches, getUserById, addFriendByCode, listFriends };
+  return { initSchema, getOrCreateUser, recordMatch, recordDuosRatings, topPlayers, getUserByToken, recentMatches, getUserById, addFriendByCode, listFriends };
 }

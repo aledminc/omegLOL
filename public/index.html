@@ -3,56 +3,282 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>omegLOL — talk to strangers, try not to laugh</title>
+<title>omegLOL — make a stranger laugh, don't laugh back</title>
+<meta name="description" content="omegLOL is a 1v1 comedy duel on cam. 30 seconds to make a stranger laugh. Your webcam keeps score." />
 <link rel="stylesheet" href="/css/base.css" />
 </head>
-<body>
+<body class="home">
+
+<!-- floating retro emojis across the bg -->
+<div class="bg-deco" aria-hidden="true">
+  <span style="--x:6%;  --y:14%; --d:0s;   --r:-8deg;  font-size:46px">😂</span>
+  <span style="--x:92%; --y:8%;  --d:1.2s; --r:12deg;  font-size:38px">🤣</span>
+  <span style="--x:3%;  --y:48%; --d:2s;   --r:6deg;   font-size:54px">📺</span>
+  <span style="--x:96%; --y:42%; --d:.6s;  --r:-10deg; font-size:42px">🎤</span>
+  <span style="--x:8%;  --y:78%; --d:1.6s; --r:14deg;  font-size:48px">💀</span>
+  <span style="--x:94%; --y:82%; --d:2.4s; --r:-6deg;  font-size:40px">🏆</span>
+  <span style="--x:50%; --y:96%; --d:.9s;  --r:4deg;   font-size:36px">🎭</span>
+</div>
+
 <header id="site-nav"></header>
 
+<!-- ============ HERO ============ -->
 <section class="hero-wrap">
-  <div class="crt">
-    <div class="hero-cam" aria-hidden="true"></div>
-    <h1 class="hero-logo">omeg<span class="lol">LOL</span></h1>
-    <p class="hero-tag">Talk to strangers. Try not to laugh. A 1-v-1 comedy duel, live on cam.</p>
-    <div class="hero-cta">
-      <a class="btn" href="/login">Log in</a>
-      <a class="btn ghost" href="/play">Play as guest</a>
+  <div class="crt hero-crt">
+    <div class="hero-grid">
+      <div class="hero-left">
+        <span class="kicker">▶ LIVE · 1v1 COMEDY DUEL</span>
+        <h1 class="hero-logo">omeg<span class="lol">LOL</span></h1>
+        <p class="hero-tag">Make a stranger laugh. Don't laugh back.</p>
+        <p class="hero-sub">You get 30 seconds to make your opponent laugh. Then they try to break you. Your webcam keeps score.</p>
+        <div class="hero-cta">
+          <a class="btn gold xl" href="/play">Play free →</a>
+          <a class="btn ghost" href="/login">Log in to save your rank</a>
+        </div>
+        <p class="trust">🔒 No download. No signup. We never see your camera.</p>
+      </div>
+      <div class="hero-right">
+        <div class="duel">
+          <div class="cam cam-a">
+            <span class="rec">REC ●</span>
+            <div class="face">😆</div>
+            <span class="cam-label">stranger</span>
+          </div>
+          <div class="vs">VS</div>
+          <div class="cam cam-b">
+            <span class="rec">REC ●</span>
+            <div class="face straight">😐</div>
+            <span class="cam-label">you</span>
+          </div>
+        </div>
+        <div class="scoretape">
+          <span>YOU <b>+120</b></span>
+          <span>THEM <b>+80</b></span>
+          <span class="timer">0:23</span>
+        </div>
+      </div>
     </div>
-  </div>
-
-  <div class="feature-grid">
-    <div class="feature">
-      <span class="badge">01</span>
-      <h4>Get matched</h4>
-      <p>Auto-paired with a random opponent, webcam to webcam.</p>
-    </div>
-    <div class="feature">
-      <span class="badge">02</span>
-      <h4>30-second duel</h4>
-      <p>One performs, one keeps a straight face. Then you swap.</p>
-    </div>
-    <div class="feature">
-      <span class="badge">03</span>
-      <h4>Camera scores it</h4>
-      <p>Every smile and laugh is detected and tallied in real time.</p>
-    </div>
-    <div class="feature">
-      <span class="badge">04</span>
-      <h4>Climb the ladder</h4>
-      <p>Win to gain Elo. Lose, learn, come back funnier.</p>
-    </div>
-  </div>
-
-  <div class="panel" style="margin-top:22px">
-    <h3>How it works</h3>
-    <ol class="muted" style="margin:0; padding-left:20px">
-      <li>You're matched live with a random opponent.</li>
-      <li>One of you performs; the other tries to keep a straight face.</li>
-      <li>Every smile and laugh is scored by your webcam.</li>
-      <li>Swap, tally, and climb the ranked ladder.</li>
-    </ol>
   </div>
 </section>
+
+<!-- ============ WHAT IS THIS BAND ============ -->
+<section class="band">
+  <div class="marquee">
+    <div class="marquee-track">
+      <span>Two strangers.</span><span>★</span>
+      <span>A webcam each.</span><span>★</span>
+      <span>One rule: try not to laugh.</span><span>★</span>
+      <span>Two strangers.</span><span>★</span>
+      <span>A webcam each.</span><span>★</span>
+      <span>One rule: try not to laugh.</span><span>★</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ SOCIALS ============ -->
+<section class="socials-wrap">
+  <p class="socials-label">Follow @omeglolofficial</p>
+  <div class="socials">
+    <a href="#" class="soc yt" aria-label="YouTube">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.5 12 4.5 12 4.5s-7 0-8.9.6A3 3 0 0 0 1 7.2C.5 9.1.5 12 .5 12s0 2.9.5 4.8a3 3 0 0 0 2.1 2.1c1.9.6 8.9.6 8.9.6s7 0 8.9-.6a3 3 0 0 0 2.1-2.1c.5-1.9.5-4.8.5-4.8s0-2.9-.5-4.8zM9.8 15.5v-7l6 3.5-6 3.5z"/></svg>
+      <span>YouTube</span>
+    </a>
+    <a href="#" class="soc ig" aria-label="Instagram">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.2.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.2.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.2-2.2-.4a3.7 3.7 0 0 1-1.4-.9 3.7 3.7 0 0 1-.9-1.4c-.2-.4-.4-1-.4-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.7.1-1.1.1-1.7.2-2.1.4-.5.2-.9.4-1.3.8-.4.4-.6.8-.8 1.3-.2.4-.3 1-.4 2.1-.1 1.2-.1 1.6-.1 4.7s0 3.5.1 4.7c.1 1.1.2 1.7.4 2.1.2.5.4.9.8 1.3.4.4.8.6 1.3.8.4.2 1 .3 2.1.4 1.2.1 1.6.1 4.7.1s3.5 0 4.7-.1c1.1-.1 1.7-.2 2.1-.4.5-.2.9-.4 1.3-.8.4-.4.6-.8.8-1.3.2-.4.3-1 .4-2.1.1-1.2.1-1.6.1-4.7s0-3.5-.1-4.7c-.1-1.1-.2-1.7-.4-2.1a2.4 2.4 0 0 0-.8-1.3 2.4 2.4 0 0 0-1.3-.8c-.4-.2-1-.3-2.1-.4-1.2-.1-1.6-.1-4.7-.1zM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 1.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zM17.6 5.6a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4z"/></svg>
+      <span>Instagram</span>
+    </a>
+    <a href="#" class="soc tt" aria-label="TikTok">
+      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M19.6 6.7a5.4 5.4 0 0 1-3.2-1V16a5.6 5.6 0 1 1-5.6-5.6c.3 0 .6 0 .9.1v2.7a3 3 0 1 0 2 2.8V2h2.6a5.4 5.4 0 0 0 3.3 4.7v2z"/></svg>
+      <span>TikTok</span>
+    </a>
+  </div>
+</section>
+
+<!-- ============ HOW IT WORKS ============ -->
+<section class="section how">
+  <div class="section-head">
+    <span class="kicker">HOW IT WORKS</span>
+    <h2 class="section-title">Five steps. Thirty seconds. Total chaos.</h2>
+  </div>
+  <ol class="how-steps">
+    <li><span class="num">01</span><h4>Get matched</h4><p>Auto-paired with a random opponent, cam to cam.</p></li>
+    <li><span class="num">02</span><h4>Perform</h4><p>30 seconds to make them lose it. Bit, face, impression — whatever works.</p></li>
+    <li><span class="num">03</span><h4>Hold the line</h4><p>Then you swap. Now they try to break you.</p></li>
+    <li><span class="num">04</span><h4>The camera scores it</h4><p>Every smile and laugh is detected in real time and tallied.</p></li>
+    <li><span class="num">05</span><h4>Climb</h4><p>Win to gain Elo, rank up, come back funnier.</p></li>
+  </ol>
+</section>
+
+<!-- ============ WHY OMEGLOL ============ -->
+<section class="section why">
+  <div class="section-head">
+    <span class="kicker">WHY OMEGLOL</span>
+    <h2 class="section-title">Not random roulette. An actual sport.</h2>
+  </div>
+  <div class="why-grid">
+    <div class="why-card">
+      <div class="why-icon">🎯</div>
+      <h4>Your webcam is the referee</h4>
+      <p>On-device laugh detection reads every smile and giggle as it happens — no lag, no guessing.</p>
+    </div>
+    <div class="why-card">
+      <div class="why-icon">🔒</div>
+      <h4>Private by design</h4>
+      <p>Video goes peer-to-peer. Laugh detection runs on your machine. Our servers never see or store your camera.</p>
+    </div>
+    <div class="why-card">
+      <div class="why-icon">🏆</div>
+      <h4>It's an actual sport</h4>
+      <p>Real Elo, real ranks, a real ladder — not random roulette.</p>
+    </div>
+    <div class="why-card">
+      <div class="why-icon">👥</div>
+      <h4>Funnier with friends</h4>
+      <p>Add friends, squad up, and play 2-v-2.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ GAME MODES ============ -->
+<section class="section modes">
+  <div class="section-head">
+    <span class="kicker">GAME MODES</span>
+    <h2 class="section-title">Pick your poison.</h2>
+  </div>
+  <div class="modes-grid">
+    <div class="mode-card live">
+      <div class="mode-tag">LIVE</div>
+      <h3>Solo</h3>
+      <p class="mode-sub">1v1 · The classic duel</p>
+      <p>One on one, cam to cam. You vs. a stranger. The original format.</p>
+      <a class="btn" href="/play">Play now →</a>
+    </div>
+    <div class="mode-card live">
+      <div class="mode-tag">LIVE</div>
+      <h3>Duos</h3>
+      <p class="mode-sub">2v2 · Bring a friend</p>
+      <p>Share a lobby cam, tag-team the laughs, double the chaos.</p>
+      <a class="btn" href="/play">Play now →</a>
+    </div>
+    <div class="mode-card soon">
+      <div class="mode-tag">SOON</div>
+      <h3>Battle Royale</h3>
+      <p class="mode-sub">Last one laughing</p>
+      <p>One lobby. Many faces. Crack and you're out.</p>
+      <span class="btn ghost disabled">Coming soon</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RANKED LADDER ============ -->
+<section class="section ladder-wrap">
+  <div class="section-head">
+    <span class="kicker">THE LADDER</span>
+    <h2 class="section-title">Climb six tiers. Only the funniest reach True Jester.</h2>
+  </div>
+  <ol class="ladder">
+    <li style="--c:#b9c2c9"><span class="badge-tier">VI</span><span class="t-name">Silver Snickerer</span><span class="t-range">0 – 1099</span></li>
+    <li style="--c:#e8b94e"><span class="badge-tier">V</span><span class="t-name">Gold Giggler</span><span class="t-range">1100 – 1249</span></li>
+    <li style="--c:#7fd6e0"><span class="badge-tier">IV</span><span class="t-name">Platinum Parodist</span><span class="t-range">1250 – 1399</span></li>
+    <li style="--c:#8ea2ff"><span class="badge-tier">III</span><span class="t-name">Diamond Droll</span><span class="t-range">1400 – 1549</span></li>
+    <li style="--c:#c77dff"><span class="badge-tier">II</span><span class="t-name">Comedian</span><span class="t-range">1550 – 1699</span></li>
+    <li style="--c:#ff5aa0"><span class="badge-tier">I</span><span class="t-name">True Jester</span><span class="t-range">1700+</span></li>
+  </ol>
+  <p class="ladder-caption muted">Win duels to climb. Lose and slide. The ladder doesn't lie.</p>
+</section>
+
+<!-- ============ FRIENDS ============ -->
+<section class="section friends">
+  <div class="friends-grid">
+    <div>
+      <span class="kicker">PLAY WITH FRIENDS</span>
+      <h2 class="section-title">A friendlier face on the chaos.</h2>
+      <p>Add friends with a friend code, see who's online, and invite them straight to duos. Share a warm-up cam in the lobby before you queue. Less random — more inside jokes.</p>
+      <a class="btn" href="/play">Squad up →</a>
+    </div>
+    <div class="friends-window panel">
+      <h3>👯 Online (3)</h3>
+      <ul class="friend-list">
+        <li><span class="dot on"></span>jenny_42 <em>Gold Giggler</em><b>Invite</b></li>
+        <li><span class="dot on"></span>mr_giggles <em>Diamond Droll</em><b>Invite</b></li>
+        <li><span class="dot on"></span>xander.m <em>True Jester</em><b>Invite</b></li>
+        <li><span class="dot off"></span>theo <em>Comedian · offline</em></li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ============ COMMUNITY & SAFETY ============ -->
+<section class="section safety">
+  <div class="panel safety-panel">
+    <span class="kicker">COMMUNITY & SAFETY</span>
+    <h3>omegLOL is 18+.</h3>
+    <p>Every match has a purpose. Detection runs on your own device. Play respectfully — more safety tools are coming.</p>
+  </div>
+</section>
+
+<!-- ============ WHAT YOU NEED ============ -->
+<section class="section needs">
+  <div class="section-head">
+    <span class="kicker">WHAT YOU NEED</span>
+    <h2 class="section-title">The setup is dumb simple.</h2>
+  </div>
+  <div class="need-grid">
+    <div class="need"><div class="ni">📷</div><p>A webcam</p></div>
+    <div class="need"><div class="ni">🖥️</div><p>Desktop browser<br><small>Chrome · Edge · Firefox</small></p></div>
+    <div class="need"><div class="ni">💡</div><p>Decent lighting</p></div>
+    <div class="need"><div class="ni">😤</div><p>30 seconds of nerve</p></div>
+  </div>
+  <p class="muted center">Desktop only for now.</p>
+</section>
+
+<!-- ============ FAQ ============ -->
+<section class="section faq">
+  <div class="section-head">
+    <span class="kicker">FAQ</span>
+    <h2 class="section-title">Stuff people ask.</h2>
+  </div>
+  <div class="faq-grid">
+    <details><summary>Do I need an account?</summary><p>No — play as a guest. Accounts (coming) save your rank across devices.</p></details>
+    <details><summary>Is my video recorded?</summary><p>No. Video is peer-to-peer and laugh detection happens on your own device; our servers never see your camera.</p></details>
+    <details><summary>How does scoring work?</summary><p>Your opponent's webcam detects their smiles and laughs locally and scores you. The more you make them lose it, the more points you get.</p></details>
+    <details><summary>Can I play with friends?</summary><p>Yes — add friends and queue duos.</p></details>
+    <details><summary>Is it free?</summary><p>Completely.</p></details>
+    <details><summary>Mobile?</summary><p>Not yet — desktop only for now.</p></details>
+  </div>
+</section>
+
+<!-- ============ FINAL CTA ============ -->
+<section class="section final-cta">
+  <div class="crt finalcrt">
+    <h2 class="final-h">Think you're funny?</h2>
+    <p class="final-sub">Prove it.</p>
+    <a class="btn gold xl" href="/play">Play free →</a>
+  </div>
+</section>
+
+<!-- ============ FOOTER ============ -->
+<footer class="site-footer">
+  <div class="foot-grid">
+    <div>
+      <div class="foot-brand">omeg<span style="color:var(--gold)">LOL</span></div>
+      <p class="muted">Make a stranger laugh. Don't laugh back.</p>
+    </div>
+    <div>
+      <h5>Play</h5>
+      <a href="/">Home</a><a href="/play">Play</a><a href="/ranked">Ranked</a><a href="/login">Log in</a>
+    </div>
+    <div>
+      <h5>Company</h5>
+      <a href="#">About</a><a href="#">Privacy</a><a href="#">Terms</a><a href="#">Contact</a>
+    </div>
+    <div>
+      <h5>Follow</h5>
+      <a href="#">YouTube</a><a href="#">Instagram</a><a href="#">TikTok</a>
+    </div>
+  </div>
+  <p class="foot-bottom">Built by Xander Minch · © 2026 omegLOL</p>
+</footer>
 
 <script src="/js/nav.js"></script>
 </body>

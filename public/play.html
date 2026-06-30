@@ -14,26 +14,56 @@
   .control-panel { display:flex; flex-direction:column; gap:12px; min-width:0; }
   .match-panel { min-width:0; }
 
-  /* cam + player cards side by side */
-  .arena { display:flex; gap:12px; align-items:stretch; }
-  .players { display:flex; flex-direction:column; gap:12px; width:210px; flex:none; }
+  /* friends + lobby cards keep their panel look */
+  .arena { display:flex; gap:12px; align-items:stretch; justify-content:center; }
   .pcard { flex:1; padding:12px; display:flex; flex-direction:column; gap:7px; }
-  .pc-tag { align-self:flex-start; }
-  .pc-form { margin-top:auto; }
-  @media (max-width:680px) {
-    .arena { flex-direction:column; }
-    .players { width:auto; flex-direction:row; }
-  }
+  /* retro section title badge (Friends / Duo Lobby) */
+  .pc-tag { align-self:flex-start; font-family:"Press Start 2P", monospace; font-size:10px;
+    letter-spacing:.06em; text-transform:uppercase; color:#1E2A38; background:var(--gold);
+    border:1px solid #1E2A38; border-radius:4px; padding:5px 8px; box-shadow:var(--bevel-out); }
 
-  .stage { flex:1; min-width:0; position:relative; aspect-ratio:4/3; overflow:hidden; transition: box-shadow .15s ease; }
-  .remote-grid { width:100%; height:100%; display:grid; grid-template-columns:1fr; grid-auto-rows:1fr; background:#07111c; }
-  .remote-grid[data-count="2"], .remote-grid[data-count="3"] { grid-template-columns:repeat(2, minmax(0, 1fr)); }
-  .remote-tile { position:relative; min-width:0; min-height:0; overflow:hidden; background:#07111c; }
-  .remote-tile video { width:100%; height:100%; object-fit:cover; display:block; }
-  .remote-tile .remote-label { position:absolute; left:8px; bottom:8px; z-index:2; max-width:calc(100% - 16px);
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; padding:2px 7px; font-size:12px; font-weight:800; }
-  #local { position:absolute; bottom:12px; right:12px; width:30%; max-width:150px; aspect-ratio:4/3;
-    object-fit:cover; transform:scaleX(-1); z-index:3; }
+  /* every camera is an equal-size SQUARE tile inside the stage grid.
+     The stage aspect-ratio flexes with the cam count so the tiles stay square:
+     1 cam = 4:3 (a lone webcam), 2 cams = 2:1 (two squares side by side),
+     3-4 cams = 1:1 (a 2x2 of squares, height-capped so it never blows past the viewport). */
+  .stage { flex:1; min-width:0; position:relative; aspect-ratio:4/3; overflow:hidden;
+    display:grid; gap:2px; transition: box-shadow .15s ease; }
+  .stage[data-cams="1"] { grid-template-columns:1fr; }
+  .stage[data-cams="2"] { grid-template-columns:1fr 1fr; aspect-ratio:2/1; }
+  .stage[data-cams="3"], .stage[data-cams="4"] {
+    grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; aspect-ratio:1/1; max-width:72vh; }
+
+  /* solo: host on the left, opponent on the right */
+  .stage[data-cams="2"] #localTile { order:-1; }
+  /* duos: host's team on the left (host bottom-left), both opponents on the right */
+  .stage[data-cams="3"] #localTile,
+  .stage[data-cams="4"] #localTile { grid-column:1; grid-row:2; }
+  .stage[data-cams="3"] .remote-tile[data-team="ally"],
+  .stage[data-cams="4"] .remote-tile[data-team="ally"] { grid-column:1; grid-row:1; }
+  .stage[data-cams="3"] .remote-tile:not([data-team="ally"]),
+  .stage[data-cams="4"] .remote-tile:not([data-team="ally"]) { grid-column:2; }
+
+  .remote-grid { display:contents; }
+  .remote-tile, .local-tile { position:relative; min-width:0; min-height:0; overflow:hidden; background:#07111c; }
+  .remote-tile video, #local { width:100%; height:100%; object-fit:cover; display:block; }
+  #local { transform:scaleX(-1); }
+
+  /* player card overlaid on the top-left of its camera — retro 2000s look */
+  .cam-card { position:absolute; top:8px; left:8px; z-index:6; max-width:calc(100% - 16px);
+    display:flex; flex-direction:column; gap:3px; padding:6px 8px;
+    background:rgba(245,247,250,.92); border:1px solid #1E2A38; border-radius:6px;
+    box-shadow:var(--bevel-out); }
+  .cam-card .cc-name { font-weight:800; font-size:13px; line-height:1.1; color:var(--ink);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cam-card .cc-rank { font-family:"Press Start 2P", monospace; font-size:8px; line-height:1.5; }
+  .cam-card .cc-form { display:flex; gap:3px; margin-top:2px; }
+  .cam-card .form-cell { width:16px; height:16px; display:grid; place-items:center; color:#fff;
+    font-family:"VT323", monospace; font-size:14px; line-height:1;
+    border:1px solid #1E2A38; border-radius:3px; box-shadow:var(--bevel-in); }
+  .cam-card .form-cell.w { background:var(--win); }
+  .cam-card .form-cell.l { background:var(--lose); }
+  .cam-card .form-cell.d { background:var(--dim); }
+  .cam-card .form-empty { font-family:"VT323", monospace; font-size:13px; color:var(--dim); }
 
   .banner { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
     text-align:center; pointer-events:none; z-index:6; }
@@ -82,13 +112,36 @@
   .friends .pcard { padding:12px; height:100%; display:flex; flex-direction:column; gap:8px; }
   .fr-code { font-size:13px; }
   .fr-add { display:flex; gap:6px; }
-  .fr-add input { flex:1; min-width:0; padding:7px 9px; font:inherit; }
+  .fr-add input { flex:1; min-width:0; margin-top:0; padding:7px 9px; font:inherit; }
   .fr-add .btn { padding:7px 10px; }
-  .fr-list { display:flex; flex-direction:column; gap:6px; margin-top:2px; overflow-y:auto; }
-  .fr-row { display:flex; align-items:center; gap:7px; }
-  .fr-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-weight:700; font-size:14px; }
-  .fr-dot { width:9px; height:9px; border-radius:50%; flex:none; }
+  /* cut off at 5 friends (40px row + 6px gap); the rest scroll into view */
+  .fr-list { display:flex; flex-direction:column; gap:6px; margin-top:2px;
+    max-height:224px; overflow-y:auto; padding-right:3px; }
+  .fr-row { display:flex; align-items:center; gap:8px; height:40px; flex:none; padding:0 9px;
+    background:var(--panel-2); border:1px solid var(--line-2); border-radius:8px; box-shadow:var(--bevel-in); }
+  .fr-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-weight:700; font-size:14px; color:var(--ink); }
+  .fr-dot { width:10px; height:10px; border-radius:50%; flex:none;
+    background:var(--line); box-shadow:inset 0 0 0 1px #1E2A38; }
+  .fr-dot.on { background:#6EFF8E; box-shadow:0 0 6px #6EFF8E, inset 0 0 0 1px #1E2A38; }
   .fr-invite { padding:5px 9px !important; font-size:12px !important; }
+  .fr-empty { padding:10px 4px; text-align:center; color:var(--dim); font-family:"VT323", monospace; font-size:16px; }
+
+  /* text chat (talk to whoever you're matched with / your duo in the lobby) */
+  .chat .pcard { gap:8px; }
+  .chat-log { display:flex; flex-direction:column; gap:4px; height:160px; overflow-y:auto;
+    padding:8px; background:#0B1622; border:1px solid var(--line-2); border-radius:8px;
+    box-shadow:var(--bevel-in); font-family:"VT323", monospace; font-size:16px; line-height:1.25; }
+  .chat-msg { color:#BEDDFA; word-break:break-word; }
+  .chat-msg .who { color:var(--neon); font-weight:700; margin-right:5px; text-shadow:0 0 6px rgba(77,243,255,.45); }
+  .chat-msg.self .who { color:var(--gold); text-shadow:0 0 6px rgba(255,230,109,.45); }
+  .chat-msg.sys { color:var(--dim); font-style:italic; text-align:center; }
+  .chat-empty { margin:auto; color:var(--dim); font-family:"VT323", monospace; font-size:16px; }
+  .chat-form { display:flex; gap:6px; }
+  .chat-form input { flex:1; min-width:0; margin-top:0; padding:7px 9px; font:inherit; }
+  .chat-form input:disabled { opacity:.55; cursor:not-allowed; }
+  .chat-form .btn { padding:7px 10px; }
+  .chat-form .btn:disabled { opacity:.55; cursor:not-allowed; }
 
   /* duo lobby + invite toast */
   .lobby { padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
@@ -143,7 +196,7 @@
       </div>
 
       <aside class="friends">
-        <div class="pcard" id="friendsCard">
+        <div class="pcard panel" id="friendsCard">
           <span class="pc-tag">Friends</span>
           <div class="fr-code">your code: <b id="myCode">—</b></div>
           <div class="fr-add">
@@ -151,6 +204,19 @@
             <button class="btn ghost" id="addFriendBtn">Add</button>
           </div>
           <div class="fr-list" id="friendList"></div>
+        </div>
+      </aside>
+
+      <aside class="chat">
+        <div class="pcard panel" id="chatCard">
+          <span class="pc-tag">Chat</span>
+          <div class="chat-log" id="chatLog">
+            <div class="chat-empty" id="chatEmpty">no messages yet</div>
+          </div>
+          <form class="chat-form" id="chatForm">
+            <input id="chatInput" placeholder="join a match to chat" maxlength="200" autocomplete="off" disabled />
+            <button class="btn" type="submit" id="chatSend" disabled>Send</button>
+          </form>
         </div>
       </aside>
 
@@ -167,9 +233,16 @@
     <main class="match-panel">
       <div class="arena">
 
-    <div class="stage">
+    <div class="stage" data-cams="1">
       <div class="remote-grid" id="remoteGrid" data-count="0"></div>
-      <video id="local" autoplay playsinline muted></video>
+      <div class="local-tile" id="localTile">
+        <video id="local" autoplay playsinline muted></video>
+        <div class="cam-card" id="selfCard">
+          <span class="cc-name" id="selfName">—</span>
+          <span class="cc-rank" id="selfRank">—</span>
+          <div class="cc-form" id="selfForm"></div>
+        </div>
+      </div>
       <div class="fx" id="fx"></div>
       <div class="banner hidden" id="banner">
         <div class="big" id="bannerBig"></div>
@@ -178,23 +251,6 @@
         <div class="delta" id="bannerDelta"></div>
       </div>
     </div>
-
-    <aside class="players" id="playerCards">
-      <div class="pcard" id="selfCard">
-        <span class="pc-tag">You</span>
-        <div class="pc-name" id="selfName">—</div>
-        <div class="pc-rank" id="selfRank">—</div>
-        <div class="pc-elo"><b id="selfElo">—</b> ELO</div>
-        <div class="pc-form" id="selfForm"></div>
-      </div>
-      <div class="pcard" id="oppCard">
-        <span class="pc-tag">Opponent</span>
-        <div class="pc-name" id="oppName">—</div>
-        <div class="pc-rank" id="oppRank">—</div>
-        <div class="pc-elo"><b id="oppElo">—</b> ELO</div>
-        <div class="pc-form" id="oppForm"></div>
-      </div>
-    </aside>
   </div>
 
   <div class="scorebar">
@@ -285,8 +341,9 @@ function authenticate() {
 $("nameBtn").addEventListener("click", () => signal({ type: "auth", name: $("nameInput").value.trim() || "Anon" }));
 function applyProfile(_p) {}
 
-// ---------- player cards beside the cam ----------
+// ---------- player cards overlaid on each camera ----------
 let selfProfile = null;
+let peerProfiles = new Map();          // peerId -> { name, rating, form, team }
 const outcomeLetter = o => o === "win" ? "W" : o === "lose" ? "L" : "D";
 const outcomeClass  = o => o === "win" ? "w" : o === "lose" ? "l" : "d";
 function renderForm(el, form) {
@@ -300,54 +357,36 @@ function renderForm(el, form) {
     el.appendChild(cell);
   }
 }
-function renderCard(who, p) {
+function renderCard(who, p) {           // the host's own card, pinned to the local camera
   $(who + "Name").textContent = p.name;
   const t = rankFor(p.rating);
   const rankEl = $(who + "Rank");
   rankEl.textContent = t.name; rankEl.style.color = t.color;
-  $(who + "Elo").textContent = p.rating;
+  const eloEl = $(who + "Elo"); if (eloEl) eloEl.textContent = p.rating;
   renderForm($(who + "Form"), p.form);
 }
-function removeExtraCards() {
-  document.querySelectorAll(".match-peer-card").forEach(el => el.remove());
-  $("oppCard").style.display = "";
-  $("oppCard").querySelector(".pc-tag").textContent = "Opponent";
-}
-function makePeerCard(label, p) {
-  const card = document.createElement("div");
-  card.className = "pcard match-peer-card";
-  const t = rankFor(p.rating);
-  card.innerHTML = `
-    <span class="pc-tag">${label}</span>
-    <div class="pc-name"></div>
-    <div class="pc-rank"></div>
-    <div class="pc-elo"><b></b> ELO</div>
-    <div class="pc-form"></div>`;
-  card.querySelector(".pc-name").textContent = p.name;
-  const rank = card.querySelector(".pc-rank");
-  rank.textContent = t.name; rank.style.color = t.color;
-  card.querySelector(".pc-elo b").textContent = p.rating;
-  renderForm(card.querySelector(".pc-form"), p.form);
-  return card;
+function fillTileCard(id, prof) {        // populate the card overlaid on a remote camera
+  const tile = remoteGrid.querySelector(`[data-peer="${id}"]`);
+  if (!tile) return;
+  if (prof.team) tile.dataset.team = prof.team;   // drives left/right grid placement in duos
+  const card = tile.querySelector(".cam-card");
+  if (!card) return;
+  card.querySelector(".cc-name").textContent = prof.name;
+  const t = rankFor(prof.rating);
+  const rk = card.querySelector(".cc-rank");
+  rk.textContent = t.name; rk.style.color = t.color;
+  renderForm(card.querySelector(".cc-form"), prof.form);
 }
 function renderMatchCards(msg) {
-  removeExtraCards();
+  peerProfiles.clear();
   const peers = msg.peers || [];
-  const enemies = peers.filter(p => p.team !== "ally");
-  const allies = peers.filter(p => p.team === "ally");
-  if (enemies[0]) renderCard("opp", enemies[0]);
-  else clearOpponent();
-  $("oppCard").querySelector(".pc-tag").textContent = msg.mode === "duos" ? "Opponent 1" : "Opponent";
-  for (const ally of allies) $("playerCards").appendChild(makePeerCard("Duo", ally));
-  enemies.slice(1).forEach((p, i) => $("playerCards").appendChild(makePeerCard("Opponent " + (i + 2), p)));
+  for (const p of peers) {
+    const team = p.team === "ally" ? "ally" : "enemy";
+    peerProfiles.set(String(p.id), { ...p, team });
+  }
+  for (const [id, prof] of peerProfiles) fillTileCard(id, prof);   // fill any tiles already built
 }
-function clearOpponent() {
-  removeExtraCards();
-  $("oppName").textContent = "—";
-  $("oppRank").textContent = "—"; $("oppRank").style.color = "";
-  $("oppElo").textContent = "—";
-  $("oppForm").innerHTML = "";
-}
+function clearOpponent() { peerProfiles.clear(); }
 
 // ---------- friends, lobby, modes ----------
 let mode = "solo", topMode = "pvp", currentMatchMode = "solo", lobby = null, myUserId = null, friends = [], pendingInvite = null, isSearching = false;
@@ -396,7 +435,7 @@ $("addFriendBtn").addEventListener("click", () => {
   signal({ type: "addFriend", code }); $("codeInput").value = "";
 });
 $("queueDuosBtn").addEventListener("click", () => { signal({ type: "queueDuos" }); setStatus("queueing duo…"); });
-$("leaveLobbyBtn").addEventListener("click", () => { signal({ type: "leaveLobby" }); lobby = null; renderLobby(); updateModeUI(); setStatus("left lobby"); });
+$("leaveLobbyBtn").addEventListener("click", () => { signal({ type: "leaveLobby" }); lobby = null; renderLobby(); stopLobbyPreview(); updateModeUI(); setStatus("left lobby"); });
 function showInvite(from) {
   pendingInvite = from; $("inviteText").textContent = `${from.name} invited you to a duo`;
   $("invitePrompt").classList.remove("hidden");
@@ -404,26 +443,69 @@ function showInvite(from) {
 $("inviteAccept").addEventListener("click", () => { if (pendingInvite) signal({ type: "acceptInvite", fromId: pendingInvite.id }); $("invitePrompt").classList.add("hidden"); pendingInvite = null; });
 $("inviteDecline").addEventListener("click", () => { if (pendingInvite) signal({ type: "declineInvite", fromId: pendingInvite.id }); $("invitePrompt").classList.add("hidden"); pendingInvite = null; });
 
+// ---------- text chat ----------
+const chatLog = $("chatLog"), chatInput = $("chatInput"), chatForm = $("chatForm");
+let chatActive = false;
+function clearChat() { chatLog.innerHTML = `<div class="chat-empty">no messages yet</div>`; }
+function setChatEnabled(on) {
+  if (on && !chatActive) clearChat();                 // fresh log each time a new chat opens
+  chatActive = on;
+  chatInput.disabled = !on; $("chatSend").disabled = !on;
+  chatInput.placeholder = on ? "message…" : "join a match to chat";
+  if (!on) chatInput.value = "";
+}
+function addChat(name, text, self) {
+  const empty = chatLog.querySelector(".chat-empty"); if (empty) empty.remove();
+  const row = document.createElement("div");
+  row.className = "chat-msg" + (self ? " self" : "");
+  const who = document.createElement("span");
+  who.className = "who"; who.textContent = (self ? "you" : name) + ":";
+  row.append(who, document.createTextNode(" " + text));
+  chatLog.appendChild(row);
+  chatLog.scrollTop = chatLog.scrollHeight;           // stick to the newest message
+}
+chatForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const text = chatInput.value.trim();
+  if (!text || !chatActive) return;
+  signal({ type: "chat", text });
+  chatInput.value = "";
+});
+
 // ---------- media + WebRTC ----------
+// Concurrency-safe: when the lobby cam opens, startMesh and a racing inbound acceptOffer can
+// both call this during the FIRST (real) camera prompt. Share one getUserMedia so we never
+// open two streams or double-prompt.
+let cameraPromise = null;
 async function ensureCamera() {
   if (localStream) return;
-  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  localVideo.srcObject = localStream;
+  if (!cameraPromise) {
+    cameraPromise = navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .then(stream => { localStream = stream; localVideo.srcObject = stream; })
+      .catch(err => { cameraPromise = null; throw err; });   // let a later attempt retry
+  }
+  return cameraPromise;
 }
+function syncStageLayout() { stageEl.dataset.cams = String(remoteGrid.children.length + 1); }
 function tileFor(peer) {
   let tile = remoteGrid.querySelector(`[data-peer="${peer.id}"]`);
   if (tile) return tile;
   tile = document.createElement("div");
   tile.className = "remote-tile";
   tile.dataset.peer = peer.id;
+  tile.dataset.team = peer.team || "";
   const video = document.createElement("video");
   video.autoplay = true; video.playsInline = true;
-  const label = document.createElement("span");
-  label.className = "remote-label";
-  label.textContent = peer.name || "Player";
-  tile.append(video, label);
+  const card = document.createElement("div");
+  card.className = "cam-card";
+  card.innerHTML = `<span class="cc-name"></span><span class="cc-rank"></span><div class="cc-form"></div>`;
+  card.querySelector(".cc-name").textContent = peer.name || "Player";
+  tile.append(video, card);
   remoteGrid.appendChild(tile);
   remoteGrid.dataset.count = remoteGrid.children.length;
+  syncStageLayout();
+  const prof = peerProfiles.get(String(peer.id));
+  if (prof) fillTileCard(String(peer.id), prof);
   return tile;
 }
 function createPeer(peer) {
@@ -443,14 +525,16 @@ async function flushCandidates(state) {
   state.pendingCandidates = [];
 }
 async function startMesh(peers) {
-  endCall();
+  endCall();                       // closes any prior pcs and clears the grid (synchronous)
+  activePeers = peers || [];       // set BEFORE the await so a racing inbound offer names peers right
   await ensureCamera();
-  activePeers = peers || [];
-  remoteGrid.innerHTML = "";
-  remoteGrid.dataset.count = "0";
+  // Nothing destructive past this await: while the camera prompt was open, a concurrent
+  // acceptOffer may have already built a peer + tile. createPeer/tileFor return those existing
+  // objects, so we must NOT clear the grid here (that would wipe the freshly-attached video).
   for (const peer of activePeers) {
     const state = createPeer(peer);
-    if (peer.initiator) {
+    if (peer.initiator && !state.offered) {    // only the lower id offers; guard re-entry/glare
+      state.offered = true;
       await state.pc.setLocalDescription(await state.pc.createOffer());
       signal({ type: "offer", target: peer.id, sdp: state.pc.localDescription });
     }
@@ -479,7 +563,31 @@ function endCall() {
   for (const state of peerConnections.values()) state.pc.close();
   peerConnections.clear(); activePeers = [];
   remoteGrid.innerHTML = ""; remoteGrid.dataset.count = "0";
+  syncStageLayout();
 }
+
+// ---------- duo lobby cam (before queuing) ----------
+// The moment a duo lobby forms, the two members open a 1-peer mesh so they can see + hear
+// each other and goof around before the leader hits "Queue for Duos". This reuses the exact
+// same createPeer/startMesh/accept* plumbing as a real match. When the match actually starts,
+// the `matched` handler calls startMesh(peers) which endCall()s this preview and rebuilds the
+// 4-way mesh, so the lobby cam is replaced cleanly with no special teardown.
+async function startLobbyPreview() {
+  if (!lobby || !Array.isArray(lobby.members)) return;
+  if (!$("next").disabled) return;                       // a real match is live — don't disturb it
+  const me = lobby.members.find(m => String(m.id) === String(myUserId));
+  const partner = lobby.members.find(m => String(m.id) !== String(myUserId));
+  if (!me || !partner || me.peerId == null || partner.peerId == null) return;
+  myPeerId = me.peerId;
+  try {
+    await startMesh([{ id: partner.peerId, name: partner.name,
+      initiator: Number(me.peerId) < Number(partner.peerId) }]);   // lower conn id offers
+    setStatus("connected with your duo — say hi, then queue");
+  } catch (err) {
+    setStatus("enable your camera to see your duo: " + err.message);
+  }
+}
+function stopLobbyPreview() { endCall(); if ($("next").disabled) myPeerId = null; }
 
 // ---------- detector + the reaction beat (watcher side) ----------
 async function ensureDetector() {
@@ -546,6 +654,7 @@ function resetMatchUi() {
   $("youLabel").textContent = "you";
   $("themLabel").textContent = "them";
   clearOpponent();
+  setChatEnabled(false);
   setScores({ you: 0, them: 0 });
 }
 let countdownTimer = null;
@@ -578,7 +687,7 @@ function applyGameState(msg) {
 }
 
 ws.addEventListener("open", () => { setStatus("connecting…"); authenticate(); });
-ws.addEventListener("close", () => { isSearching = false; updateModeUI(); setStatus("disconnected"); endCall(); stopScoring(); setBodyState("idle", ""); });
+ws.addEventListener("close", () => { isSearching = false; updateModeUI(); setStatus("disconnected"); endCall(); stopScoring(); setChatEnabled(false); setBodyState("idle", ""); });
 ws.addEventListener("message", async (e) => {
   const msg = JSON.parse(e.data);
   switch (msg.type) {
@@ -598,8 +707,10 @@ ws.addEventListener("message", async (e) => {
       $("youLabel").textContent = currentMatchMode === "duos" ? "your team" : "you";
       $("themLabel").textContent = currentMatchMode === "duos" ? "their team" : "them";
       renderMatchCards(msg);
-      await startMesh(msg.peers || []); ensureDetector();
+      try { await startMesh(msg.peers || []); } catch (err) { setStatus("camera error: " + err.message); }
+      ensureDetector();
       setStatus(currentMatchMode === "duos" ? "duos match found" : "opponent found");
+      setChatEnabled(true);
       setBodyState("matched", ""); $("find").disabled = true; $("next").disabled = false; renderFriends(); break;
     case "offer":
       await acceptOffer(msg); break;
@@ -621,8 +732,9 @@ ws.addEventListener("message", async (e) => {
     case "friends": friends = msg.list; renderFriends(); break;
     case "friendError": setStatus(friendReason[msg.reason] || msg.reason); break;
     case "invited": showInvite(msg.from); break;
-    case "lobby": lobby = msg.lobby; renderLobby(); updateModeUI(); setStatus("in a duo lobby"); break;
-    case "lobbyClosed": lobby = null; renderLobby(); updateModeUI(); setStatus("lobby closed"); break;
+    case "lobby": lobby = msg.lobby; renderLobby(); updateModeUI(); startLobbyPreview(); setChatEnabled(true); break;
+    case "lobbyClosed": lobby = null; renderLobby(); updateModeUI(); stopLobbyPreview(); setChatEnabled(false); setStatus("lobby closed"); break;
+    case "chat": addChat(msg.from, msg.text, msg.self); break;
     case "inviteDeclined": setStatus((msg.by || "they") + " declined the invite"); break;
     case "duosWaiting": setStatus("searching for another duo…"); break;
     case "searchCanceled": isSearching = false; updateModeUI(); setStatus("ready - find a match"); setBodyState("idle", ""); break;

@@ -136,15 +136,29 @@ export function startServer({ db, port = PORT }) {
       send(id, { type: "gameState", phase: "result", seconds: dur.result / SEC, role: null,
         scores: { you: mine, them: theirs }, outcome: mine > theirs ? "win" : mine < theirs ? "lose" : "draw" });
     }
-    if (game.mode !== "solo") return;
-    const c0 = clients.get(game.teams[0][0]), c1 = clients.get(game.teams[1][0]);
-    if (c0?.userId && c1?.userId) {
-      try {
-        const res = await db.recordMatch(c0.userId, c1.userId, game.scores[0], game.scores[1]);
-        c0.rating = res.a.after; c1.rating = res.b.after;
-        send(game.teams[0][0], { type: "ranked", delta: res.a.delta, rating: res.a.after });
-        send(game.teams[1][0], { type: "ranked", delta: res.b.delta, rating: res.b.after });
-      } catch (e) { console.error("recordMatch failed:", e.message); }
+    if (game.mode === "solo") {
+      const c0 = clients.get(game.teams[0][0]), c1 = clients.get(game.teams[1][0]);
+      if (c0?.userId && c1?.userId) {
+        try {
+          const res = await db.recordMatch(c0.userId, c1.userId, game.scores[0], game.scores[1]);
+          c0.rating = res.a.after; c1.rating = res.b.after;
+          send(game.teams[0][0], { type: "ranked", delta: res.a.delta, rating: res.a.after });
+          send(game.teams[1][0], { type: "ranked", delta: res.b.delta, rating: res.b.after });
+        } catch (e) { console.error("recordMatch failed:", e.message); }
+      }
+    } else if (game.mode === "duos") {
+      const idsOf = team => team.map(cid => clients.get(cid)?.userId).filter(u => u != null);
+      const teamA = idsOf(game.teams[0]), teamB = idsOf(game.teams[1]);
+      if (teamA.length === 2 && teamB.length === 2) {
+        try {
+          const res = await db.recordDuosRatings(teamA, teamB, game.scores[0], game.scores[1]);
+          for (const id of game.players) {               // each player gets their own delta
+            const c = clients.get(id);
+            const r = c?.userId != null ? res[String(c.userId)] : null;
+            if (r) { c.rating = r.after; send(id, { type: "ranked", delta: r.delta, rating: r.after }); }
+          }
+        } catch (e) { console.error("recordDuosRatings failed:", e.message); }
+      }
     }
   }
   function resetGame(game) {
@@ -164,6 +178,18 @@ export function startServer({ db, port = PORT }) {
     game.scores[game.performerTeam] += delta;       // the number: continuous + authoritative
     broadcastScores(game);                       // meters, to both players
     for (const performer of game.teams[game.performerTeam]) send(performer, { type: "reaction", tier, delta });
+  }
+
+  // Who can hear a chat message: everyone in the sender's live game, or — before a game
+  // exists — their duo lobby mates. Returns connection ids (including the sender's own).
+  function chatPeers(id) {
+    const c = clients.get(id);
+    if (!c) return [];
+    if (c.game) return c.game.players;
+    const lid = c.userId != null ? userLobby.get(String(c.userId)) : null;
+    const lobby = lid != null ? lobbies.get(lid) : null;
+    if (lobby) return lobby.members.map(uid => online.get(String(uid))).filter(cid => clients.has(cid));
+    return [];
   }
 
   async function announceMatch(game) {
@@ -215,9 +241,18 @@ export function startServer({ db, port = PORT }) {
 
   // ---------- duo lobbies ----------
   const sendToUser = (uid, msg) => { const cn = online.get(String(uid)); if (cn != null) send(cn, msg); };
+  // Two connections are lobby-mates if their users share a lobby. Used to allow WebRTC
+  // signaling BEFORE a game exists, so duo partners can see each other on cam in the lobby.
+  function inSameLobby(connA, connB) {
+    const ua = clients.get(connA)?.userId, ub = clients.get(connB)?.userId;
+    if (ua == null || ub == null) return false;
+    const la = userLobby.get(String(ua)), lb = userLobby.get(String(ub));
+    return la != null && la === lb;
+  }
+  // peerId = the member's live connection id, so the client can open a P2P call to them.
   const lobbyPayload = lobby => ({
     id: lobby.id, leader: lobby.leader,
-    members: lobby.members.map(uid => ({ id: uid, name: connOfUser(uid)?.name || "?" })),
+    members: lobby.members.map(uid => ({ id: uid, name: connOfUser(uid)?.name || "?", peerId: online.get(String(uid)) })),
   });
   function createLobby(uidA, uidB) {            // inviter (A) is the leader
     const lid = nextLobby++;
@@ -318,6 +353,10 @@ export function startServer({ db, port = PORT }) {
         if (!wasDuos) await findMatch(id);
       } else if (msg.type === "reaction") {
         handleReaction(id, msg);
+      } else if (msg.type === "chat" && c.userId) {
+        const text = String(msg.text ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+        if (!text) return;
+        for (const pid of chatPeers(id)) send(pid, { type: "chat", from: c.name, fromId: id, text, self: pid === id });
       } else if (msg.type === "addFriend" && c.userId) {
         const r = await db.addFriendByCode(c.userId, msg.code);
         if (r.ok) { sendFriends(c.userId); sendFriends(r.friend.id); }   // refresh both sides
@@ -340,11 +379,11 @@ export function startServer({ db, port = PORT }) {
         leaveLobby(id);
       } else if (msg.type === "queueDuos" && c.userId) {
         await queueDuos(c.userId);
-      } else if ((msg.type === "offer" || msg.type === "answer" || msg.type === "candidate") && msg.target != null && c.game) {
+      } else if ((msg.type === "offer" || msg.type === "answer" || msg.type === "candidate") && msg.target != null) {
         const target = +msg.target;
-        if (c.game.players.includes(target) && clients.get(target)?.game === c.game) {
-          send(target, { ...msg, from: id });
-        }
+        const sameGame = c.game && c.game.players.includes(target) && clients.get(target)?.game === c.game;
+        const sameLobby = inSameLobby(id, target);     // pre-game lobby cam between duo partners
+        if (sameGame || sameLobby) send(target, { ...msg, from: id });
       } else if (c.state === "paired" && c.partner != null) {
         send(c.partner, { ...msg, from: id });
       }
