@@ -32,6 +32,12 @@ export function makeDb(pool) {
     for (const r of missing.rows) await pool.query(`UPDATE users SET friend_code = $1 WHERE id = $2`, [genCode(), r.id]);
     try { await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_friend_code_idx ON users (friend_code)`); } catch {}
 
+    // link a game user to a better-auth account (nullable: guests never get one). Same
+    // migrate-then-index pattern as friend_code. A plain unique index treats NULLs as
+    // distinct in Postgres, so many guest rows keep auth_id NULL while accounts stay unique.
+    try { await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_id TEXT`); } catch {}
+    try { await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_auth_id_idx ON users (auth_id)`); } catch {}
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS matches (
         id              BIGSERIAL PRIMARY KEY,
@@ -65,6 +71,30 @@ export function makeDb(pool) {
     const { rows } = await pool.query(
       "INSERT INTO users (name, token, friend_code) VALUES ($1, $2, $3) RETURNING *",
       [safeName, newToken, genCode()]
+    );
+    return rows[0];
+  }
+
+  // ---- account linking (better-auth) ----
+  // The game keeps its own users table as the source of truth for rating/friends/etc.;
+  // auth_id is the only bridge to a better-auth account. Guests never touch these.
+  async function getUserByAuthId(authId) {
+    if (!authId) return null;
+    const { rows } = await pool.query("SELECT * FROM users WHERE auth_id = $1", [authId]);
+    return rows[0] || null;
+  }
+
+  // Create the game user for a freshly signed-in account. Called only once we have the
+  // screenname the player chose (accounts start clean — no guest rating is carried over).
+  // ON CONFLICT makes it race-safe if two sockets authenticate the new account at once.
+  async function createAuthedUser({ authId, name }) {
+    const token = crypto.randomUUID();
+    const safeName = (name || "Anon").trim().slice(0, 24) || "Anon";
+    const { rows } = await pool.query(
+      `INSERT INTO users (name, token, friend_code, auth_id) VALUES ($1, $2, $3, $4)
+         ON CONFLICT (auth_id) DO UPDATE SET name = users.name
+       RETURNING *`,
+      [safeName, token, genCode(), authId]
     );
     return rows[0];
   }
@@ -233,5 +263,5 @@ export function makeDb(pool) {
     return rows;
   }
 
-  return { initSchema, getOrCreateUser, recordMatch, recordDuosRatings, topPlayers, getUserByToken, recentMatches, getUserById, addFriendByCode, listFriends };
+  return { initSchema, getOrCreateUser, getUserByAuthId, createAuthedUser, recordMatch, recordDuosRatings, topPlayers, getUserByToken, recentMatches, getUserById, addFriendByCode, listFriends };
 }

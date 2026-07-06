@@ -333,7 +333,17 @@ function spawnPop(text, kind, tier) {
 function flashEdge(kind) { stageEl.classList.add("flash-" + kind); setTimeout(() => stageEl.classList.remove("flash-" + kind), 360); }
 
 // ---------- accounts ----------
-function authenticate() {
+// A signed-in account is identified by its session cookie (sent on the WS upgrade), so we
+// auth with no token/name and let the server resolve it. A brand-new account has no game
+// user yet -> the server replies "needName" and we show the same gate. Guests keep the
+// old flow: reuse a stored token, or pick a name at the gate.
+async function authenticate() {
+  let signedIn = false;
+  try {
+    const r = await fetch("/api/auth/get-session", { credentials: "same-origin" });
+    if (r.ok) { const s = await r.json().catch(() => null); signedIn = !!(s && s.user); }
+  } catch { /* auth disabled or offline -> guest path */ }
+  if (signedIn) { signal({ type: "auth" }); return; }
   const token = localStorage.getItem(TOKEN_KEY);
   if (token) signal({ type: "auth", token });
   else $("nameGate").classList.remove("hidden");
@@ -691,6 +701,8 @@ ws.addEventListener("close", () => { isSearching = false; updateModeUI(); setSta
 ws.addEventListener("message", async (e) => {
   const msg = JSON.parse(e.data);
   switch (msg.type) {
+    case "needName":                 // signed in, but this new account still needs a screenname
+      $("nameGate").classList.remove("hidden"); setStatus("pick a stage name"); break;
     case "authed":
       localStorage.setItem(TOKEN_KEY, msg.token);
       $("nameGate").classList.add("hidden"); applyProfile(msg.profile);

@@ -19,9 +19,51 @@ const dur = {
 
 // startServer takes an injected db so the whole stack (HTTP + WS) is testable
 // against an in-memory database without a real Postgres.
-export function startServer({ db, port = PORT }) {
+export async function startServer({ db, pool = null, port = PORT }) {
   // ---------- HTTP: static files, pretty page routes, a small JSON API ----------
   const app = express();
+
+  // ---------- optional real accounts (better-auth) ----------
+  // Auth is wired ONLY when a secret + a pg pool are available. Absent either, the server
+  // runs exactly as before (guests + anonymous tokens), so nothing external is needed to boot.
+  let auth = null, fromHeaders = null;
+  if (process.env.BETTER_AUTH_SECRET && pool) {
+    const [{ makeAuth }, nodeHandler] = await Promise.all([
+      import("./auth.mjs"),
+      import("better-auth/node"),
+    ]);
+    auth = makeAuth(pool);
+    fromHeaders = nodeHandler.fromNodeHeaders;
+    // better-auth reads the raw request body itself; mount before any json parser (there are none).
+    app.all("/api/auth/{*any}", nodeHandler.toNodeHandler(auth));
+    console.log("auth: better-auth mounted (email/password)");
+  } else {
+    console.log("auth: disabled — guest/token only (set BETTER_AUTH_SECRET + DATABASE_URL to enable)");
+  }
+
+  // A signalling value for "authenticated, but this brand-new account still needs to pick
+  // a screenname" — the client answers by re-sending auth with a name (the name gate).
+  const NEED_NAME = Symbol("needName");
+
+  // Map a request to its game `users` row. A valid session cookie (a real account) always
+  // wins and any client-supplied token is ignored (can't impersonate an account). With no
+  // session we fall back to the guest token exactly as before. New accounts start clean.
+  async function resolveGameUser({ headers, guestToken, name }) {
+    if (auth) {
+      try {
+        const session = await auth.api.getSession({ headers: fromHeaders(headers) });
+        if (session?.user) {
+          const existing = await db.getUserByAuthId(session.user.id);
+          if (existing) return existing;
+          const screen = (name || "").trim();
+          if (!screen) return NEED_NAME;            // first login: prompt for a screenname
+          return await db.createAuthedUser({ authId: session.user.id, name: screen });
+        }
+      } catch (e) { console.error("session resolve failed:", e.message); }
+    }
+    return await db.getOrCreateUser({ token: guestToken, name });   // guest path (unchanged)
+  }
+
   app.use(express.static(PUBLIC));                         // landing, css, js, *.html
   const page = f => (_req, res) => res.sendFile(path.join(PUBLIC, f));
   app.get("/login",  page("login.html"));
@@ -32,11 +74,17 @@ export function startServer({ db, port = PORT }) {
     catch { res.status(500).json({ error: "unavailable" }); }
   });
   app.get("/api/me", async (req, res) => {                  // the signed-in player's profile + history
-    const token = req.get("x-token");
-    if (!token) return res.status(401).json({ error: "no token" });
     try {
-      const user = await db.getUserByToken(token);
-      if (!user) return res.status(404).json({ error: "unknown" });
+      let user = null;
+      if (auth) {                                           // session cookie identifies a real account
+        const session = await auth.api.getSession({ headers: fromHeaders(req.headers) });
+        if (session?.user) user = await db.getUserByAuthId(session.user.id);
+      }
+      if (!user) {                                          // guest fallback: the anonymous token
+        const token = req.get("x-token");
+        if (token) user = await db.getUserByToken(token);
+      }
+      if (!user) return res.status(401).json({ error: "no session" });
       const matches = await db.recentMatches(user.id, 10);
       res.json({
         profile: { name: user.name, rating: user.rating, wins: user.wins, losses: user.losses, draws: user.draws, games: user.games },
@@ -321,16 +369,19 @@ export function startServer({ db, port = PORT }) {
     startCountdown(game);
   }
 
-  wss.on("connection", (ws) => {
+  wss.on("connection", (ws, req) => {
     const id = nextId++;
-    clients.set(id, { ws, state: "idle", partner: null, game: null, userId: null, name: null, rating: null });
+    // req.headers carry same-origin cookies from the WS upgrade — that's how a socket
+    // authenticates from a session. Captured once; the session is fixed for the socket's life.
+    clients.set(id, { ws, reqHeaders: req.headers, state: "idle", partner: null, game: null, userId: null, name: null, rating: null });
 
     ws.on("message", async (data) => {
       let msg; try { msg = JSON.parse(data); } catch { return; }
       const c = clients.get(id); if (!c) return;
 
       if (msg.type === "auth") {
-        const user = await db.getOrCreateUser({ token: msg.token, name: msg.name });
+        const user = await resolveGameUser({ headers: c.reqHeaders, guestToken: msg.token, name: msg.name });
+        if (user === NEED_NAME) { send(id, { type: "needName" }); return; }   // first login: pick a screenname
         c.userId = user.id; c.name = user.name; c.rating = user.rating;
         let form = [];
         try { form = (await db.recentMatches(user.id, 5)).map(m => m.outcome); }
@@ -408,7 +459,8 @@ export function startServer({ db, port = PORT }) {
 // run directly (not when imported by a test)
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!process.env.DATABASE_URL) { console.error("Set DATABASE_URL (see run notes)."); process.exit(1); }
-  const db = makeDb(new pg.Pool({ connectionString: process.env.DATABASE_URL }));
+  const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+  const db = makeDb(pool);
   await db.initSchema();
-  startServer({ db });
+  await startServer({ db, pool });   // pool is handed to better-auth when its env is set
 }

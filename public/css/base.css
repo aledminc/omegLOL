@@ -108,6 +108,16 @@ body {
   color: #fff;
   text-shadow: 1px 1px 0 #1E2A38;
 }
+#site-nav nav .nav-user {
+  display: inline-flex; align-items: center;
+  padding: 6px 10px;
+  font-size: 12px; font-weight: 800;
+  color: #fff;
+  background: rgba(255,255,255,.14);
+  border: 1px solid #1E2A38;
+  border-radius: 8px;
+  text-shadow: 1px 1px 0 #1E2A38;
+}
 
 @keyframes blink {
   0%, 60% { opacity: 1; }

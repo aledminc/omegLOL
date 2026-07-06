@@ -6,36 +6,168 @@
 <title>omegLOL — log in</title>
 <link rel="stylesheet" href="/css/base.css" />
 <style>
+  /* Full-height, dead-centered sign-in — the card is the focal point of the page. */
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  .auth-wrap {
+    flex: 1;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 40px 16px 64px;
+  }
+  .auth-card { width: 100%; max-width: 400px; }
+  .auth-card h1 { text-align: center; font-size: 25px; }
+  .auth-card > .muted { text-align: center; margin-bottom: 18px; }
+
   .login-cam {
-    width: 88px; height: 60px; margin: 4px auto 14px;
+    width: 96px; height: 66px; margin: 4px auto 16px;
     border: 4px solid #2A3B52; border-radius: 10px;
     background: radial-gradient(circle at 35% 35%, #4DF3FF55 0%, transparent 55%), #0B1622;
-    box-shadow: inset 0 0 0 2px #1E2A38, 0 4px 0 #1E2A38;
+    box-shadow: inset 0 0 0 2px #1E2A38, 0 4px 0 #1E2A38, 0 0 22px rgba(77,243,255,.35);
     position: relative; display: grid; place-items: center;
   }
   .login-cam::after {
-    content: ""; width: 14px; height: 14px; border-radius: 50%;
+    content: ""; width: 15px; height: 15px; border-radius: 50%;
     background: radial-gradient(circle at 35% 35%, #fff 0 12%, #6EFF8E 13% 55%, #1E2A38 56% 100%);
     box-shadow: 0 0 8px #6EFF8E;
   }
+
+  /* informational / error banner — reused for both notices and validation errors */
+  .auth-msg {
+    margin: 0 0 14px; padding: 9px 11px;
+    font-size: 13px; font-weight: 600; line-height: 1.4;
+    color: #7A2E12; background: #FFE9D6;
+    border: 1px solid var(--warn); border-radius: 8px;
+    box-shadow: var(--bevel-in);
+  }
+  .panel .btn { margin-top: 4px; }
+  .auth-switch { margin: 14px 0 0; text-align: center; font-size: 13px; }
+  .guest-link { margin: 18px 0 0; text-align: center; }
 </style>
 </head>
 <body>
 <header id="site-nav"></header>
-<main class="page" style="max-width:440px">
-  <div class="login-cam" aria-hidden="true"></div>
-  <h1 style="font-size:22px; text-align:center">Log in</h1>
-  <p class="muted" style="text-align:center">Sign in to keep your rank across devices. Account sign-in is coming soon — for now, jump in as a guest.</p>
-  <div class="panel">
-    <label>Username <input id="u" autocomplete="username" placeholder="screenname" /></label>
-    <label>Password <input id="p" type="password" autocomplete="current-password" placeholder="••••••••" /></label>
-    <button class="btn" id="loginBtn" style="width:100%; margin-top:4px">Log in</button>
+<main class="auth-wrap">
+  <div class="auth-card">
+    <div class="login-cam" aria-hidden="true"></div>
+    <h1>Log in</h1>
+    <p class="muted">Sign in to keep your rank across devices.</p>
+
+    <div class="panel">
+      <p id="msg" class="auth-msg" hidden></p>
+      <form id="authForm" novalidate>
+        <label>Email
+          <input id="email" type="email" autocomplete="email" placeholder="you@example.com" />
+        </label>
+        <label>Password
+          <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
+        </label>
+        <button class="btn" id="submitBtn" type="submit" style="width:100%">Sign in</button>
+      </form>
+      <p class="auth-switch muted">
+        <span id="switchText">New here?</span>
+        <a href="#" id="switchLink">Create an account</a>
+      </p>
+    </div>
+
+    <p class="guest-link"><a href="/play">Continue as guest →</a></p>
   </div>
-  <p style="margin-top:16px; text-align:center"><a href="/play">Continue as guest →</a></p>
 </main>
+
 <script>
-  // Real auth is a later phase. For the skeleton, both buttons lead to the play page.
-  document.getElementById("loginBtn").addEventListener("click", () => { location.href = "/play"; });
+  const $ = id => document.getElementById(id);
+  const AUTH = "/api/auth";
+  let mode = "signin";                       // "signin" | "signup"
+  let disabled = false;                      // true when the server has no auth configured
+
+  const msg = $("msg");
+  function note(text) { msg.textContent = text || ""; msg.hidden = !text; }
+
+  function setMode(m) {
+    mode = m;
+    $("submitBtn").textContent = m === "signin" ? "Sign in" : "Create account";
+    $("switchText").textContent = m === "signin" ? "New here?" : "Already have an account?";
+    $("switchLink").textContent = m === "signin" ? "Create an account" : "Sign in";
+    $("password").setAttribute("autocomplete", m === "signin" ? "current-password" : "new-password");
+    note("");
+  }
+  $("switchLink").addEventListener("click", e => {
+    e.preventDefault();
+    if (disabled) return;
+    setMode(mode === "signin" ? "signup" : "signin");
+  });
+
+  async function post(path, body) {
+    const r = await fetch(AUTH + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(body),
+    });
+    let data = null; try { data = await r.json(); } catch {}
+    return { ok: r.ok, status: r.status, data };
+  }
+
+  // Turn better-auth's raw error into something a human wants to read.
+  function friendly(res) {
+    const m = (res.data && (res.data.message || res.data.error)) || "";
+    const code = (res.data && res.data.code) || "";
+    if (/exist/i.test(m) || /USER_ALREADY_EXISTS/i.test(code))
+      return "That email is already registered — try signing in instead.";
+    if (/(short|weak|least|8)/i.test(m) && /password/i.test(m))
+      return "Password is too short — use at least 8 characters.";
+    if (res.status === 401 || /invalid|incorrect|credential/i.test(m))
+      return "Wrong email or password.";
+    return m || "Something went wrong — please try again.";
+  }
+
+  $("authForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    if (disabled) return;
+    note("");
+    const email = $("email").value.trim();
+    const password = $("password").value;
+    if (!email || !password) { note("Enter your email and password."); return; }
+    if (mode === "signup" && password.length < 8) { note("Password is too short — use at least 8 characters."); return; }
+
+    const btn = $("submitBtn");
+    btn.disabled = true;
+    try {
+      let res;
+      if (mode === "signup") {
+        // better-auth requires a name; the in-game screenname is chosen later at the name gate.
+        const name = (email.split("@")[0] || "player").slice(0, 24);
+        res = await post("/sign-up/email", { email, password, name });
+      } else {
+        res = await post("/sign-in/email", { email, password });
+      }
+      if (res.ok) { location.href = "/play"; return; }
+      note(friendly(res));
+    } catch {
+      note("Network error — is the server running?");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  function markUnavailable() {
+    disabled = true;
+    note("Account sign-in isn't enabled on this server yet — jump in as a guest below.");
+    $("email").disabled = true;
+    $("password").disabled = true;
+    $("submitBtn").disabled = true;
+    $("switchLink").style.pointerEvents = "none";
+    $("switchLink").style.opacity = ".5";
+  }
+
+  // On load: if auth isn't configured, degrade gracefully; if already signed in, skip to play.
+  (async () => {
+    try {
+      const r = await fetch(AUTH + "/get-session", { credentials: "same-origin" });
+      if (r.status === 404) { markUnavailable(); return; }
+      const s = await r.json().catch(() => null);
+      if (s && s.user) { location.href = "/play"; return; }
+    } catch { /* leave the form usable; a real submit will surface any error */ }
+  })();
 </script>
 <script src="/js/nav.js"></script>
 </body>
