@@ -1,10 +1,17 @@
 import express from "express";
 import http from "node:http";
 import path from "node:path";
+import crypto from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { WebSocketServer } from "ws";
 import pg from "pg";
 import { makeDb } from "./db.mjs";
+import {
+  decideBan, banExpiry, trustDelta, overReporting,
+  TRUSTED_THRESHOLD, SPAM_LIMIT, SPAM_WINDOW, CORROB_WINDOW, WINDOW_AUTHED, WINDOW_GUEST,
+} from "./moderation.mjs";
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;   // trailing window for the over-report rate
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, "public");
@@ -120,6 +127,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
   async function findMatch(id) {
     const c = clients.get(id);
     if (!c || !c.userId || c.state !== "idle") return;
+    if (await isBanned(c.userId, id)) return;                 // banned users can't queue (belt-and-suspenders)
     if (waiting !== null && waiting !== id && clients.get(waiting)?.state === "waiting") {
       const partnerId = waiting; waiting = null; await pair(id, partnerId);
     } else { c.state = "waiting"; waiting = id; send(id, { type: "waiting" }); }
@@ -327,6 +335,10 @@ export async function startServer({ db, pool = null, port = PORT }) {
     if (lid == null) return;
     const lobby = lobbies.get(lid);
     if (!lobby || String(lobby.leader) !== String(uid) || lobby.members.length < 2) return;
+    for (const m of lobby.members) {             // a banned member blocks the whole duo (belt-and-suspenders)
+      const cn = online.get(String(m));
+      if (cn != null && await isBanned(m, cn)) return;
+    }
     if (duosWaiting !== null && duosWaiting !== lid && lobbies.has(duosWaiting)) {
       const otherLobby = lobbies.get(duosWaiting); duosWaiting = null;
       await matchDuos(lobby, otherLobby);
@@ -377,11 +389,136 @@ export async function startServer({ db, pool = null, port = PORT }) {
     startCountdown(game);
   }
 
+  // ---------- moderation: reports, reporter trust, progressive bans ----------
+  // Policy math lives in moderation.mjs; this just orchestrates DB + sockets. Reports are SILENT:
+  // the reported player is never told. Everything degrades cleanly when moderation is "cold".
+
+  // If a user has an active ban, tell that socket and report true (so callers refuse matchmaking).
+  async function isBanned(userId, connId) {
+    try {
+      const ban = await db.getActiveBan(userId);
+      if (!ban) return false;
+      send(connId, { type: "banned", until: new Date(ban.expires_at).getTime(),
+        tier: ban.tier, reason: ban.reason, guest: ban.is_guest });
+      return true;
+    } catch (e) { console.error("ban check failed:", e.message); return false; }
+  }
+
+  // Reward/penalize the REPORTER's trust for this report event (rate-based, emergent).
+  async function applyReporterTrust(reporterId, reportedId) {
+    // corroboration: a second distinct reporter on the same target within the window lifts both.
+    try {
+      const cluster = await db.getReportCluster(reportedId, new Date(Date.now() - CORROB_WINDOW));
+      const reporters = new Set(cluster.map(r => String(r.reporter_id)));
+      if (reporters.size >= 2) {
+        await db.adjustTrust(reporterId, trustDelta("corroborate"));
+        if (reporters.size === 2) {                        // first corroborating pair: reward the earlier reporter too
+          const other = [...reporters].find(rid => rid !== String(reporterId));
+          if (other) await db.adjustTrust(other, trustDelta("corroborate"));
+        }
+      }
+    } catch (e) { console.error("corroboration trust failed:", e.message); }
+    // over-reporting: trigger-happy relative to games played.
+    try {
+      const recent = await db.recentReportsBy(reporterId, new Date(Date.now() - WEEK_MS));
+      const games = await db.gamesPlayed(reporterId);
+      if (overReporting(recent.length, games)) await db.adjustTrust(reporterId, trustDelta("overreport"));
+    } catch (e) { console.error("overreport trust failed:", e.message); }
+    // stale: aged, never-corroborated reports charged lazily (capped at one per new report, no cron).
+    try {
+      const aged = await db.agingUncorroboratedReports(reporterId, new Date(Date.now() - CORROB_WINDOW));
+      if (aged.length) { await db.adjustTrust(reporterId, trustDelta("stale")); await db.markStaleChecked(aged.map(r => r.id)); }
+    } catch (e) { console.error("stale trust failed:", e.message); }
+  }
+
+  // Recompute a target's heat over its window and, if it crosses a tier, issue + enforce a ban.
+  async function evaluateTarget(reportedId, reportedGuest) {
+    try {
+      const window = reportedGuest ? WINDOW_GUEST : WINDOW_AUTHED;
+      const rows = await db.getReportCluster(reportedId, new Date(Date.now() - window));
+      const cluster = rows.map(r => ({ reporterId: r.reporter_id, trust: r.reporter_trust, guest: r.reporter_guest, reason: r.reason }));
+      const priorBans = await db.countPriorBans(reportedId);
+      const decision = decideBan({ reportedGuest, priorBans, cluster });
+      if (!decision.ban) return;
+      if (await db.getActiveBan(reportedId)) return;        // already serving a ban — don't stack
+      const ban = await db.issueBan({ userId: reportedId, tier: decision.tier, reason: decision.reason, isGuest: reportedGuest, expiresAt: banExpiry(decision.tier) });
+      // reward the distinct STRUCTURED reporters whose reports built this ban.
+      const assisted = [...new Set(cluster.filter(r => r.reason !== "other").map(r => String(r.reporterId)))];
+      for (const rid of assisted) await db.adjustTrust(rid, trustDelta("ban_assist"));
+      await db.adjustTrust(reportedId, trustDelta("reported"));   // bad actors make bad reporters
+      enforceBan(reportedId, ban);
+    } catch (e) { console.error("ban evaluation failed:", e.message); }
+  }
+
+  // Boot a freshly-banned live user: tear down their game (opponents get the normal partnerLeft),
+  // pull them from any queue/lobby, and hand them the banned screen.
+  function enforceBan(userId, ban) {
+    const connId = online.get(String(userId));
+    if (connId == null) return;                             // offline — they'll get it on next auth
+    const c = clients.get(connId);
+    if (c?.game) leaveGame(connId);
+    if (waiting === connId) waiting = null;
+    leaveLobby(connId);
+    send(connId, { type: "banned", until: new Date(ban.expires_at).getTime(),
+      tier: ban.tier, reason: ban.reason, guest: ban.is_guest });
+  }
+
+  // WS `report`: reporter must be in a live game; target another participant in that same game.
+  async function handleReport(id, msg) {
+    const c = clients.get(id);
+    const game = c?.game;
+    if (!game) return send(id, { type: "reportAck", ok: false, reason: "nogame" });
+    const target = +msg.target;
+    if (!Number.isFinite(target) || target === id || !game.players.includes(target))
+      return send(id, { type: "reportAck", ok: false, reason: "badtarget" });
+    const tc = clients.get(target);
+    if (!tc || tc.userId == null) return send(id, { type: "reportAck", ok: false, reason: "badtarget" });
+
+    const reason = ["cheating", "harassment", "other"].includes(msg.reason) ? msg.reason : null;
+    if (!reason) return send(id, { type: "reportAck", ok: false, reason: "badreason" });
+    const detail = reason === "other" ? String(msg.detail ?? "").replace(/\s+/g, " ").trim().slice(0, 500) : null;
+    if (reason === "other" && !detail) return send(id, { type: "reportAck", ok: false, reason: "needdetail" });
+
+    const reporterId = c.userId, reportedId = tc.userId;
+    const reporterGuest = !!c.isGuest, reportedGuest = !!tc.isGuest;
+
+    // spam / rate-limit: reject the excess and dock the reporter's trust.
+    try {
+      const recent = await db.recentReportsBy(reporterId, new Date(Date.now() - SPAM_WINDOW));
+      if (recent.length >= SPAM_LIMIT) {
+        await db.adjustTrust(reporterId, trustDelta("spam"));
+        return send(id, { type: "reportAck", ok: false, reason: "rate" });
+      }
+    } catch (e) { console.error("spam check failed:", e.message); }
+
+    let reporterTrust = 50;
+    try { reporterTrust = await db.getTrust(reporterId); } catch {}
+
+    let result;
+    try {
+      result = await db.insertReport({
+        reporter_id: reporterId, reported_id: reportedId, game_id: String(game.id),
+        reason, detail, reporter_trusted: reporterTrust >= TRUSTED_THRESHOLD, reporter_trust: reporterTrust,
+        reporter_guest: reporterGuest, reported_guest: reportedGuest,
+        reporter_ip_hash: c.ipHash || null, needs_review: reason === "other",
+      });
+    } catch (e) { console.error("insertReport failed:", e.message); return send(id, { type: "reportAck", ok: false, reason: "error" }); }
+    if (result.duplicate) return send(id, { type: "reportAck", ok: true, already: true });
+
+    await applyReporterTrust(reporterId, reportedId);
+    await evaluateTarget(reportedId, reportedGuest);
+    send(id, { type: "reportAck", ok: true });
+  }
+
   wss.on("connection", (ws, req) => {
     const id = nextId++;
     // req.headers carry same-origin cookies from the WS upgrade — that's how a socket
     // authenticates from a session. Captured once; the session is fixed for the socket's life.
-    clients.set(id, { ws, reqHeaders: req.headers, state: "idle", partner: null, game: null, userId: null, name: null, rating: null });
+    // ipHash: a SALTED hash of the remote IP for guest-cluster DETECTION only (never a raw IP,
+    // never a matchmaking gate — see moderation §5). Salt from env; empty salt still avoids storing IPs.
+    const rawIp = (req.socket && req.socket.remoteAddress) || "";
+    const ipHash = rawIp ? crypto.createHash("sha256").update((process.env.MOD_IP_SALT || "") + "|" + rawIp).digest("hex") : null;
+    clients.set(id, { ws, reqHeaders: req.headers, ipHash, isGuest: true, state: "idle", partner: null, game: null, userId: null, name: null, rating: null });
 
     ws.on("message", async (data) => {
       let msg; try { msg = JSON.parse(data); } catch { return; }
@@ -391,6 +528,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
         const user = await resolveGameUser({ headers: c.reqHeaders, guestToken: msg.token, name: msg.name });
         if (user === NEED_NAME) { send(id, { type: "needName" }); return; }   // first login: pick a screenname
         c.userId = user.id; c.name = user.name; c.rating = user.rating;
+        c.isGuest = user.auth_id == null;         // guest vs account, used everywhere moderation branches
         let form = [];
         try { form = (await db.recentMatches(user.id, 5)).map(m => m.outcome); }
         catch (e) { console.error("recentMatches (auth) failed:", e.message); }
@@ -400,6 +538,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
         online.set(String(user.id), id);          // this connection is now the user's live socket
         sendFriends(user.id);                     // hand them their friends list (with online flags)
         refreshFriendsOf(user.id);                // tell their online friends they just came online
+        await isBanned(user.id, id);              // banned accounts see the suspension screen on first load
       } else if (msg.type === "leaderboard") {
         send(id, { type: "leaderboard", top: await db.topPlayers(10) });
       } else if (msg.type === "find") {
@@ -440,6 +579,8 @@ export async function startServer({ db, pool = null, port = PORT }) {
         await queueDuos(c.userId);
       } else if (msg.type === "cancelDuos" && c.userId) {
         cancelDuos(c.userId);
+      } else if (msg.type === "report" && c.userId) {
+        await handleReport(id, msg);
       } else if ((msg.type === "offer" || msg.type === "answer" || msg.type === "candidate") && msg.target != null) {
         const target = +msg.target;
         const sameGame = c.game && c.game.players.includes(target) && clients.get(target)?.game === c.game;

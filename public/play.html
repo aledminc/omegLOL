@@ -28,6 +28,8 @@
      3-4 cams = 1:1 (a 2x2 of squares, height-capped so it never blows past the viewport). */
   .stage { flex:1; min-width:0; position:relative; aspect-ratio:4/3; overflow:hidden;
     display:grid; gap:2px; transition: box-shadow .15s ease; }
+  body.in-lobby .stage,
+  .stage[data-cams="1"] { flex:0 1 min(100%, 820px); max-height:72.5vh; }
   .stage[data-cams="1"] { grid-template-columns:1fr; }
   .stage[data-cams="2"] { grid-template-columns:1fr 1fr; aspect-ratio:2/1; }
   .stage[data-cams="3"], .stage[data-cams="4"] {
@@ -118,6 +120,38 @@
   .gate h1 { font-size:22px; margin:0; }
   .gate input { padding:11px 14px; font:inherit; width:240px; }
   .gate button { padding:11px 20px; font:inherit; font-weight:600; cursor:pointer; }
+
+  /* report button: a ghost button tinted danger-red so it reads as "flag", not a primary action */
+  .gamebar button.danger { background:var(--grad-btn) !important; color:var(--lose) !important; text-shadow:none; }
+  .gamebar button.danger:hover { background:linear-gradient(180deg,#FFE9EC 0%, #FAD1D8 100%) !important; }
+  .gamebar button.danger[hidden] { display:none; }
+
+  /* report modal — retro .modal/.box pattern lifted from ranked.html */
+  .modal { position:fixed; inset:0; background:rgba(11,22,34,.6); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
+  .modal.hidden { display:none; }
+  .modal .box { border-radius:14px; padding:22px; max-width:400px; width:100%; position:relative; }
+  .modal h3 { margin:0 0 14px; font-family:"Press Start 2P", monospace; font-size:13px; line-height:1.5; }
+  .modal .close { position:absolute; top:10px; right:14px; cursor:pointer; border:0; background:0; font-size:22px; line-height:1; color:var(--dim); }
+  .rp-field { display:block; font-weight:700; font-size:13px; margin-bottom:14px; color:var(--ink); }
+  .rp-field select { display:block; width:100%; margin-top:5px; padding:9px 10px; font:inherit; color:var(--ink);
+    background:var(--panel-2); border:1px solid var(--line-2); border-radius:8px; box-shadow:var(--bevel-in); }
+  .rp-reasons { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+  .rp-reasons label { display:flex; align-items:center; gap:9px; padding:9px 11px; font-weight:600; font-size:13px;
+    background:var(--panel-2); border:1px solid var(--line-2); border-radius:8px; box-shadow:var(--bevel-in); cursor:pointer; }
+  .rp-reasons label:hover { background:#fff; }
+  .rp-reasons input { accent-color:var(--accent); width:15px; height:15px; flex:none; }
+  .rp-detail { display:block; width:100%; margin:0 0 10px; padding:9px 11px; font:inherit; resize:vertical; min-height:62px;
+    color:var(--ink); background:var(--panel-2); border:1px solid var(--line-2); border-radius:8px; box-shadow:var(--bevel-in); outline:none; }
+  .rp-detail.hidden { display:none; }
+  .rp-msg { min-height:18px; font-size:13px; margin-bottom:10px; }
+  .rp-msg.err { color:var(--lose); font-weight:700; }
+  .rp-actions { display:flex; justify-content:flex-end; gap:8px; }
+
+  /* suspension gate (reuses .gate visuals from base.css) */
+  #banGate .ban-reason { font-family:"VT323", monospace; font-size:20px; color:var(--ink); margin:0; }
+  #banGate .ban-until { font-family:"VT323", monospace; font-size:22px; color:var(--lose); font-weight:700; margin:0; text-shadow:1px 1px 0 #fff; }
+  #banGate .ban-note { font-size:13px; color:#1E2A38; max-width:440px; text-align:center; margin:6px 0 0; }
+  #banGate.guest h1 { color:#4A3A00; }
 
   /* mode filters */
   .modebar { display:flex; gap:10px; flex-wrap:wrap; margin:0; padding:12px; }
@@ -329,9 +363,40 @@
   <div class="gamebar">
     <button id="find" disabled>Find a match</button>
     <button id="next" class="ghost" disabled>Next</button>
+    <button id="report" class="ghost danger" hidden>Report</button>
   </div>
   </main>
   </div>
+</div>
+
+<!-- Report player — retro modal (same .modal/.box pattern as ranked.html) -->
+<div id="reportModal" class="modal hidden">
+  <div class="box panel">
+    <button class="close" id="reportClose" aria-label="close">×</button>
+    <h3>Report player</h3>
+    <label class="rp-field">Who
+      <select id="reportTarget"></select>
+    </label>
+    <div class="rp-reasons" id="reportReasons">
+      <label><input type="radio" name="reportReason" value="cheating" /> Cheating / Exploiting / Griefing</label>
+      <label><input type="radio" name="reportReason" value="harassment" /> Harassment / Abusive Behavior</label>
+      <label><input type="radio" name="reportReason" value="other" /> Other — describe the issue</label>
+    </div>
+    <textarea id="reportDetail" class="rp-detail hidden" maxlength="500" placeholder="describe the issue (required)"></textarea>
+    <div class="rp-msg muted" id="reportMsg"></div>
+    <div class="rp-actions">
+      <button class="btn ghost" id="reportCancel">Cancel</button>
+      <button class="btn" id="reportSubmit">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- Suspension screen — full-screen gate (same overlay as the name gate). No appeals for v1. -->
+<div class="gate hidden" id="banGate">
+  <h1 id="banTitle">You've been suspended</h1>
+  <p class="ban-reason" id="banReason"></p>
+  <p class="ban-until" id="banUntil"></p>
+  <p class="ban-note">Play fair and come back when it lifts. Reports are reviewed by the omegLOL team.</p>
 </div>
 
 <!-- Purely additive UI juice: bumps the score number when it changes. No core logic touched. -->
@@ -468,6 +533,7 @@ function clearOpponent() { peerProfiles.clear(); }
 
 // ---------- friends, lobby, modes ----------
 let mode = "solo", topMode = "pvp", currentMatchMode = "solo", lobby = null, myUserId = null, friends = [], pendingInvite = null, isSearching = false, duosQueued = false;
+let matchPeers = [], reportedThisMatch = false, bannedNow = false;   // reporting + ban-gate state
 const friendReason = { not_found: "no player with that code", self: "that's your own code", offline: "they're offline", unavailable: "they're busy", empty: "enter a code" };
 
 function renderFriends() {
@@ -486,6 +552,7 @@ function renderFriends() {
 }
 function renderLobby() {
   const box = $("lobbyBox");
+  document.body.classList.toggle("in-lobby", !!lobby);
   if (!lobby) { box.classList.add("hidden"); return; }
   box.classList.remove("hidden");
   const esc = s => String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
@@ -756,6 +823,8 @@ function resetMatchUi() {
   isSearching = false;
   currentMatchMode = "solo";
   myPeerId = null;
+  matchPeers = [];
+  setReportVisible(false);
   $("youLabel").textContent = "you";
   $("themLabel").textContent = "them";
   clearOpponent();
@@ -792,7 +861,7 @@ function applyGameState(msg) {
 }
 
 ws.addEventListener("open", () => { setStatus("connecting…"); authenticate(); });
-ws.addEventListener("close", () => { isSearching = false; duosQueued = false; updateModeUI(); setStatus("disconnected"); endCall(); stopScoring(); setChatEnabled(false); setBodyState("idle", ""); showSearching(false); });
+ws.addEventListener("close", () => { isSearching = false; duosQueued = false; updateModeUI(); setStatus("disconnected"); endCall(); stopScoring(); setChatEnabled(false); setBodyState("idle", ""); showSearching(false); setReportVisible(false); });
 ws.addEventListener("message", async (e) => {
   const msg = JSON.parse(e.data);
   switch (msg.type) {
@@ -814,11 +883,12 @@ ws.addEventListener("message", async (e) => {
       $("youLabel").textContent = currentMatchMode === "duos" ? "your team" : "you";
       $("themLabel").textContent = currentMatchMode === "duos" ? "their team" : "them";
       renderMatchCards(msg);
+      matchPeers = (msg.peers || []).map(p => ({ id: p.id, name: p.name, team: p.team }));   // report dropdown roster
       try { await startMesh(msg.peers || []); } catch (err) { setStatus("camera error: " + err.message); }
       ensureDetector();
       setStatus(currentMatchMode === "duos" ? "duos match found" : "opponent found");
       setChatEnabled(true);
-      setBodyState("matched", ""); $("find").disabled = true; $("next").disabled = false; renderFriends(); break;
+      setBodyState("matched", ""); $("find").disabled = true; $("next").disabled = false; setReportVisible(true); renderFriends(); break;
     case "offer":
       await acceptOffer(msg); break;
     case "answer":
@@ -854,10 +924,92 @@ ws.addEventListener("message", async (e) => {
       stopScoring(); endCall(); hideBanner(); setBodyState("idle", ""); resetMatchUi(); showSearching(false); duosQueued = false;
       setStatus("opponent left — find another"); setScores({ you: 0, them: 0 });
       $("next").disabled = true; updateModeUI(); break;
+    case "reportAck":
+      if (msg.ok) {
+        closeReportModal();
+        if (!msg.already) { reportedThisMatch = true; $("report").disabled = true; }   // one report per opponent per match
+        setStatus(msg.already ? "you already reported that player" : "report submitted — thanks");
+      } else {
+        reportMsgSet(msg.reason === "rate" ? "you're reporting too fast — try again later" : "couldn't submit that report", true);
+      }
+      break;
+    case "banned": showBanGate(msg); break;
   }
 });
 
+// ---------- reporting + ban gate ----------
+const reportModal = $("reportModal"), reportTarget = $("reportTarget"), reportDetail = $("reportDetail"), reportMsg = $("reportMsg");
+function setReportVisible(on) {
+  const b = $("report");
+  b.hidden = !on;                                  // only live during a match (matched -> result)
+  if (on) { b.disabled = false; reportedThisMatch = false; }
+}
+function reportMsgSet(text, err) { reportMsg.textContent = text || ""; reportMsg.classList.toggle("err", !!err); }
+const reasonRadios = () => [...document.getElementsByName("reportReason")];
+const selectedReason = () => { const r = reasonRadios().find(x => x.checked); return r ? r.value : null; };
+function openReportModal() {
+  if ($("report").hidden || $("report").disabled) return;
+  reportTarget.innerHTML = "";
+  if (!matchPeers.length) { setStatus("no one to report"); return; }
+  if (matchPeers.length > 1) {                      // duos: force a conscious pick among the 3 others
+    const ph = document.createElement("option");
+    ph.value = ""; ph.textContent = "Select a player…"; ph.disabled = true; ph.selected = true;
+    reportTarget.appendChild(ph);
+  }
+  for (const p of matchPeers) {
+    const o = document.createElement("option");
+    o.value = String(p.id); o.textContent = p.name || "Player";
+    reportTarget.appendChild(o);
+  }
+  if (matchPeers.length === 1) reportTarget.value = String(matchPeers[0].id);   // solo: preselect the opponent
+  for (const r of reasonRadios()) r.checked = false;
+  reportDetail.value = ""; reportDetail.classList.add("hidden");
+  reportMsgSet("");
+  reportModal.classList.remove("hidden");
+}
+function closeReportModal() { reportModal.classList.add("hidden"); }
+for (const r of reasonRadios()) r.addEventListener("change", () => reportDetail.classList.toggle("hidden", selectedReason() !== "other"));
+$("report").addEventListener("click", openReportModal);
+$("reportClose").addEventListener("click", closeReportModal);
+$("reportCancel").addEventListener("click", closeReportModal);
+reportModal.addEventListener("click", e => { if (e.target === reportModal) closeReportModal(); });
+$("reportSubmit").addEventListener("click", () => {
+  const target = reportTarget.value, reason = selectedReason();
+  if (!target) return reportMsgSet("pick who you're reporting", true);
+  if (!reason) return reportMsgSet("pick a reason", true);
+  const detail = reason === "other" ? reportDetail.value.trim() : "";
+  if (reason === "other" && !detail) return reportMsgSet("describe the issue", true);
+  reportMsgSet("submitting…");
+  signal({ type: "report", target: Number(target), reason, detail });
+});
+
+function fmtUntil(until) {
+  const ms = until - Date.now();
+  if (ms <= 0) return "shortly";
+  const d = Math.floor(ms / 86400e3), h = Math.floor((ms % 86400e3) / 3600e3), m = Math.floor((ms % 3600e3) / 60e3);
+  const parts = [];
+  if (d) parts.push(d + (d === 1 ? " day" : " days"));
+  if (h) parts.push(h + (h === 1 ? " hour" : " hours"));
+  if (!d && m) parts.push(m + (m === 1 ? " min" : " mins"));
+  return parts.join(", ") || "under a minute";
+}
+const banReasonText = { cheating: "cheating / exploiting / griefing", harassment: "harassment or abusive behavior", cluster: "multiple player reports", other: "player reports" };
+function showBanGate(msg) {
+  bannedNow = true;
+  closeReportModal();
+  const gate = $("banGate");
+  gate.classList.toggle("guest", !!msg.guest);
+  $("banTitle").textContent = msg.guest ? "Suspended for now" : "You've been suspended";
+  $("banReason").textContent = "reason: " + (banReasonText[msg.reason] || "player reports");
+  $("banUntil").textContent = "time left: " + fmtUntil(msg.until) + " · until " + new Date(msg.until).toLocaleString();
+  gate.classList.remove("hidden");
+  isSearching = false; duosQueued = false;                 // hard lock out of matchmaking
+  $("find").disabled = true; $("next").disabled = true; setReportVisible(false);
+  showSearching(false); setBodyState("idle", "");
+}
+
 $("find").addEventListener("click", async () => {
+  if (bannedNow) return;
   if (isSearching) {
     isSearching = false;
     signal({ type: "cancelSearch" });
@@ -880,6 +1032,7 @@ $("find").addEventListener("click", async () => {
   setBodyState("searching", ""); showSearching(true, "Finding a match");   // instant feedback before the server's "waiting"
 });
 $("next").addEventListener("click", () => {
+  if (bannedNow) return;
   const wasDuos = currentMatchMode === "duos";
   stopScoring(); endCall(); hideBanner(); resetMatchUi(); signal({ type: "next" });
   if (wasDuos) { $("next").disabled = true; updateModeUI(); setStatus("left duos match"); showSearching(false); return; }
