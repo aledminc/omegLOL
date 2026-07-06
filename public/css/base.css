@@ -575,6 +575,11 @@ body[data-phase] .profile {
   color: var(--ink) !important;
   text-shadow: none;
 }
+.gamebar button.cancel-search {
+  background: linear-gradient(180deg, #FF8A8A 0%, #E94B6A 55%, #9F243A 100%) !important;
+  color: #fff !important;
+  text-shadow: 1px 1px 0 #5D1020;
+}
 .gamebar button:disabled { opacity: .5 !important; }
 
 /* leaderboard inside play */
@@ -774,12 +779,14 @@ body.home { overflow-x: hidden; }
 }
 .vs {
   font-family: "Press Start 2P", monospace; font-size: 22px;
+  line-height: 1;
   color: #fff;
   background: var(--grad-cta);
   border: 2px solid #1E2A38;
   border-radius: 50%;
   width: 56px; height: 56px;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center;
+  padding-top: 2px;
   text-shadow: 1px 1px 0 #1E2A38;
   box-shadow: var(--bevel-out), 0 0 16px #4DF3FF99;
 }
@@ -806,17 +813,21 @@ body.home { overflow-x: hidden; }
 }
 .marquee { overflow: hidden; }
 .marquee-track {
-  display: inline-flex; gap: 28px; padding: 14px 0;
+  display: flex; width: max-content;
   white-space: nowrap;
-  animation: scroll 28s linear infinite;
+  animation: scroll 18s linear infinite;
   color: #fff;
   font-family: "Press Start 2P", monospace;
   font-size: 14px;
   text-shadow: 2px 2px 0 #1E2A38;
 }
-.marquee-track span { display: inline-block; }
-.marquee-track span:nth-child(even) { color: var(--gold); }
-@keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+.marquee-set {
+  display: flex; flex: none; gap: 28px;
+  padding: 14px 28px 14px 0;
+}
+.marquee-set span { display: inline-block; }
+.marquee-set span:nth-child(even) { color: var(--gold); }
+@keyframes scroll { from { transform: translateX(0); } to { transform: translateX(-12.5%); } }
 
 /* ---------- SOCIALS ---------- */
 .socials-wrap {
@@ -1081,4 +1092,13 @@ body.home { overflow-x: hidden; }
   max-width: 1280px; margin: 24px auto 0; padding-top: 14px;
   border-top: 1px dashed rgba(255,255,255,.3);
   font-family: "VT323", monospace; font-size: 16px; color: #BEDDFA; text-align: center;
+  white-space: nowrap;
+  overflow-x: auto;
+}
+.foot-bottom a {
+  display: inline;
+  padding: 0;
+  white-space: nowrap;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }

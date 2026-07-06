@@ -335,6 +335,14 @@ export async function startServer({ db, pool = null, port = PORT }) {
       for (const u of lobby.members) sendToUser(u, { type: "duosWaiting" });
     }
   }
+  function cancelDuos(uid) {                     // leader pulls the duo out of queue but keeps the lobby
+    const lid = userLobby.get(String(uid));
+    if (lid == null) return;
+    const lobby = lobbies.get(lid);
+    if (!lobby || String(lobby.leader) !== String(uid)) return;
+    if (duosWaiting === lid) duosWaiting = null;
+    for (const u of lobby.members) sendToUser(u, { type: "duosCanceled" });
+  }
   async function matchDuos(l1, l2) {
     const team1 = l1.members.map(uid => online.get(String(uid))).filter(id => clients.has(id));
     const team2 = l2.members.map(uid => online.get(String(uid))).filter(id => clients.has(id));
@@ -430,6 +438,8 @@ export async function startServer({ db, pool = null, port = PORT }) {
         leaveLobby(id);
       } else if (msg.type === "queueDuos" && c.userId) {
         await queueDuos(c.userId);
+      } else if (msg.type === "cancelDuos" && c.userId) {
+        cancelDuos(c.userId);
       } else if ((msg.type === "offer" || msg.type === "answer" || msg.type === "candidate") && msg.target != null) {
         const target = +msg.target;
         const sameGame = c.game && c.game.players.includes(target) && clients.get(target)?.game === c.game;

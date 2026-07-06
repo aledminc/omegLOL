@@ -12,7 +12,7 @@
 
   .play-shell { display:grid; grid-template-columns:240px minmax(0, 1fr); gap:14px; align-items:start; }
   .control-panel { display:flex; flex-direction:column; gap:12px; min-width:0; }
-  .match-panel { min-width:0; }
+  .match-panel { min-width:0; position:relative; }   /* anchors the lobby overlay to the camera's top-right */
 
   /* friends + lobby cards keep their panel look */
   .arena { display:flex; gap:12px; align-items:stretch; justify-content:center; }
@@ -72,6 +72,23 @@
   .banner .count { font-size:64px; font-weight:600; line-height:1; }
   .banner .sub { font-size:14px; margin-top:4px; }
   .banner .delta { font-size:22px; font-weight:600; margin-top:8px; }
+
+  /* in-stage "finding a match" overlay: retro CRT spinner + animated dots + live timer */
+  .searching { position:absolute; inset:0; z-index:7;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+    text-align:center; background:rgba(7,17,28,.72); }
+  .searching.hidden { display:none; }
+  .searching .ring { width:62px; height:62px; border-radius:50%;
+    border:5px solid rgba(142,199,255,.22); border-top-color:var(--neon);
+    box-shadow:0 0 16px rgba(77,243,255,.5), inset 0 0 10px rgba(77,243,255,.22);
+    animation:searchspin .8s linear infinite; }
+  @keyframes searchspin { to { transform:rotate(360deg); } }
+  .searching .s-label { font-family:"Press Start 2P", monospace; font-size:12px; line-height:1.5;
+    color:#EAF1FA; text-shadow:1px 1px 0 #1E2A38, 0 0 10px rgba(77,243,255,.4); }
+  .searching .s-label::after { content:""; animation:searchdots 1.2s infinite; }
+  @keyframes searchdots { 0%{content:""} 25%{content:"."} 50%{content:".."} 75%{content:"..."} }
+  .searching .s-elapsed { font-family:"VT323", monospace; font-size:22px; color:var(--neon);
+    letter-spacing:.08em; text-shadow:0 0 8px rgba(77,243,255,.5); }
 
   /* juice layer */
   .fx { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:5; }
@@ -143,19 +160,63 @@
   .chat-form .btn { padding:7px 10px; }
   .chat-form .btn:disabled { opacity:.55; cursor:not-allowed; }
 
-  /* duo lobby + invite toast */
-  .lobby { padding:12px 14px; display:flex; flex-direction:column; gap:10px; }
+  /* duo lobby: a compact chip sitting directly above the camera, far right (in the status-row
+     band). It's absolutely positioned and lifted fully above the stage, so it never pushes the
+     camera down — the camera top always stays in line with the mode-filter top, with no overlap. */
+  .lobby { position:absolute; top:0; right:8px; transform:translateY(calc(-100% - 6px)); z-index:8;
+    display:flex; align-items:center; gap:7px; flex-wrap:nowrap; max-width:calc(100% - 16px);
+    padding:5px 7px; background:rgba(245,247,250,.94);
+    border:1px solid #1E2A38; border-radius:8px; box-shadow:var(--bevel-out); }
   .lobby.hidden { display:none; }
-  .lobby-mems { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
-  .lobby-actions { display:flex; gap:8px; }
-  .invite-prompt { position:fixed; top:54px; left:50%; transform:translateX(-50%); z-index:30;
-    display:flex; gap:10px; align-items:center; padding:12px 16px; }
+  .lobby-title { font-family:"Press Start 2P", monospace; font-size:8px; letter-spacing:.04em;
+    text-transform:uppercase; color:var(--accent); white-space:nowrap; }
+  .lobby-mems { display:flex; gap:5px; align-items:center; }
+  .lobby-mem { display:inline-flex; align-items:center; gap:3px; padding:3px 8px;
+    font-weight:700; font-size:12px; color:var(--ink); background:var(--panel-2);
+    border:1px solid var(--line-2); border-radius:999px; box-shadow:var(--bevel-in);
+    max-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lobby-mem .crown { font-size:11px; filter:drop-shadow(0 0 3px rgba(255,230,109,.85)); }
+  .lobby .btn { padding:5px 10px; font-size:11px; white-space:nowrap; }
+  .invite-prompt { position:fixed; top:58px; left:50%; transform:translateX(-50%); z-index:30;
+    display:grid; grid-template-columns:auto minmax(0, 1fr) auto; gap:12px; align-items:center;
+    width:min(520px, calc(100vw - 24px)); padding:14px 16px; overflow:hidden;
+    background:linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(237,242,248,.98) 100%);
+    border:1px solid #1E2A38; border-radius:12px;
+    box-shadow:var(--bevel-out), 0 12px 26px -14px rgba(30,42,56,.65); }
   .invite-prompt.hidden { display:none; }
+  .invite-prompt:not(.hidden) { animation:inviteIn .16s ease-out; }
+  .invite-prompt::before { content:""; position:absolute; left:8px; right:8px; top:6px; height:3px;
+    border-radius:2px; background:linear-gradient(90deg, #FFE66D, #4DF3FF, #8EC7FF); opacity:.7; }
+  .invite-prompt::after { content:""; position:absolute; inset:0; pointer-events:none;
+    background:repeating-linear-gradient(to bottom, rgba(30,42,56,.04) 0 1px, transparent 1px 3px); }
+  .invite-icon { width:34px; height:34px; border:1px solid #1E2A38; border-radius:8px;
+    background:radial-gradient(circle at 35% 30%, #fff 0 10%, transparent 11%),
+      linear-gradient(180deg, #FFF3A0 0%, #FFE66D 52%, #E8B92A 100%);
+    box-shadow:var(--bevel-out), 0 0 10px rgba(255,230,109,.45); position:relative; z-index:1; }
+  .invite-icon::before, .invite-icon::after { content:""; position:absolute; background:#1E2A38; border-radius:2px; }
+  .invite-icon::before { left:9px; top:15px; width:16px; height:4px; }
+  .invite-icon::after { left:15px; top:9px; width:4px; height:16px; }
+  .invite-copy { min-width:0; position:relative; z-index:1; }
+  .invite-title { display:block; font-family:"Press Start 2P", monospace; font-size:9px;
+    text-transform:uppercase; letter-spacing:.04em; color:var(--accent); margin-bottom:4px; }
+  .invite-copy span:last-child { display:block; color:var(--ink); font-weight:800; line-height:1.25;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .invite-actions { display:flex; gap:8px; position:relative; z-index:1; }
+  .invite-actions .btn { padding:8px 13px; white-space:nowrap; }
+  @keyframes inviteIn {
+    from { opacity:0; transform:translateX(-50%) translateY(-8px); }
+    to { opacity:1; transform:translateX(-50%) translateY(0); }
+  }
 
   @media (max-width:880px) {
     .play-shell { grid-template-columns:1fr; }
     .control-panel { order:2; }
     .match-panel { order:1; }
+  }
+  @media (max-width:560px) {
+    .invite-prompt { grid-template-columns:auto minmax(0, 1fr); top:50px; padding:13px; }
+    .invite-actions { grid-column:1 / -1; justify-content:flex-end; }
+    .invite-copy span:last-child { white-space:normal; }
   }
   @media (max-width:680px) { .friends { width:auto; } }
 </style>
@@ -169,10 +230,16 @@
 
 <header id="site-nav"></header>
 
-<div class="invite-prompt hidden" id="invitePrompt">
-  <span id="inviteText"></span>
-  <button class="btn gold" id="inviteAccept">Accept</button>
-  <button class="btn ghost" id="inviteDecline">Decline</button>
+<div class="invite-prompt hidden" id="invitePrompt" role="dialog" aria-live="polite" aria-labelledby="inviteTitle">
+  <span class="invite-icon" aria-hidden="true"></span>
+  <div class="invite-copy">
+    <span class="invite-title" id="inviteTitle">Duo invite</span>
+    <span id="inviteText"></span>
+  </div>
+  <div class="invite-actions">
+    <button class="btn gold" id="inviteAccept">Accept</button>
+    <button class="btn ghost" id="inviteDecline">Decline</button>
+  </div>
 </div>
 
 <div class="app">
@@ -219,18 +286,14 @@
           </form>
         </div>
       </aside>
-
-      <div class="lobby hidden" id="lobbyBox">
-        <span class="pc-tag">Duo Lobby</span>
-        <div class="lobby-mems" id="lobbyMembers"></div>
-        <div class="lobby-actions">
-          <button class="btn gold" id="queueDuosBtn">Queue for Duos</button>
-          <button class="btn ghost" id="leaveLobbyBtn">Leave</button>
-        </div>
-      </div>
     </aside>
 
     <main class="match-panel">
+      <div class="lobby hidden" id="lobbyBox">
+        <span class="lobby-title">Duo Lobby</span>
+        <div class="lobby-mems" id="lobbyMembers"></div>
+        <button class="btn ghost" id="leaveLobbyBtn">Leave Lobby</button>
+      </div>
       <div class="arena">
 
     <div class="stage" data-cams="1">
@@ -249,6 +312,11 @@
         <div class="count" id="bannerCount"></div>
         <div class="sub" id="bannerSub"></div>
         <div class="delta" id="bannerDelta"></div>
+      </div>
+      <div class="searching hidden" id="searchOverlay">
+        <div class="ring" aria-hidden="true"></div>
+        <div class="s-label" id="searchLabel">Finding a match</div>
+        <div class="s-elapsed" id="searchElapsed">0:00</div>
       </div>
     </div>
   </div>
@@ -399,7 +467,7 @@ function renderMatchCards(msg) {
 function clearOpponent() { peerProfiles.clear(); }
 
 // ---------- friends, lobby, modes ----------
-let mode = "solo", topMode = "pvp", currentMatchMode = "solo", lobby = null, myUserId = null, friends = [], pendingInvite = null, isSearching = false;
+let mode = "solo", topMode = "pvp", currentMatchMode = "solo", lobby = null, myUserId = null, friends = [], pendingInvite = null, isSearching = false, duosQueued = false;
 const friendReason = { not_found: "no player with that code", self: "that's your own code", offline: "they're offline", unavailable: "they're busy", empty: "enter a code" };
 
 function renderFriends() {
@@ -420,11 +488,11 @@ function renderLobby() {
   const box = $("lobbyBox");
   if (!lobby) { box.classList.add("hidden"); return; }
   box.classList.remove("hidden");
-  $("lobbyMembers").innerHTML = lobby.members
-    .map(m => `<span class="lobby-mem">${m.name}${String(m.id) === String(lobby.leader) ? " 👑" : ""}</span>`).join("");
-  const leader = String(lobby.leader) === String(myUserId);
-  $("queueDuosBtn").disabled = !leader;
-  $("queueDuosBtn").textContent = leader ? "Queue for Duos" : "waiting for leader…";
+  const esc = s => String(s).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  $("lobbyMembers").innerHTML = lobby.members.map(m => {
+    const crown = String(m.id) === String(lobby.leader) ? `<span class="crown" title="party leader">👑</span>` : "";
+    return `<span class="lobby-mem">${crown}${esc(m.name)}</span>`;
+  }).join("");
 }
 function updateModeUI() {
   for (const b of $("topMode").children) b.classList.toggle("active", b.dataset.mode === topMode);
@@ -433,7 +501,14 @@ function updateModeUI() {
   const find = $("find");
   find.classList.toggle("cancel-search", isSearching);
   if (isSearching) { find.disabled = false; find.textContent = "Cancel search"; renderFriends(); return; }
-  if (topMode === "br") { find.disabled = true; find.textContent = "Battle Royale (soon)"; }
+  if (lobby) {                                      // in a duo lobby: the find button drives the duo queue
+    const leader = String(lobby.leader) === String(myUserId);
+    if (duosQueued) {                               // queued: leader can cancel (and stay in lobby), others wait
+      find.classList.toggle("cancel-search", leader);
+      find.disabled = !leader; find.textContent = leader ? "Cancel search" : "Queued — waiting…";
+    } else { find.disabled = !leader; find.textContent = leader ? "Queue for Duos" : "waiting for leader…"; }
+  }
+  else if (topMode === "br") { find.disabled = true; find.textContent = "Battle Royale (soon)"; }
   else if (mode === "duos") { find.disabled = true; find.textContent = "Duos — invite a friend"; }
   else { find.disabled = false; find.textContent = "Find a match"; }
   renderFriends();
@@ -444,8 +519,7 @@ $("addFriendBtn").addEventListener("click", () => {
   const code = $("codeInput").value.trim(); if (!code) return;
   signal({ type: "addFriend", code }); $("codeInput").value = "";
 });
-$("queueDuosBtn").addEventListener("click", () => { signal({ type: "queueDuos" }); setStatus("queueing duo…"); });
-$("leaveLobbyBtn").addEventListener("click", () => { signal({ type: "leaveLobby" }); lobby = null; renderLobby(); stopLobbyPreview(); updateModeUI(); setStatus("left lobby"); });
+$("leaveLobbyBtn").addEventListener("click", () => { signal({ type: "leaveLobby" }); lobby = null; duosQueued = false; renderLobby(); stopLobbyPreview(); updateModeUI(); setStatus("left lobby"); showSearching(false); });
 function showInvite(from) {
   pendingInvite = from; $("inviteText").textContent = `${from.name} invited you to a duo`;
   $("invitePrompt").classList.remove("hidden");
@@ -652,6 +726,27 @@ function showBanner(big, count, sub) {
   $("bannerSub").textContent = sub || ""; $("bannerDelta").textContent = "";
 }
 function hideBanner() { banner.classList.add("hidden"); }
+
+// searching overlay: spinner + a live elapsed clock so the queue feels like it's progressing
+let searchTimer = null, searchStart = 0;
+function showSearching(on, label) {
+  const ov = $("searchOverlay");
+  if (on) {
+    if (label) $("searchLabel").textContent = label;
+    ov.classList.remove("hidden");
+    if (searchTimer) return;                       // already ticking — keep the clock running
+    searchStart = Date.now();
+    const tick = () => {
+      const s = Math.floor((Date.now() - searchStart) / 1000);
+      $("searchElapsed").textContent = Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
+    };
+    tick();
+    searchTimer = setInterval(tick, 1000);
+  } else {
+    ov.classList.add("hidden");
+    if (searchTimer) { clearInterval(searchTimer); searchTimer = null; }
+  }
+}
 function setScores(s) {
   $("youNum").textContent = Math.round(s.you); $("themNum").textContent = Math.round(s.them);
   const max = Math.max(10, s.you, s.them);
@@ -697,7 +792,7 @@ function applyGameState(msg) {
 }
 
 ws.addEventListener("open", () => { setStatus("connecting…"); authenticate(); });
-ws.addEventListener("close", () => { isSearching = false; updateModeUI(); setStatus("disconnected"); endCall(); stopScoring(); setChatEnabled(false); setBodyState("idle", ""); });
+ws.addEventListener("close", () => { isSearching = false; duosQueued = false; updateModeUI(); setStatus("disconnected"); endCall(); stopScoring(); setChatEnabled(false); setBodyState("idle", ""); showSearching(false); });
 ws.addEventListener("message", async (e) => {
   const msg = JSON.parse(e.data);
   switch (msg.type) {
@@ -711,9 +806,9 @@ ws.addEventListener("message", async (e) => {
       if (msg.profile.friendCode) $("myCode").textContent = msg.profile.friendCode;
       updateModeUI();
       setStatus("ready — find a match"); break;
-    case "waiting": isSearching = true; updateModeUI(); setStatus("searching…"); setBodyState("searching", ""); break;
+    case "waiting": isSearching = true; updateModeUI(); setStatus("searching…"); setBodyState("searching", ""); showSearching(true, "Finding a match"); break;
     case "matched":
-      isSearching = false; $("find").classList.remove("cancel-search");
+      isSearching = false; duosQueued = false; $("find").classList.remove("cancel-search"); showSearching(false);
       lobby = null; renderLobby(); renderFriends();
       myPeerId = msg.peerId; currentMatchMode = msg.mode || "solo";
       $("youLabel").textContent = currentMatchMode === "duos" ? "your team" : "you";
@@ -744,18 +839,19 @@ ws.addEventListener("message", async (e) => {
     case "friends": friends = msg.list; renderFriends(); break;
     case "friendError": setStatus(friendReason[msg.reason] || msg.reason); break;
     case "invited": showInvite(msg.from); break;
-    case "lobby": lobby = msg.lobby; renderLobby(); updateModeUI(); startLobbyPreview(); setChatEnabled(true); break;
-    case "lobbyClosed": lobby = null; renderLobby(); updateModeUI(); stopLobbyPreview(); setChatEnabled(false); setStatus("lobby closed"); break;
+    case "lobby": lobby = msg.lobby; mode = "duos"; duosQueued = false; renderLobby(); updateModeUI(); startLobbyPreview(); setChatEnabled(true); break;
+    case "lobbyClosed": lobby = null; duosQueued = false; renderLobby(); updateModeUI(); stopLobbyPreview(); setChatEnabled(false); setStatus("lobby closed"); showSearching(false); break;
     case "chat": addChat(msg.from, msg.text, msg.self); break;
     case "inviteDeclined": setStatus((msg.by || "they") + " declined the invite"); break;
-    case "duosWaiting": setStatus("searching for another duo…"); break;
-    case "searchCanceled": isSearching = false; updateModeUI(); setStatus("ready - find a match"); setBodyState("idle", ""); break;
+    case "duosWaiting": duosQueued = true; updateModeUI(); setStatus("searching for another duo…"); showSearching(true, "Finding a duo"); break;
+    case "duosCanceled": duosQueued = false; updateModeUI(); setStatus("duo queue canceled — still in lobby"); showSearching(false); break;
+    case "searchCanceled": isSearching = false; duosQueued = false; updateModeUI(); setStatus("ready - find a match"); setBodyState("idle", ""); showSearching(false); break;
     case "gameReset":
-      stopScoring(); endCall(); hideBanner(); setBodyState("idle", ""); resetMatchUi();
+      stopScoring(); endCall(); hideBanner(); setBodyState("idle", ""); resetMatchUi(); showSearching(false); duosQueued = false;
       setStatus("game over — find another"); setScores({ you: 0, them: 0 });
       $("next").disabled = true; updateModeUI(); break;
     case "partnerLeft":
-      stopScoring(); endCall(); hideBanner(); setBodyState("idle", ""); resetMatchUi();
+      stopScoring(); endCall(); hideBanner(); setBodyState("idle", ""); resetMatchUi(); showSearching(false); duosQueued = false;
       setStatus("opponent left — find another"); setScores({ you: 0, them: 0 });
       $("next").disabled = true; updateModeUI(); break;
   }
@@ -768,17 +864,27 @@ $("find").addEventListener("click", async () => {
     updateModeUI();
     setStatus("ready - find a match");
     setBodyState("idle", "");
+    showSearching(false);
+    return;
+  }
+  if (lobby) {                                    // in a duo lobby: only the leader drives the queue
+    if (String(lobby.leader) !== String(myUserId)) return;
+    if (duosQueued) { signal({ type: "cancelDuos" }); return; }   // leave the queue, keep the lobby
+    signal({ type: "queueDuos" }); setStatus("queueing duo…");
+    duosQueued = true; updateModeUI();            // server's "duosWaiting" brings up the overlay
     return;
   }
   try { await ensureCamera(); } catch (err) { setStatus("camera blocked: " + err.message); return; }
   isSearching = true;
   signal({ type: "find" }); updateModeUI(); setStatus("searching…");
+  setBodyState("searching", ""); showSearching(true, "Finding a match");   // instant feedback before the server's "waiting"
 });
 $("next").addEventListener("click", () => {
   const wasDuos = currentMatchMode === "duos";
   stopScoring(); endCall(); hideBanner(); resetMatchUi(); signal({ type: "next" });
-  if (wasDuos) { $("next").disabled = true; updateModeUI(); setStatus("left duos match"); return; }
+  if (wasDuos) { $("next").disabled = true; updateModeUI(); setStatus("left duos match"); showSearching(false); return; }
   setScores({ you: 0, them: 0 }); $("find").disabled = true; setStatus("searching…");
+  setBodyState("searching", ""); showSearching(true, "Finding a match");
 });
 </script>
 <script src="/js/nav.js"></script>
