@@ -42,6 +42,16 @@
   .panel .btn { margin-top: 4px; }
   .auth-switch { margin: 14px 0 0; text-align: center; font-size: 13px; }
   .guest-link { margin: 18px 0 0; text-align: center; }
+
+  /* Continue with Google — white ghost button + the real multicolor G mark */
+  .gbtn { width: 100%; margin-top: 0; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .gbtn .gmark { flex: none; display: block; }
+  .gbtn[hidden] { display: none; }
+  /* "or" divider between social + email sign-in */
+  .or-div { display: flex; align-items: center; gap: 10px; margin: 14px 0;
+    color: var(--dim); font-family: "VT323", monospace; font-size: 16px; letter-spacing: .06em; }
+  .or-div::before, .or-div::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+  .or-div[hidden] { display: none; }
 </style>
 </head>
 <body>
@@ -54,6 +64,18 @@
 
     <div class="panel">
       <p id="msg" class="auth-msg" hidden></p>
+
+      <button class="btn ghost gbtn" id="googleBtn" type="button">
+        <svg class="gmark" viewBox="0 0 48 48" width="18" height="18" aria-hidden="true">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.28-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Continue with Google
+      </button>
+      <div class="or-div" id="orDiv"><span>or</span></div>
+
       <form id="authForm" novalidate>
         <label>Email
           <input id="email" type="email" autocomplete="email" placeholder="you@example.com" />
@@ -149,12 +171,34 @@
     }
   });
 
+  // Continue with Google: ask better-auth for the OAuth URL, then hand off to Google's consent
+  // screen. After consent, Google returns to /api/auth/callback/google, better-auth sets the
+  // session cookie and redirects to callbackURL (/play). Same session cookie the game reads.
+  $("googleBtn").addEventListener("click", async () => {
+    if (disabled) return;
+    note("");
+    const btn = $("googleBtn");
+    btn.disabled = true;
+    try {
+      const res = await post("/sign-in/social", { provider: "google", callbackURL: location.origin + "/play" });
+      const url = res.data && (res.data.url || res.data.redirect);
+      if (res.ok && url) { location.href = url; return; }
+      note(friendly(res) || "Couldn't start Google sign-in — try again.");
+    } catch {
+      note("Network error — is the server running?");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   function markUnavailable() {
     disabled = true;
     note("Account sign-in isn't enabled on this server yet — jump in as a guest below.");
     $("email").disabled = true;
     $("password").disabled = true;
     $("submitBtn").disabled = true;
+    $("googleBtn").hidden = true;
+    $("orDiv").hidden = true;
     $("switchLink").style.pointerEvents = "none";
     $("switchLink").style.opacity = ".5";
   }

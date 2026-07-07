@@ -76,6 +76,9 @@ export async function startServer({ db, pool = null, port = PORT }) {
   app.get("/login",  page("login.html"));
   app.get("/play",   page("play.html"));
   app.get("/ranked", page("ranked.html"));
+  app.get("/terms",  page("terms.html"));
+  app.get("/privacy", page("privacy.html"));
+  app.get("/about",  page("about.html"));
   app.get("/api/leaderboard", async (_req, res) => {       // request/response data -> HTTP, not WS
     try { res.json(await db.topPlayers(10)); }
     catch { res.status(500).json({ error: "unavailable" }); }
