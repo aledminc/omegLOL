@@ -7,12 +7,29 @@
 <link rel="stylesheet" href="/css/base.css" />
 <style>
   /* Layout-only rules; visual treatment lives in /css/base.css */
-  .app { width:100%; max-width:1160px; margin:18px auto; padding:0 14px; }
+  .app { width:100%; max-width:1500px; margin:14px auto; padding:0 14px; }
+  body.in-lobby .app { max-width:1640px; margin-left:auto; margin-right:auto; }
   .status { font-size:13px; padding:0 2px 10px; }
 
-  .play-shell { display:grid; grid-template-columns:240px minmax(0, 1fr); gap:14px; align-items:start; }
-  .control-panel { display:flex; flex-direction:column; gap:12px; min-width:0; }
-  .match-panel { min-width:0; position:relative; }   /* anchors the lobby overlay to the camera's top-right */
+  /* three columns: filters+friends | camera | actions+chat. A script keeps the two side rails
+     exactly as tall as the camera+scoreboard column (see syncRails), so the friends list and
+     chat always bottom-align with the scoreboard and fill/scroll within — at any cam count. */
+  .play-shell { display:grid; grid-template-columns:290px minmax(0, 1fr) 290px; gap:14px; align-items:start; }
+  .control-panel { display:flex; flex-direction:column; gap:12px; min-width:0; min-height:0; }
+  .match-panel { min-width:0; position:relative; }
+
+  /* right-hand rail: match buttons stacked up top (always in view beside the camera), chat below */
+  .action-panel { display:flex; flex-direction:column; gap:12px; min-width:0; min-height:0; }
+  .action-panel .gamebar { flex-direction:column; gap:10px; margin-top:0 !important; }
+  .action-panel .gamebar button { width:100%; }
+
+  /* side rails fill their (script-synced) height; the scroll regions flex to fill and scroll */
+  .control-panel .friends { flex:1; min-height:0; display:flex; }
+  .control-panel .friends .pcard { flex:1; min-height:0; }
+  .control-panel .fr-list { flex:1; min-height:0; height:auto; max-height:none; }
+  .action-panel .chat { flex:1; min-height:0; display:flex; }
+  .action-panel .chat .pcard { flex:1; min-height:0; }
+  .action-panel .chat-log { flex:1; min-height:0; height:auto; }
 
   /* friends + lobby cards keep their panel look */
   .arena { display:flex; gap:12px; align-items:stretch; justify-content:center; }
@@ -29,9 +46,10 @@
   .stage { flex:1; min-width:0; position:relative; aspect-ratio:4/3; overflow:hidden;
     display:grid; gap:2px; transition: box-shadow .15s ease; }
   body.in-lobby .stage,
-  .stage[data-cams="1"] { flex:0 1 min(100%, 820px); max-height:72.5vh; }
+  .stage[data-cams="1"] { flex:0 1 min(100%, 900px); max-height:72.5vh; }
   .stage[data-cams="1"] { grid-template-columns:1fr; }
-  .stage[data-cams="2"] { grid-template-columns:1fr 1fr; aspect-ratio:2/1; }
+  /* matched 1v1: two square cams side by side — let it grow wide so it dominates the screen */
+  .stage[data-cams="2"] { grid-template-columns:1fr 1fr; aspect-ratio:2/1; flex:0 1 min(100%, 1200px); max-height:80vh; }
   .stage[data-cams="3"], .stage[data-cams="4"] {
     grid-template-columns:1fr 1fr; grid-template-rows:1fr 1fr; aspect-ratio:1/1; max-width:72vh; }
 
@@ -160,23 +178,34 @@
 
   /* friends panel */
   .friends { width:auto; flex:none; }
-  .friends .pcard { padding:12px; height:100%; display:flex; flex-direction:column; gap:8px; }
-  .fr-code { font-size:13px; }
-  .fr-add { display:flex; gap:6px; }
+  .friends .pcard { padding:12px; height:100%; display:flex; flex-direction:column; gap:10px; }
+  .fr-code { display:flex; align-items:center; justify-content:space-between; gap:8px;
+    padding:8px 10px; background:#F7FBFF; border:1px solid var(--line-2); border-radius:8px;
+    box-shadow:var(--bevel-in); color:var(--dim); font-size:12px; font-weight:800;
+    text-transform:uppercase; letter-spacing:0; }
+  .fr-code b { padding:2px 7px; background:#FFFFFF; color:var(--ink); border:1px solid var(--line-2);
+    border-radius:6px; box-shadow:var(--bevel-in); font-family:"VT323", monospace; font-size:18px;
+    line-height:1.05; letter-spacing:0; text-transform:none; }
+  .fr-add { display:flex; gap:6px; padding-bottom:10px; border-bottom:1px solid rgba(48,69,93,.32); }
   .fr-add input { flex:1; min-width:0; margin-top:0; padding:7px 9px; font:inherit; }
   .fr-add .btn { padding:7px 10px; }
   /* cut off at 5 friends (40px row + 6px gap); the rest scroll into view */
-  .fr-list { display:flex; flex-direction:column; gap:6px; margin-top:2px;
-    max-height:224px; overflow-y:auto; padding-right:3px; }
+  .fr-list { display:flex; flex-direction:column; gap:6px; margin-top:0; padding-top:2px;
+    height:224px; max-height:224px; overflow-y:auto; padding-right:3px; }
   .fr-row { display:flex; align-items:center; gap:8px; height:40px; flex:none; padding:0 9px;
-    background:var(--panel-2); border:1px solid var(--line-2); border-radius:8px; box-shadow:var(--bevel-in); }
+    background:linear-gradient(180deg, #FFFFFF 0%, var(--panel-2) 100%); border:1px solid var(--line-2);
+    border-left:3px solid var(--accent); border-radius:8px; box-shadow:var(--bevel-in); }
+  .fr-row:hover { border-color:#1E2A38; transform:translateY(-1px); }
   .fr-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     font-weight:700; font-size:14px; color:var(--ink); }
   .fr-dot { width:10px; height:10px; border-radius:50%; flex:none;
     background:var(--line); box-shadow:inset 0 0 0 1px #1E2A38; }
   .fr-dot.on { background:#6EFF8E; box-shadow:0 0 6px #6EFF8E, inset 0 0 0 1px #1E2A38; }
   .fr-invite { padding:5px 9px !important; font-size:12px !important; }
-  .fr-empty { padding:10px 4px; text-align:center; color:var(--dim); font-family:"VT323", monospace; font-size:16px; }
+  .fr-empty { flex:1; min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:10px; padding:18px 10px; text-align:center; color:var(--dim); font-family:"VT323", monospace;
+    font-size:18px; background:repeating-linear-gradient(135deg, rgba(77,243,255,.06) 0 8px, transparent 8px 16px), #F7FBFF;
+    border:1px dashed rgba(48,69,93,.42); border-radius:8px; box-shadow:var(--bevel-in); }
 
   /* text chat (talk to whoever you're matched with / your duo in the lobby) */
   .chat .pcard { gap:8px; }
@@ -197,20 +226,26 @@
   /* duo lobby: a compact chip sitting directly above the camera, far right (in the status-row
      band). It's absolutely positioned and lifted fully above the stage, so it never pushes the
      camera down — the camera top always stays in line with the mode-filter top, with no overlap. */
-  .lobby { position:absolute; top:0; right:8px; transform:translateY(calc(-100% - 6px)); z-index:8;
-    display:flex; align-items:center; gap:7px; flex-wrap:nowrap; max-width:calc(100% - 16px);
-    padding:5px 7px; background:rgba(245,247,250,.94);
-    border:1px solid #1E2A38; border-radius:8px; box-shadow:var(--bevel-out); }
+  .lobby { position:relative; z-index:8; display:flex; flex-direction:column; gap:8px; width:100%;
+    padding:10px; overflow:hidden; background:linear-gradient(180deg, #FFFFFF 0%, #F0F6FC 100%);
+    border:1px solid #1E2A38; border-left:4px solid var(--accent); border-radius:8px;
+    box-shadow:var(--bevel-out), 0 0 14px rgba(77,243,255,.14); }
+  .lobby::before { content:""; position:absolute; left:8px; right:8px; top:6px; height:2px;
+    background:linear-gradient(90deg, var(--gold), var(--accent)); opacity:.72; }
   .lobby.hidden { display:none; }
-  .lobby-title { font-family:"Press Start 2P", monospace; font-size:8px; letter-spacing:.04em;
-    text-transform:uppercase; color:var(--accent); white-space:nowrap; }
-  .lobby-mems { display:flex; gap:5px; align-items:center; }
-  .lobby-mem { display:inline-flex; align-items:center; gap:3px; padding:3px 8px;
+  .lobby-title { display:inline-flex; align-items:center; gap:6px; align-self:flex-start;
+    margin-top:4px; padding:5px 7px; background:var(--gold); border:1px solid #1E2A38;
+    border-radius:4px; box-shadow:var(--bevel-out); font-family:"Press Start 2P", monospace;
+    font-size:8px; letter-spacing:0; text-transform:uppercase; color:#1E2A38; white-space:nowrap; }
+  .lobby-title::before { content:""; width:8px; height:8px; border-radius:50%; flex:none;
+    background:#6EFF8E; box-shadow:0 0 7px #6EFF8E, inset 0 0 0 1px #1E2A38; }
+  .lobby-mems { display:flex; gap:6px; align-items:center; justify-content:center; flex-wrap:wrap; }
+  .lobby-mem { display:inline-flex; align-items:center; gap:3px; padding:4px 8px;
     font-weight:700; font-size:12px; color:var(--ink); background:var(--panel-2);
-    border:1px solid var(--line-2); border-radius:999px; box-shadow:var(--bevel-in);
-    max-width:96px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    border:1px solid var(--line-2); border-radius:7px; box-shadow:var(--bevel-in);
+    max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .lobby-mem .crown { font-size:11px; filter:drop-shadow(0 0 3px rgba(255,230,109,.85)); }
-  .lobby .btn { padding:5px 10px; font-size:11px; white-space:nowrap; }
+  .lobby .btn { width:100%; padding:7px 10px; font-size:11px; white-space:nowrap; }
   .invite-prompt { position:fixed; top:58px; left:50%; transform:translateX(-50%); z-index:30;
     display:grid; grid-template-columns:auto minmax(0, 1fr) auto; gap:12px; align-items:center;
     width:min(520px, calc(100vw - 24px)); padding:14px 16px; overflow:hidden;
@@ -242,10 +277,16 @@
     to { opacity:1; transform:translateX(-50%) translateY(0); }
   }
 
-  @media (max-width:880px) {
+  @media (max-width:1024px) {
+    /* stack: camera first, then the action buttons (Find stays right under the cam), then controls.
+       Rails are auto-height here (the script clears the synced heights), so pin the scroll regions. */
     .play-shell { grid-template-columns:1fr; }
-    .control-panel { order:2; }
     .match-panel { order:1; }
+    .action-panel { order:2; }
+    .control-panel { order:3; }
+    .control-panel .friends, .action-panel .chat { flex:none; }
+    .action-panel .chat-log { flex:none; height:200px; }
+    .control-panel .fr-list { flex:none; height:224px; }
   }
   @media (max-width:560px) {
     .invite-prompt { grid-template-columns:auto minmax(0, 1fr); top:50px; padding:13px; }
@@ -307,27 +348,9 @@
           <div class="fr-list" id="friendList"></div>
         </div>
       </aside>
-
-      <aside class="chat">
-        <div class="pcard panel" id="chatCard">
-          <span class="pc-tag">Chat</span>
-          <div class="chat-log" id="chatLog">
-            <div class="chat-empty" id="chatEmpty">no messages yet</div>
-          </div>
-          <form class="chat-form" id="chatForm">
-            <input id="chatInput" placeholder="join a match to chat" maxlength="200" autocomplete="off" disabled />
-            <button class="btn" type="submit" id="chatSend" disabled>Send</button>
-          </form>
-        </div>
-      </aside>
     </aside>
 
     <main class="match-panel">
-      <div class="lobby hidden" id="lobbyBox">
-        <span class="lobby-title">Duo Lobby</span>
-        <div class="lobby-mems" id="lobbyMembers"></div>
-        <button class="btn ghost" id="leaveLobbyBtn">Leave Lobby</button>
-      </div>
       <div class="arena">
 
     <div class="stage" data-cams="1">
@@ -359,13 +382,33 @@
     <div class="side"><div class="lab"><span id="youLabel">you</span><span id="youNum">0</span></div><div class="track"><div class="fill you" id="youBar"></div></div></div>
     <div class="side"><div class="lab"><span id="themLabel">them</span><span id="themNum">0</span></div><div class="track"><div class="fill them" id="themBar"></div></div></div>
   </div>
-
-  <div class="gamebar">
-    <button id="find" disabled>Find a match</button>
-    <button id="next" class="ghost" disabled>Next</button>
-    <button id="report" class="ghost danger" hidden>Report</button>
-  </div>
   </main>
+
+    <aside class="action-panel">
+      <div class="lobby hidden" id="lobbyBox">
+        <span class="lobby-title">Duo Lobby</span>
+        <div class="lobby-mems" id="lobbyMembers"></div>
+        <button class="btn ghost" id="leaveLobbyBtn">Leave Lobby</button>
+      </div>
+      <div class="gamebar">
+        <button id="find" disabled>Find a match</button>
+        <button id="next" class="ghost" disabled>Next</button>
+        <button id="report" class="ghost danger" hidden>Report</button>
+      </div>
+
+      <aside class="chat">
+        <div class="pcard panel" id="chatCard">
+          <span class="pc-tag">Chat</span>
+          <div class="chat-log" id="chatLog">
+            <div class="chat-empty" id="chatEmpty">no messages yet</div>
+          </div>
+          <form class="chat-form" id="chatForm">
+            <input id="chatInput" placeholder="join a match to chat" maxlength="200" autocomplete="off" disabled />
+            <button class="btn" type="submit" id="chatSend" disabled>Send</button>
+          </form>
+        </div>
+      </aside>
+    </aside>
   </div>
 </div>
 
@@ -666,7 +709,9 @@ function createPeer(peer) {
   const state = { pc, remoteSet: false, pendingCandidates: [], peer };
   peerConnections.set(peer.id, state);
   tileFor(peer);
-  for (const t of localStream.getTracks()) pc.addTrack(t, localStream);
+  // Add our own tracks if we have a camera. If we don't (denied/busy), we still build the peer so
+  // the tile is created and — via a recvonly offer in startMesh — the OTHER side's cam still shows.
+  if (localStream) for (const t of localStream.getTracks()) pc.addTrack(t, localStream);
   pc.ontrack = e => { tileFor(peer).querySelector("video").srcObject = e.streams[0]; };
   pc.onicecandidate = e => { if (e.candidate) signal({ type: "candidate", target: peer.id, candidate: e.candidate }); };
   return state;
@@ -678,7 +723,9 @@ async function flushCandidates(state) {
 async function startMesh(peers) {
   endCall();                       // closes any prior pcs and clears the grid (synchronous)
   activePeers = peers || [];       // set BEFORE the await so a racing inbound offer names peers right
-  await ensureCamera();
+  // A missing camera must NOT abort the mesh — we still want to SEE the other player. If getUserMedia
+  // fails (denied, or the device is busy — e.g. another tab already has it), carry on camera-less.
+  try { await ensureCamera(); } catch (err) { setStatus("your camera is off — you'll still see your duo (" + err.message + ")"); }
   // Nothing destructive past this await: while the camera prompt was open, a concurrent
   // acceptOffer may have already built a peer + tile. createPeer/tileFor return those existing
   // objects, so we must NOT clear the grid here (that would wipe the freshly-attached video).
@@ -686,13 +733,17 @@ async function startMesh(peers) {
     const state = createPeer(peer);
     if (peer.initiator && !state.offered) {    // only the lower id offers; guard re-entry/glare
       state.offered = true;
+      // no local camera -> offer to RECEIVE only, so the peer's cam still comes through
+      if (!localStream && !state.pc.getTransceivers().length) {
+        try { state.pc.addTransceiver("video", { direction: "recvonly" }); state.pc.addTransceiver("audio", { direction: "recvonly" }); } catch {}
+      }
       await state.pc.setLocalDescription(await state.pc.createOffer());
       signal({ type: "offer", target: peer.id, sdp: state.pc.localDescription });
     }
   }
 }
 async function acceptOffer(msg) {
-  await ensureCamera();
+  try { await ensureCamera(); } catch { /* answer camera-less; we still receive their cam */ }
   const peer = activePeers.find(p => String(p.id) === String(msg.from)) || { id: msg.from, name: "Player" };
   const state = createPeer(peer);
   await state.pc.setRemoteDescription(msg.sdp); state.remoteSet = true; await flushCandidates(state);
@@ -1039,6 +1090,25 @@ $("next").addEventListener("click", () => {
   setScores({ you: 0, them: 0 }); $("find").disabled = true; setStatus("searching…");
   setBodyState("searching", ""); showSearching(true, "Finding a match");
 });
+
+// ---------- keep the side rails aligned to the camera + scoreboard ----------
+// The matched view is short/landscape; left to themselves the friends list and chat would hang
+// below the scoreboard over empty space. We match both rails to the camera column's height so
+// their bottoms always meet the scoreboard's bottom (and their scroll regions fill neatly). The
+// ResizeObserver catches every cause: cam-count changes, video layout, and window resizes.
+const railMatch = document.querySelector(".match-panel");
+const railL = document.querySelector(".control-panel");
+const railR = document.querySelector(".action-panel");
+const railStacked = window.matchMedia("(max-width: 1024px)");
+function syncRails() {
+  if (railStacked.matches) { railL.style.height = ""; railR.style.height = ""; return; }   // stacked: natural height
+  const h = Math.round(railMatch.getBoundingClientRect().height);
+  if (h > 0) { railL.style.height = h + "px"; railR.style.height = h + "px"; }
+}
+if (window.ResizeObserver) new ResizeObserver(syncRails).observe(railMatch);
+window.addEventListener("resize", syncRails);
+if (railStacked.addEventListener) railStacked.addEventListener("change", syncRails);
+syncRails();
 </script>
 <script src="/js/nav.js"></script>
 </body>

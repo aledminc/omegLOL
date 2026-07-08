@@ -67,6 +67,8 @@
 import { TIERS, rankFor, rankRange } from "/js/ranks.mjs";
 const $ = id => document.getElementById(id);
 const token = localStorage.getItem("lastlaugh_token");
+// Escape user-authored strings (screennames) before they touch innerHTML — output-encoding XSS defense.
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 function switchView(v) {
   $("viewRank").hidden = v !== "rank"; $("viewBoard").hidden = v !== "board";
@@ -109,7 +111,7 @@ function renderHistory(matches) {
     row.className = "match";
     row.innerHTML =
       `<span class="res ${m.outcome}">${letter}</span>
-       <span class="opp">vs ${m.opponent}</span>
+       <span class="opp">vs ${esc(m.opponent)}</span>
        <span class="elo">${m.before} → ${m.after} <b class="${m.delta >= 0 ? "up" : "down"}">${sign}${m.delta}</b></span>`;
     $("history").appendChild(row);
   }
@@ -122,7 +124,7 @@ function renderBoard(rows) {
     const t = rankFor(r.rating);
     const li = document.createElement("li");
     li.innerHTML =
-      `<span class="pos">${i + 1}</span><span class="who">${r.name}</span>
+      `<span class="pos">${i + 1}</span><span class="who">${esc(r.name)}</span>
        <span class="rk" style="color:${t.color}">${t.name}</span><span class="rt">${r.rating}</span>`;
     $("board").appendChild(li);
   });

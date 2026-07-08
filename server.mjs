@@ -5,13 +5,30 @@ import crypto from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { WebSocketServer } from "ws";
 import pg from "pg";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { makeDb } from "./db.mjs";
 import {
   decideBan, banExpiry, trustDelta, overReporting,
   TRUSTED_THRESHOLD, SPAM_LIMIT, SPAM_WINDOW, CORROB_WINDOW, WINDOW_AUTHED, WINDOW_GUEST,
 } from "./moderation.mjs";
+import { validateMessage, cleanText, NAME_MAX, CHAT_MAX, DETAIL_MAX } from "./validate.mjs";
+import { makeLimiter } from "./ratelimit.mjs";
+import { clientIp, allowedOrigins, isOriginAllowed, cspDirectives, RATE } from "./security.mjs";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;   // trailing window for the over-report rate
+
+// ---- structured security logging (one line, no secrets/PII; IPs are hashed, never raw) ----
+const MOD_IP_SALT = process.env.MOD_IP_SALT || "";
+const hashIp = ip => ip ? crypto.createHash("sha256").update(MOD_IP_SALT + "|" + ip).digest("hex").slice(0, 16) : null;
+function logSec(event, fields = {}) {
+  const safe = { ...fields };
+  if (safe.ip) { safe.iph = hashIp(safe.ip); delete safe.ip; }   // never log a raw IP
+  try { console.log("sec " + event + " " + JSON.stringify(safe)); } catch { console.log("sec " + event); }
+}
+
+const WS_MAX_PAYLOAD   = 64 * 1024;                              // drop oversized WS frames
+const HEARTBEAT_MS     = 30 * 1000;                             // ping idle sockets; drop the dead
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, "public");
@@ -29,6 +46,45 @@ const dur = {
 export async function startServer({ db, pool = null, port = PORT }) {
   // ---------- HTTP: static files, pretty page routes, a small JSON API ----------
   const app = express();
+  const production = process.env.NODE_ENV === "production";
+  const MAX_CONNS_PER_IP = +process.env.WS_MAX_CONNS_PER_IP || 20;   // concurrent sockets per IP (read at boot)
+
+  // ---------- HTTP hardening: proxy, https, headers, rate limits (see security.mjs) ----------
+  // Behind Cloudflare, trust a bounded number of proxy hops so req.ip / req.protocol reflect the
+  // edge, not the socket. Default 1 (Cloudflare); raise TRUST_PROXY_HOPS if there are more.
+  app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS || 1));
+  app.disable("x-powered-by");
+
+  if (production) {                         // force https at the app layer (Cloudflare does it too)
+    app.use((req, res, next) => {
+      if (req.secure || req.headers["x-forwarded-proto"] === "https") return next();
+      res.redirect(308, "https://" + req.headers.host + req.originalUrl);
+    });
+  }
+
+  app.use(helmet({
+    contentSecurityPolicy: { useDefaults: false, directives: cspDirectives({ production }) },
+    crossOriginEmbedderPolicy: false,       // MediaPipe loads cross-origin wasm/workers; COEP would block it
+    referrerPolicy: { policy: "strict-origin-when-cross-origin" },
+    hsts: production ? { maxAge: 15552000, includeSubDomains: true, preload: true } : false,
+  }));
+  app.use((_req, res, next) => {            // camera/mic only for us; deny geolocation etc.
+    res.setHeader("Permissions-Policy", "camera=(self), microphone=(self), geolocation=(), browsing-topics=()");
+    res.setHeader("X-Frame-Options", "DENY");   // belt-and-suspenders with CSP frame-ancestors 'none'
+    next();
+  });
+
+  // Per-IP HTTP rate limiting, keyed off the real client IP (Cloudflare-aware). Strict on auth
+  // (brute force / credential stuffing), looser on reads, a general backstop on everything else.
+  const mkLimit = (cfg) => rateLimit({
+    windowMs: cfg.windowMs, max: cfg.max, standardHeaders: true, legacyHeaders: false,
+    validate: false, keyGenerator: clientIp,
+    handler: (req, res) => { logSec("http_rate_limited", { ip: clientIp(req), path: req.path }); res.status(429).json({ error: "rate_limited" }); },
+  });
+  app.use(mkLimit(RATE.general));
+  app.use("/api/auth", mkLimit(RATE.auth));
+  app.use("/api/me", mkLimit(RATE.read));
+  app.use("/api/leaderboard", mkLimit(RATE.read));
 
   // ---------- optional real accounts (better-auth) ----------
   // Auth is wired ONLY when a secret + a pg pool are available. Absent either, the server
@@ -62,7 +118,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
         if (session?.user) {
           const existing = await db.getUserByAuthId(session.user.id);
           if (existing) return existing;
-          const screen = (name || "").trim();
+          const screen = cleanText(name, NAME_MAX);
           if (!screen) return NEED_NAME;            // first login: prompt for a screenname
           return await db.createAuthedUser({ authId: session.user.id, name: screen });
         }
@@ -70,6 +126,10 @@ export async function startServer({ db, pool = null, port = PORT }) {
     }
     return await db.getOrCreateUser({ token: guestToken, name });   // guest path (unchanged)
   }
+
+  // Body cap: mounted AFTER the better-auth handler (which reads its own raw body). Oversized or
+  // malformed JSON bodies are rejected here (413) rather than buffered. Our own routes are GET-only.
+  app.use(express.json({ limit: "16kb" }));
 
   app.use(express.static(PUBLIC));                         // landing, css, js, *.html
   const page = f => (_req, res) => res.sendFile(path.join(PUBLIC, f));
@@ -103,12 +163,50 @@ export async function startServer({ db, pool = null, port = PORT }) {
     } catch { res.status(500).json({ error: "unavailable" }); }
   });
 
+  // Generic error handler: log the detail server-side, return no stack/internal detail to the
+  // client. 413 = body over the cap; everything else is an opaque 500.
+  app.use((err, _req, res, next) => {
+    if (res.headersSent) return next(err);
+    const status = err && (err.status || err.statusCode) === 413 ? 413 : 500;
+    logSec("http_error", { status, msg: err && err.message });
+    res.status(status).json({ error: status === 413 ? "too_large" : "server_error" });
+  });
+
   // ---------- one HTTP server; the WebSocket shares it (upgrade on the same port) ----------
   const server = http.createServer(app);
-  const wss = new WebSocketServer({ server });
+  // maxPayload drops oversized WS frames before they buffer. verifyClient enforces the Origin
+  // allowlist on the upgrade (browsers always send Origin — this blocks cross-site WS hijacking;
+  // a missing Origin is a non-browser client, which can't mount that attack and still must auth).
+  const originSet = allowedOrigins();
+  const enforceOrigin = originSet.size > 0;
+  if (!enforceOrigin) console.warn("ws: origin allowlist empty — set ALLOWED_ORIGINS or BETTER_AUTH_URL to enforce (dev only)");
+  const wss = new WebSocketServer({
+    server,
+    maxPayload: WS_MAX_PAYLOAD,
+    verifyClient: ({ origin, req }, done) => {
+      if (enforceOrigin && origin && !isOriginAllowed(origin, originSet)) {
+        logSec("ws_origin_rejected", { ip: clientIp(req), origin });
+        return done(false, 403, "forbidden origin");
+      }
+      done(true);
+    },
+  });
+
+  // Heartbeat: ping every socket on an interval; a socket that missed the last pong is dead
+  // (half-open TCP, dropped client) and gets terminated so it can't leak memory/state.
+  const heartbeat = setInterval(() => {
+    for (const ws of wss.clients) {
+      if (ws.isAlive === false) { ws.terminate(); continue; }
+      ws.isAlive = false;
+      try { ws.ping(); } catch {}
+    }
+  }, HEARTBEAT_MS);
+  heartbeat.unref?.();
+  wss.on("close", () => clearInterval(heartbeat));
 
   // ===================== game (per-server state) =====================
   const clients = new Map();   // id -> { ws, state, partner, game, userId, name, rating }
+  const connsByIp = new Map(); // ipKey -> live connection count (in-memory; caps sockets per IP)
   let waiting = null, nextId = 1, nextGameId = 1;
 
   // presence + duo lobbies (all in-memory; identity lives in the DB, liveness lives here)
@@ -479,7 +577,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
 
     const reason = ["cheating", "harassment", "other"].includes(msg.reason) ? msg.reason : null;
     if (!reason) return send(id, { type: "reportAck", ok: false, reason: "badreason" });
-    const detail = reason === "other" ? String(msg.detail ?? "").replace(/\s+/g, " ").trim().slice(0, 500) : null;
+    const detail = reason === "other" ? cleanText(msg.detail, DETAIL_MAX) : null;   // the one text gate
     if (reason === "other" && !detail) return send(id, { type: "reportAck", ok: false, reason: "needdetail" });
 
     const reporterId = c.userId, reportedId = tc.userId;
@@ -519,12 +617,36 @@ export async function startServer({ db, pool = null, port = PORT }) {
     // authenticates from a session. Captured once; the session is fixed for the socket's life.
     // ipHash: a SALTED hash of the remote IP for guest-cluster DETECTION only (never a raw IP,
     // never a matchmaking gate — see moderation §5). Salt from env; empty salt still avoids storing IPs.
-    const rawIp = (req.socket && req.socket.remoteAddress) || "";
-    const ipHash = rawIp ? crypto.createHash("sha256").update((process.env.MOD_IP_SALT || "") + "|" + rawIp).digest("hex") : null;
+    const rawIp = clientIp(req);
+    const ipHash = rawIp ? crypto.createHash("sha256").update(MOD_IP_SALT + "|" + rawIp).digest("hex") : null;
+
+    // Cap concurrent sockets per IP (the in-memory key is the salted hash, never a raw IP).
+    const ipKey = ipHash || rawIp || "";
+    if (ipKey) {
+      const n = (connsByIp.get(ipKey) || 0) + 1;
+      if (n > MAX_CONNS_PER_IP) { logSec("ws_conn_capped", { ip: rawIp }); try { ws.close(1013, "too many connections"); } catch {} return; }
+      connsByIp.set(ipKey, n);
+    }
+
+    ws.isAlive = true;
+    ws.on("pong", () => { ws.isAlive = true; });
+    // A socket-level error (e.g. an oversized/ malformed frame past maxPayload) emits 'error'.
+    // Without a listener Node throws it as an unhandled event and crashes the process — swallow it.
+    ws.on("error", (err) => logSec("ws_socket_error", { msg: err && err.message }));
+    const limiter = makeLimiter();     // per-connection rate limiter (global + per-type budgets)
+
     clients.set(id, { ws, reqHeaders: req.headers, ipHash, isGuest: true, state: "idle", partner: null, game: null, userId: null, name: null, rating: null });
 
     ws.on("message", async (data) => {
-      let msg; try { msg = JSON.parse(data); } catch { return; }
+     try {
+      // Validate BEFORE dispatch, then rate-limit. A hand-crafted socket can't reach a handler
+      // with a wrong-shaped payload; malformed/unknown messages still count toward the limiter.
+      let msg; try { msg = JSON.parse(data); } catch { limiter.check("_bad"); return; }
+      const type = validateMessage(msg);
+      const gate = limiter.check(type || "_bad");
+      if (gate.disconnect) { logSec("ws_abuse_disconnect", { ip: rawIp }); try { ws.close(1008, "rate"); } catch {} return; }
+      if (!gate.allow || !type) return;              // over budget, or malformed/unknown -> ignore
+
       const c = clients.get(id); if (!c) return;
 
       if (msg.type === "auth") {
@@ -555,7 +677,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
       } else if (msg.type === "reaction") {
         handleReaction(id, msg);
       } else if (msg.type === "chat" && c.userId) {
-        const text = String(msg.text ?? "").replace(/\s+/g, " ").trim().slice(0, 200);
+        const text = cleanText(msg.text, CHAT_MAX);     // the one text gate (validate.mjs)
         if (!text) return;
         for (const pid of chatPeers(id)) send(pid, { type: "chat", from: c.name, fromId: id, text, self: pid === id });
       } else if (msg.type === "addFriend" && c.userId) {
@@ -592,9 +714,14 @@ export async function startServer({ db, pool = null, port = PORT }) {
       } else if (c.state === "paired" && c.partner != null) {
         send(c.partner, { ...msg, from: id });
       }
+     } catch (err) {
+      // One thrown handler must never take down the process (§7.2). Log and keep the socket alive.
+      logSec("ws_handler_error", { msg: err && err.message });
+     }
     });
 
     ws.on("close", () => {
+      if (ipKey) { const n = (connsByIp.get(ipKey) || 1) - 1; if (n > 0) connsByIp.set(ipKey, n); else connsByIp.delete(ipKey); }
       if (waiting === id) waiting = null;
       leaveGame(id);
       leaveLobby(id);
@@ -613,8 +740,21 @@ export async function startServer({ db, pool = null, port = PORT }) {
 // run directly (not when imported by a test)
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!process.env.DATABASE_URL) { console.error("Set DATABASE_URL (see run notes)."); process.exit(1); }
+
+  // Last-resort guards: a stray async error must not take the whole process (and every live game)
+  // down. Per-message handlers already try/catch (§7.2); this catches anything that escapes.
+  // Run under a supervisor (pm2/systemd/container) so a truly wedged process gets restarted.
+  process.on("unhandledRejection", (reason) => logSec("unhandled_rejection", { msg: reason && (reason.message || String(reason)) }));
+  process.on("uncaughtException",  (err)    => logSec("uncaught_exception",  { msg: err && err.message }));
+
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   const db = makeDb(pool);
   await db.initSchema();
-  await startServer({ db, pool });   // pool is handed to better-auth when its env is set
+  const { server } = await startServer({ db, pool });   // pool is handed to better-auth when its env is set
+
+  for (const sig of ["SIGTERM", "SIGINT"]) process.on(sig, () => {   // clean shutdown for restarts
+    logSec("shutdown", { sig });
+    server.close(() => pool.end().finally(() => process.exit(0)));
+    setTimeout(() => process.exit(0), 10000).unref();   // don't hang on lingering sockets
+  });
 }

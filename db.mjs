@@ -1,6 +1,11 @@
 import crypto from "node:crypto";
 import { resultFromScores, updatedRatings } from "./elo.mjs";
 import { TRUST_MIN, TRUST_MAX, TRUST_MAX_GUEST } from "./moderation.mjs";
+import { cleanText, NAME_MAX } from "./validate.mjs";
+
+// Screennames pass through the shared text gate (strip control/zero-width chars, collapse
+// whitespace, cap length). Output is still HTML-escaped at render time — this is defense in depth.
+const safeName = n => cleanText(n, NAME_MAX) || "Anon";
 
 // Short, shareable, non-secret handle. No ambiguous chars (0/O, 1/I/L). e.g. "K7M-3PQ".
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
@@ -106,10 +111,9 @@ export function makeDb(pool) {
       if (rows.length) return rows[0];
     }
     const newToken = crypto.randomUUID();
-    const safeName = (name || "Anon").trim().slice(0, 24) || "Anon";
     const { rows } = await pool.query(
       "INSERT INTO users (name, token, friend_code) VALUES ($1, $2, $3) RETURNING *",
-      [safeName, newToken, genCode()]
+      [safeName(name), newToken, genCode()]
     );
     return rows[0];
   }
@@ -128,12 +132,11 @@ export function makeDb(pool) {
   // ON CONFLICT makes it race-safe if two sockets authenticate the new account at once.
   async function createAuthedUser({ authId, name }) {
     const token = crypto.randomUUID();
-    const safeName = (name || "Anon").trim().slice(0, 24) || "Anon";
     const { rows } = await pool.query(
       `INSERT INTO users (name, token, friend_code, auth_id) VALUES ($1, $2, $3, $4)
          ON CONFLICT (auth_id) DO UPDATE SET name = users.name
        RETURNING *`,
-      [safeName, token, genCode(), authId]
+      [safeName(name), token, genCode(), authId]
     );
     return rows[0];
   }

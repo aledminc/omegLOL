@@ -50,8 +50,11 @@ render(`<a class="${here === "/login" ? "active" : ""}" href="/login">Log in</a>
           method: "POST", credentials: "same-origin",
           headers: { "content-type": "application/json" }, body: "{}",
         });
-      } catch { /* ignore; reload anyway */ }
-      location.reload();
+      } catch { /* ignore; leave anyway */ }
+      // Drop the account's game token too, so we don't resolve back to the account via the
+      // token on /play — then land on the homescreen as a signed-out guest.
+      try { localStorage.removeItem("lastlaugh_token"); } catch { /* storage blocked */ }
+      location.href = "/";
     });
   } catch { /* keep the logged-out nav */ }
 })();

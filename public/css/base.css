@@ -911,6 +911,10 @@ body.home { overflow-x: hidden; }
   border-radius: 14px; padding: 22px 18px;
   box-shadow: var(--shadow-panel);
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
 }
 .why-icon {
   font-size: 36px; margin-bottom: 10px;

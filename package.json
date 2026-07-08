@@ -2,6 +2,8 @@
   "dependencies": {
     "better-auth": "^1.6.23",
     "express": "^5.2.1",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^8.2.0",
     "pg": "^8.22.0",
     "ws": "^8.21.0"
   }
