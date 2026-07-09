@@ -27,12 +27,12 @@
 
   .modal { position:fixed; inset:0; background:rgba(11,22,34,.6); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
   .modal.hidden { display:none; }
-  .modal .box { border-radius:14px; padding:22px; max-width:380px; width:100%; }
-  .modal h3 { margin:0 0 12px; }
-  .tiers { list-style:none; margin:0; padding:0; }
-  .tiers li { display:flex; justify-content:space-between; padding:8px 0; }
-  .tiers li:last-child { border-bottom:0 !important; }
+  .modal .box { border-radius:14px; padding:22px; max-width:560px; width:100%; }
+  .modal h3 { margin:0 0 16px; }
   .modal .close { float:right; cursor:pointer; border:0; background:0; font-size:18px; }
+  /* Tier cards (.ladder / .badge-tier from base.css) — force 2 columns inside the narrow modal. */
+  .modal .ladder { grid-template-columns:repeat(2, 1fr); }
+  .modal .ladder-caption { font-size:13px; }
 </style>
 </head>
 <body>
@@ -58,8 +58,9 @@
 <div id="infoModal" class="modal hidden">
   <div class="box panel">
     <button class="close" id="infoClose" aria-label="close">×</button>
-    <h3>Rank tiers</h3>
-    <ul class="tiers" id="tierList"></ul>
+    <h3>The ladder — 6 tiers</h3>
+    <ol class="ladder" id="tierList"></ol>
+    <p class="ladder-caption muted">Win duels to climb. Lose and slide. The ladder doesn't lie.</p>
   </div>
 </div>
 
@@ -78,15 +79,22 @@ function switchView(v) {
 $("tabRank").onclick = () => switchView("rank");
 $("tabBoard").onclick = () => switchView("board");
 
+// Same tier-card UI as the old homepage ladder, generated from TIERS so it can't drift.
+const ROMAN = ["VI", "V", "IV", "III", "II", "I"];
 $("tierList").innerHTML = TIERS.map((t, i) =>
-  `<li><span style="color:${t.color};font-weight:700">${t.name}</span><span class="muted">${rankRange(i)} Elo</span></li>`).join("");
+  `<li style="--c:${t.color}"><span class="badge-tier">${ROMAN[i]}</span><span class="t-name">${t.name}</span><span class="t-range">${rankRange(i)}</span></li>`).join("");
 function openInfo() { $("infoModal").classList.remove("hidden"); }
 function closeInfo() { $("infoModal").classList.add("hidden"); }
 $("infoClose").onclick = closeInfo;
 $("infoModal").addEventListener("click", e => { if (e.target === $("infoModal")) closeInfo(); });
 
 function notRanked() {
-  $("rankBox").innerHTML = `<p class="muted" style="margin:0">Play a ranked game to earn a rank. <a href="/play">Take the stage →</a></p>`;
+  $("rankBox").innerHTML = `
+    <div class="rankhead">
+      <p class="muted" style="margin:0">Play a ranked game to earn a rank. <a href="/play">Take the stage →</a></p>
+      <button class="info" id="infoBtn" title="rank info" aria-label="rank info">i</button>
+    </div>`;
+  $("infoBtn").onclick = openInfo;
   $("history").textContent = "";
 }
 function renderRank(p) {
