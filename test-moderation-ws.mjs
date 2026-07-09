@@ -18,13 +18,14 @@ import { HEAT_AUTHED, TRUST_DEFAULT } from "./moderation.mjs";
 
 // ---------------- in-memory DB (implements everything server.mjs calls) ----------------
 function makeMemDb() {
-  const users = [], reports = [], bans = [];
-  let uid = 0, rid = 0, bid = 0;
+  const users = [], reports = [], bans = [], modEvents = [];
+  let uid = 0, rid = 0, bid = 0, mid = 0;
   const now = () => new Date();
 
   function createUser({ name, token, authId = null }) {
     const u = { id: ++uid, name: name || "Anon", token: token || ("tok-" + uid), friend_code: "AAA-" + uid,
-      auth_id: authId, rating: 1000, wins: 0, losses: 0, draws: 0, games: 0, trust_score: TRUST_DEFAULT };
+      auth_id: authId, rating: 1000, wins: 0, losses: 0, draws: 0, games: 0, trust_score: TRUST_DEFAULT,
+      age_confirmed_at: null, tos_version_accepted: null };
     users.push(u); return u;
   }
   // pre-seed a real "account" (auth_id set -> server treats as logged-in, not guest)
@@ -45,6 +46,26 @@ function makeMemDb() {
     async getUserByToken(token) { return users.find(u => u.token === token) || null; },
     async getUserByAuthId(authId) { return users.find(u => u.auth_id === authId) || null; },
     async createAuthedUser({ authId, name }) { return createUser({ name, authId }); },
+    async createGuestUser({ name }) { return createUser({ name }); },
+    async isNameTaken(name, exceptId = null) { return users.some(u => u.name.toLowerCase() === String(name).toLowerCase() && u.id !== exceptId); },
+    async logModeration({ userId, context, rule } = {}) { modEvents.push({ id: ++mid, user_id: userId ?? null, context, rule, created_at: now(), user_name: byId(userId)?.name || null }); },
+    async setConsent(userId, tosVersion) { const u = byId(userId); if (!u) return null; u.age_confirmed_at = u.age_confirmed_at || now(); u.tos_version_accepted = tosVersion; return { age_confirmed_at: u.age_confirmed_at, tos_version_accepted: u.tos_version_accepted }; },
+    // ---- admin queries ----
+    async listReports({ status = "open", limit = 50 } = {}) {
+      const nm = id => byId(id)?.name || null;
+      return reports.filter(r => (status === "reviewed" ? r.reviewed : !r.reviewed))
+        .slice().sort((a, b) => b.created_at - a.created_at).slice(0, limit)
+        .map(r => ({ ...r, reporter_name: nm(r.reporter_id), reported_name: nm(r.reported_id) }));
+    },
+    async listModEvents({ limit = 50 } = {}) { return modEvents.slice().sort((a, b) => b.created_at - a.created_at).slice(0, limit); },
+    async listActiveBans(limit = 100) {
+      return bans.filter(b => !b.cleared && b.expires_at > now()).map(b => ({ ...b, user_name: byId(b.user_id)?.name || null })).slice(0, limit);
+    },
+    async listBans(userId) { return bans.filter(b => b.user_id === userId); },
+    async reportsAgainst(userId) { return reports.filter(r => r.reported_id === userId).map(r => ({ ...r, reporter_name: byId(r.reporter_id)?.name || null })); },
+    async reportsBy(userId) { return reports.filter(r => r.reporter_id === userId).map(r => ({ ...r, reported_name: byId(r.reported_id)?.name || null })); },
+    async clearReport(reportId) { const r = reports.find(x => x.id === reportId); if (r) { r.reviewed = true; r.needs_review = false; return true; } return false; },
+    async clearActiveBans(userId) { let n = 0; for (const b of bans) if (b.user_id === userId && !b.cleared && b.expires_at > now()) { b.cleared = true; n++; } return n; },
     async recentMatches() { return []; },
     async topPlayers() { return []; },
     async recordMatch() { return null; },
@@ -130,11 +151,20 @@ async function main() {
   const { server, wss } = await startServer({ db, pool: null, port: 0 });
   if (!server.listening) await once(server, "listening");
   const url = "ws://127.0.0.1:" + server.address().port;
+  const base = "http://127.0.0.1:" + server.address().port;
 
   const clients = [];
   async function connect() { const c = makeClient(url); await c.open(); clients.push(c); return c; }
-  async function authGuest(c, name) { c.send({ type: "auth", name }); return c.waitFor("authed"); }
-  async function authAccount(c, token) { c.send({ type: "auth", token }); return c.waitFor("authed"); }
+  // Auth + pass the 18+/ToS consent hard-gate (record consent, then re-auth so c.consented flips),
+  // mirroring the real /login -> /play flow. Returns the first `authed`.
+  async function consentAndReauth(c, a, tokenForReauth) {
+    if (a.profile.consented) return;
+    await fetch(base + "/api/consent", { method: "POST", headers: { "x-token": a.token, "content-type": "application/json" }, body: JSON.stringify({ agree: true }) });
+    c.send({ type: "auth", token: tokenForReauth });
+    await c.waitFor("authed");
+  }
+  async function authGuest(c, name) { c.send({ type: "auth", name }); const a = await c.waitFor("authed"); await consentAndReauth(c, a, a.token); return a; }
+  async function authAccount(c, token) { c.send({ type: "auth", token }); const a = await c.waitFor("authed"); await consentAndReauth(c, a, token); return a; }
 
   // pair `a` (sends find first, becomes the waiter) with `b`; returns b's `matched` (peers[0].id = a's conn)
   async function pair(a, b) {
@@ -338,6 +368,129 @@ async function main() {
     assert.ok(db._users.find(u => u.id === Rsid).trust_score < TRUST_DEFAULT, "spammer trust dropped");
     Rs.close(); V.close();
     ok("spam excess rejected + reporter trust drops; distinct targets never cluster-ban");
+  }
+
+  // ---- T8: username moderation + case-insensitive uniqueness ----
+  {
+    const A = await connect();
+    A.send({ type: "auth", name: "admin" });
+    assert.equal((await A.waitFor("nameError")).reason, "reserved");
+    A.send({ type: "auth", name: "<script>" });
+    assert.equal((await A.waitFor("nameError")).reason, "charset");
+    A.send({ type: "auth", name: "f4ggot" });
+    assert.equal((await A.waitFor("nameError")).reason, "blocked");
+    A.send({ type: "auth", name: "GoodName" });
+    assert.equal((await A.waitFor("authed")).profile.name, "GoodName");
+
+    // a second user cannot take the same name (case-insensitive) -> taken + free suggestions
+    const B = await connect();
+    B.send({ type: "auth", name: "goodname" });
+    const err = await B.waitFor("nameError");
+    assert.equal(err.reason, "taken");
+    assert.ok(Array.isArray(err.suggestions) && err.suggestions.length > 0, "offers alternatives");
+    B.send({ type: "auth", name: err.suggestions[0] });
+    assert.ok((await B.waitFor("authed")).profile.name, "a suggested name is actually free");
+    A.close(); B.close();
+    ok("username: reserved/charset/slur rejected; names case-insensitively unique with suggestions");
+  }
+
+  // ---- T9: chat moderation — block slurs, redact profanity, block links, suppress duplicates ----
+  {
+    const P = await connect(); await authGuest(P, "chatterP");
+    const Q = await connect(); await authGuest(Q, "chatterQ");
+    await pair(P, Q);                                   // both now in a live game -> chat reaches both
+
+    Q.send({ type: "chat", text: "hello there" });
+    assert.equal((await P.waitFor(m => m.type === "chat" && !m.self)).text, "hello there");
+
+    Q.send({ type: "chat", text: "you are shit" });    // profanity redacted, still delivered
+    assert.equal((await P.waitFor(m => m.type === "chat" && !m.self && m.text.includes("*"))).text, "you are ****");
+
+    Q.send({ type: "chat", text: "you nigger" });      // slur hard-blocked: sender-only feedback
+    assert.equal((await Q.waitFor("chatBlocked")).reason, "blocked");
+
+    Q.send({ type: "chat", text: "add me at evil.com" });
+    assert.equal((await Q.waitFor("chatBlocked")).reason, "nolinks");
+
+    Q.send({ type: "chat", text: "same" });
+    await P.waitFor(m => m.type === "chat" && m.text === "same" && !m.self);
+    Q.send({ type: "chat", text: "same" });            // identical back-to-back -> suppressed
+    assert.equal((await Q.waitFor("chatBlocked")).reason, "dup");
+    P.close(); Q.close();
+    ok("chat: slur blocked sender-only, profanity redacted, links blocked, duplicates suppressed");
+  }
+
+  // ---- T10: moderation admin — gate (403), read queue, and reuse of the ban/enforce path ----
+  {
+    const admin = await connect();    const aInfo = await authGuest(admin, "modboss");
+    const victim = await connect();   const vInfo = await authGuest(victim, "modvictim");
+    const reporter = await connect(); await authGuest(reporter, "modreporter");
+    const adminId = aInfo.profile.id, adminTok = aInfo.token, victimId = vInfo.profile.id;
+    const AH = { "x-token": adminTok, "content-type": "application/json" };
+
+    // not an admin yet -> every admin route + the page is 403
+    for (const p of ["/api/admin/reports", "/api/admin/mod-events", "/api/admin/active-bans", "/api/admin/user/" + victimId, "/admin"])
+      assert.equal((await fetch(base + p, { headers: { "x-token": adminTok } })).status, 403, p);
+    assert.equal((await fetch(base + "/api/admin/ban", { method: "POST", headers: AH, body: JSON.stringify({ userId: victimId, tier: "day", reason: "x" }) })).status, 403);
+
+    await reportOnce(victim, reporter, "harassment");        // a real report against the victim
+
+    process.env.ADMIN_USER_IDS = String(adminId);            // become admin via the id allowlist (token-verified)
+    const open = await (await fetch(base + "/api/admin/reports?status=open", { headers: { "x-token": adminTok } })).json();
+    const mine = open.reports.find(r => String(r.reported_id) === String(victimId));
+    assert.ok(mine && mine.reason === "harassment", "victim's report is in the open queue");
+    assert.equal(typeof mine.heat, "number", "report annotated with target heat");
+
+    const cleared = await (await fetch(base + "/api/admin/clear-report", { method: "POST", headers: AH, body: JSON.stringify({ reportId: mine.id }) })).json();
+    assert.equal(cleared.ok, true);
+    const open2 = await (await fetch(base + "/api/admin/reports?status=open", { headers: { "x-token": adminTok } })).json();
+    assert.ok(!open2.reports.some(r => r.id === mine.id), "cleared report left the open queue");
+
+    // admin ban gates the LIVE victim immediately (same issueBan + enforceBan path as an auto-ban)
+    assert.equal((await fetch(base + "/api/admin/ban", { method: "POST", headers: AH, body: JSON.stringify({ userId: victimId, tier: "week", reason: "admin test" }) })).status, 200);
+    assert.equal((await victim.waitFor("banned")).tier, "week");
+    const activeBans = await (await fetch(base + "/api/admin/active-bans", { headers: { "x-token": adminTok } })).json();
+    assert.ok(activeBans.bans.some(b => String(b.user_id) === String(victimId)), "victim shows in active bans");
+
+    // observability: a client reports its peer-connection outcome; admin stats reflect activity
+    reporter.send({ type: "rtcStat", ok: true });
+    await new Promise(r => setTimeout(r, 60));
+    const st = await (await fetch(base + "/api/admin/stats", { headers: { "x-token": adminTok } })).json();
+    assert.ok(st.matchesStarted >= 1 && st.bansIssued >= 1 && st.rtcConnected >= 1, "stats counters reflect activity");
+
+    const unban = await (await fetch(base + "/api/admin/unban", { method: "POST", headers: AH, body: JSON.stringify({ userId: victimId }) })).json();
+    assert.equal(unban.ok, true); assert.ok(unban.cleared >= 1);
+
+    process.env.ADMIN_USER_IDS = "";
+    admin.close(); victim.close(); reporter.close();
+    ok("admin: non-admins 403; admin reads the queue, clears reports, and bans/unbans via the shared path");
+  }
+
+  // ---- T11: 18+/ToS consent hard-gate — raw WS cannot matchmake without a logged consent ----
+  {
+    // a raw guest auths but never consents
+    const raw = await connect();
+    raw.send({ type: "auth", name: "noconsent" });
+    const a = await raw.waitFor("authed");
+    assert.equal(a.profile.consented, false, "a new user starts unconsented");
+    assert.ok(a.profile.tosVersion, "server advertises the current ToS version");
+
+    // attempting to matchmake without consent -> server demands consent AND kills the socket
+    const closed = new Promise(res => raw.ws.on("close", () => res(true)));
+    raw.send({ type: "find" });
+    assert.ok(await raw.waitFor("consentRequired"), "server demands consent on find");
+    assert.equal(await Promise.race([closed, new Promise(r => setTimeout(() => r(false), 2500))]), true, "socket was killed");
+
+    // must_agree is rejected; a proper consent lets a fresh client queue
+    const bad = await fetch(base + "/api/consent", { method: "POST", headers: { "x-token": a.token, "content-type": "application/json" }, body: JSON.stringify({ agree: false }) });
+    assert.equal(bad.status, 400, "consent requires agree:true");
+
+    const good = await connect(); await authGuest(good, "consented1");   // authGuest consents + re-auths
+    good.send({ type: "find" });
+    assert.ok(await good.waitFor("waiting"), "a consented user can enter matchmaking");
+    good.send({ type: "cancelSearch" }); await good.waitFor("searchCanceled");
+    good.close();
+    ok("consent: raw WS is killed at matchmaking without a logged 18+/ToS consent; consented users play");
   }
 
   // ---- sanity: HEAT_AUTHED is the value the cluster test relied on ----

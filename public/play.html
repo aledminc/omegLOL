@@ -138,6 +138,9 @@
   .gate h1 { font-size:22px; margin:0; }
   .gate input { padding:11px 14px; font:inherit; width:240px; }
   .gate button { padding:11px 20px; font:inherit; font-weight:600; cursor:pointer; }
+  .gate-err { min-height:16px; margin:2px 0 0; font-size:13px; color:var(--lose); font-weight:600; text-align:center; }
+  .name-suggest { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; max-width:280px; }
+  .name-suggest button { padding:6px 12px; font:inherit; font-size:13px; cursor:pointer; }
 
   /* report button: a ghost button tinted danger-red so it reads as "flag", not a primary action */
   .gamebar button.danger { background:var(--grad-btn) !important; color:var(--lose) !important; text-shadow:none; }
@@ -190,8 +193,10 @@
   .fr-add input { flex:1; min-width:0; margin-top:0; padding:7px 9px; font:inherit; }
   .fr-add .btn { padding:7px 10px; }
   /* cut off at 5 friends (40px row + 6px gap); the rest scroll into view */
-  .fr-list { display:flex; flex-direction:column; gap:6px; margin-top:0; padding-top:2px;
-    height:224px; max-height:224px; overflow-y:auto; padding-right:3px; }
+  .fr-list { display:flex; flex-direction:column; gap:6px; margin-top:0; padding:8px;
+    height:224px; max-height:224px; overflow-y:auto;
+    background:repeating-linear-gradient(135deg, rgba(77,243,255,.06) 0 8px, transparent 8px 16px), #F7FBFF;
+    border:1px dashed rgba(48,69,93,.42); border-radius:8px; box-shadow:var(--bevel-in); }
   .fr-row { display:flex; align-items:center; gap:8px; height:40px; flex:none; padding:0 9px;
     background:linear-gradient(180deg, #FFFFFF 0%, var(--panel-2) 100%); border:1px solid var(--line-2);
     border-left:3px solid var(--accent); border-radius:8px; box-shadow:var(--bevel-in); }
@@ -204,8 +209,7 @@
   .fr-invite { padding:5px 9px !important; font-size:12px !important; }
   .fr-empty { flex:1; min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:10px; padding:18px 10px; text-align:center; color:var(--dim); font-family:"VT323", monospace;
-    font-size:18px; background:repeating-linear-gradient(135deg, rgba(77,243,255,.06) 0 8px, transparent 8px 16px), #F7FBFF;
-    border:1px dashed rgba(48,69,93,.42); border-radius:8px; box-shadow:var(--bevel-in); }
+    font-size:18px; }
 
   /* text chat (talk to whoever you're matched with / your duo in the lobby) */
   .chat .pcard { gap:8px; }
@@ -299,8 +303,10 @@
 <body data-phase="idle" data-role="">
 <div class="gate" id="nameGate">
   <h1>Pick a stage name</h1>
-  <input id="nameInput" placeholder="stage name" maxlength="24" />
+  <input id="nameInput" placeholder="stage name" maxlength="20" autocomplete="off" spellcheck="false" />
   <button id="nameBtn">Enter the club</button>
+  <p id="nameErr" class="gate-err" aria-live="polite"></p>
+  <div id="nameSuggest" class="name-suggest" aria-label="available names"></div>
 </div>
 
 <header id="site-nav"></header>
@@ -472,7 +478,20 @@ const fx = $("fx"), stageEl = document.querySelector(".stage");
 const TOKEN_KEY = "lastlaugh_token";
 
 const SMILE_FLOOR = 0.30, JAW_FLOOR = 0.25, LAUGH_GAIN = 3.0, RATE = 10.0;
-const ICE = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+
+// ICE config comes from the server (/api/ice = STUN + TURN with short-lived creds). We fall back to
+// STUN-only if the fetch fails, so dev/local still works. Fetched once, cached for the session.
+const DEFAULT_ICE = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+let iceConfig = DEFAULT_ICE, icePromise = null;
+function loadIce() {                        // single-flight; resolves once, reused thereafter
+  if (icePromise) return icePromise;
+  icePromise = fetch("/api/ice", { credentials: "same-origin" })
+    .then(r => (r.ok ? r.json() : null))
+    .then(cfg => { if (cfg && Array.isArray(cfg.iceServers) && cfg.iceServers.length) iceConfig = cfg; })
+    .catch(() => { /* keep the STUN-only default */ });
+  return icePromise;
+}
+loadIce();                                  // warm it at startup so TURN creds are ready before the first match
 
 const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host);
 let peerConnections = new Map(), localStream = null, myPeerId = null, activePeers = [];
@@ -524,7 +543,41 @@ async function authenticate() {
   if (token) signal({ type: "auth", token });
   else $("nameGate").classList.remove("hidden");
 }
-$("nameBtn").addEventListener("click", () => signal({ type: "auth", name: $("nameInput").value.trim() || "Anon" }));
+
+// 18+/ToS consent is collected AFTER sign-in on the /agree -> /age flow, then recorded server-side.
+// If we get here unconsented, send the user to the start of that flow. The server also hard-gates
+// matchmaking on the consent record, so this is UX routing, not the enforcement.
+function handleNoConsent() {
+  setStatus("one more step — please review the Terms");
+  location.href = "/agree";
+}
+function submitName() {
+  const name = $("nameInput").value.trim();
+  $("nameErr").textContent = "";
+  if (!name) { $("nameErr").textContent = "enter a name"; return; }
+  signal({ type: "auth", name });
+}
+$("nameBtn").addEventListener("click", submitName);
+$("nameInput").addEventListener("keydown", e => { if (e.key === "Enter") submitName(); });
+
+// Server rejected the chosen name (taken / not allowed / bad charset). Show why, in the gate,
+// and offer clickable available suggestions — no alert(), matching the existing muted/error style.
+const NAME_ERR = {
+  taken: "that name's taken", reserved: "that name is reserved", blocked: "pick a cleaner name",
+  charset: "letters, numbers, spaces, _ . - only", too_short: "3–20 characters", too_long: "3–20 characters", empty: "enter a name",
+};
+function showNameError(reason, suggestions) {
+  $("nameGate").classList.remove("hidden");
+  $("nameErr").textContent = NAME_ERR[reason] || "try another name";
+  const box = $("nameSuggest"); box.textContent = "";
+  for (const s of (suggestions || [])) {
+    const b = document.createElement("button");
+    b.type = "button"; b.textContent = s;                 // textContent: names never touch innerHTML
+    b.addEventListener("click", () => { $("nameInput").value = s; submitName(); });
+    box.appendChild(b);
+  }
+  setStatus("pick a stage name");
+}
 function applyProfile(_p) {}
 
 // ---------- player cards overlaid on each camera ----------
@@ -658,6 +711,19 @@ function addChat(name, text, self) {
   chatLog.appendChild(row);
   chatLog.scrollTop = chatLog.scrollHeight;           // stick to the newest message
 }
+// A muted, sender-only system note in the chat log (moderation feedback). Plain text only.
+function addSystemChat(text) {
+  const empty = chatLog.querySelector(".chat-empty"); if (empty) empty.remove();
+  const row = document.createElement("div");
+  row.className = "chat-msg sys";
+  row.textContent = text;
+  chatLog.appendChild(row);
+  chatLog.scrollTop = chatLog.scrollHeight;
+}
+const CHAT_BLOCK = {
+  blocked: "message blocked", nolinks: "links aren't allowed in chat",
+  muted: "you're muted for a moment", dup: "you just said that", empty: "",
+};
 chatForm.addEventListener("submit", e => {
   e.preventDefault();
   const text = chatInput.value.trim();
@@ -705,7 +771,7 @@ function tileFor(peer) {
 function createPeer(peer) {
   const existing = peerConnections.get(peer.id);
   if (existing) return existing;
-  const pc = new RTCPeerConnection(ICE);
+  const pc = new RTCPeerConnection(iceConfig);
   const state = { pc, remoteSet: false, pendingCandidates: [], peer };
   peerConnections.set(peer.id, state);
   tileFor(peer);
@@ -714,6 +780,13 @@ function createPeer(peer) {
   if (localStream) for (const t of localStream.getTracks()) pc.addTrack(t, localStream);
   pc.ontrack = e => { tileFor(peer).querySelector("video").srcObject = e.streams[0]; };
   pc.onicecandidate = e => { if (e.candidate) signal({ type: "candidate", target: peer.id, candidate: e.candidate }); };
+  // Report the peer-connection outcome once, so the server can watch connect success/failure at
+  // launch (a spike in failures is exactly what a TURN/ICE gap looks like).
+  pc.onconnectionstatechange = () => {
+    if (state.rtcReported) return;
+    if (pc.connectionState === "connected") { state.rtcReported = true; signal({ type: "rtcStat", ok: true }); }
+    else if (pc.connectionState === "failed") { state.rtcReported = true; signal({ type: "rtcStat", ok: false }); }
+  };
   return state;
 }
 async function flushCandidates(state) {
@@ -723,6 +796,7 @@ async function flushCandidates(state) {
 async function startMesh(peers) {
   endCall();                       // closes any prior pcs and clears the grid (synchronous)
   activePeers = peers || [];       // set BEFORE the await so a racing inbound offer names peers right
+  await loadIce();                 // ensure STUN+TURN config is ready before we build peers (cached)
   // A missing camera must NOT abort the mesh — we still want to SEE the other player. If getUserMedia
   // fails (denied, or the device is busy — e.g. another tab already has it), carry on camera-less.
   try { await ensureCamera(); } catch (err) { setStatus("your camera is off — you'll still see your duo (" + err.message + ")"); }
@@ -743,6 +817,7 @@ async function startMesh(peers) {
   }
 }
 async function acceptOffer(msg) {
+  await loadIce();                 // same STUN+TURN config as the offerer (cached after first load)
   try { await ensureCamera(); } catch { /* answer camera-less; we still receive their cam */ }
   const peer = activePeers.find(p => String(p.id) === String(msg.from)) || { id: msg.from, name: "Player" };
   const state = createPeer(peer);
@@ -917,10 +992,17 @@ ws.addEventListener("message", async (e) => {
   const msg = JSON.parse(e.data);
   switch (msg.type) {
     case "needName":                 // signed in, but this new account still needs a screenname
-      $("nameGate").classList.remove("hidden"); setStatus("pick a stage name"); break;
+      $("nameGate").classList.remove("hidden"); $("nameErr").textContent = ""; $("nameSuggest").textContent = ""; setStatus("pick a stage name"); break;
+    case "nameError":                // chosen name blocked/taken -> reprompt with reason + suggestions
+      showNameError(msg.reason, msg.suggestions); break;
+    case "consentRequired":          // server hard-gate: must complete the 18+/ToS flow first
+      location.href = "/agree"; break;
     case "authed":
       localStorage.setItem(TOKEN_KEY, msg.token);
-      $("nameGate").classList.add("hidden"); applyProfile(msg.profile);
+      $("nameErr").textContent = ""; $("nameSuggest").textContent = "";
+      $("nameGate").classList.add("hidden");
+      if (!msg.profile.consented) { handleNoConsent(); break; }   // 18+/ToS consent required before play
+      applyProfile(msg.profile);
       selfProfile = msg.profile; renderCard("self", selfProfile);
       myUserId = msg.profile.id;
       if (msg.profile.friendCode) $("myCode").textContent = msg.profile.friendCode;
@@ -963,6 +1045,7 @@ ws.addEventListener("message", async (e) => {
     case "lobby": lobby = msg.lobby; mode = "duos"; duosQueued = false; renderLobby(); updateModeUI(); startLobbyPreview(); setChatEnabled(true); break;
     case "lobbyClosed": lobby = null; duosQueued = false; renderLobby(); updateModeUI(); stopLobbyPreview(); setChatEnabled(false); setStatus("lobby closed"); showSearching(false); break;
     case "chat": addChat(msg.from, msg.text, msg.self); break;
+    case "chatBlocked": { const t = CHAT_BLOCK[msg.reason] ?? "message blocked"; if (t) addSystemChat(t); break; }
     case "inviteDeclined": setStatus((msg.by || "they") + " declined the invite"); break;
     case "duosWaiting": duosQueued = true; updateModeUI(); setStatus("searching for another duo…"); showSearching(true, "Finding a duo"); break;
     case "duosCanceled": duosQueued = false; updateModeUI(); setStatus("duo queue canceled — still in lobby"); showSearching(false); break;

@@ -1,5 +1,18 @@
 {
+  "name": "omeglol",
+  "version": "1.0.0",
+  "private": true,
+  "description": "omegLOL — a competitive try-not-to-laugh webcam game (Node ESM + Express + ws + Postgres, WebRTC).",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node test-moderation.mjs && node test-moderation-ws.mjs && node test-security.mjs"
+  },
   "dependencies": {
+    "@sentry/node": "^10.64.0",
     "better-auth": "^1.6.23",
     "express": "^5.2.1",
     "express-rate-limit": "^7.5.1",

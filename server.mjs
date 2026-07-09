@@ -9,14 +9,20 @@ import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { makeDb } from "./db.mjs";
 import {
-  decideBan, banExpiry, trustDelta, overReporting,
+  decideBan, banExpiry, trustDelta, overReporting, moderateText, heatOf, TIERS,
   TRUSTED_THRESHOLD, SPAM_LIMIT, SPAM_WINDOW, CORROB_WINDOW, WINDOW_AUTHED, WINDOW_GUEST,
+  CHAT_DUP_WINDOW, CHAT_MUTE_STRIKES, CHAT_MUTE_MS,
 } from "./moderation.mjs";
-import { validateMessage, cleanText, NAME_MAX, CHAT_MAX, DETAIL_MAX } from "./validate.mjs";
+import { validateMessage, cleanText, NAME_MAX } from "./validate.mjs";
 import { makeLimiter } from "./ratelimit.mjs";
 import { clientIp, allowedOrigins, isOriginAllowed, cspDirectives, RATE } from "./security.mjs";
+import { iceFromEnv, cloudflareIce } from "./ice.mjs";
+import { initSentry, captureError } from "./instrument.mjs";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;   // trailing window for the over-report rate
+
+// ToS/Privacy version the user consents to. Bump when the legal terms change to force re-consent.
+export const TOS_VERSION = process.env.TOS_VERSION || "2026-07-08";
 
 // ---- structured security logging (one line, no secrets/PII; IPs are hashed, never raw) ----
 const MOD_IP_SALT = process.env.MOD_IP_SALT || "";
@@ -49,6 +55,24 @@ export async function startServer({ db, pool = null, port = PORT }) {
   const production = process.env.NODE_ENV === "production";
   const MAX_CONNS_PER_IP = +process.env.WS_MAX_CONNS_PER_IP || 20;   // concurrent sockets per IP (read at boot)
 
+  // Lightweight launch counters (logged/inspected via /api/admin/stats; a metrics backend can come later).
+  const stats = { matchesStarted: 0, rtcConnected: 0, rtcFailed: 0, bansIssued: 0, rateLimitTrips: 0, startedAt: Date.now() };
+
+  // Health check for an uptime monitor / load balancer. Registered BEFORE the rate limiter and
+  // hardening so it is never rate-limited. Cheap, unauthenticated, leaks nothing: 200 when the
+  // process is up and the DB answers a fast `SELECT 1`, 503 if the DB check fails. No pool (guest/
+  // test mode) => just report process liveness.
+  app.get("/healthz", async (_req, res) => {
+    if (!pool) return res.status(200).json({ ok: true });
+    try {
+      await Promise.race([
+        pool.query("SELECT 1"),
+        new Promise((_, rej) => setTimeout(() => rej(new Error("db timeout")), 2000)),
+      ]);
+      res.status(200).json({ ok: true });
+    } catch { res.status(503).json({ ok: false }); }
+  });
+
   // ---------- HTTP hardening: proxy, https, headers, rate limits (see security.mjs) ----------
   // Behind Cloudflare, trust a bounded number of proxy hops so req.ip / req.protocol reflect the
   // edge, not the socket. Default 1 (Cloudflare); raise TRUST_PROXY_HOPS if there are more.
@@ -79,7 +103,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
   const mkLimit = (cfg) => rateLimit({
     windowMs: cfg.windowMs, max: cfg.max, standardHeaders: true, legacyHeaders: false,
     validate: false, keyGenerator: clientIp,
-    handler: (req, res) => { logSec("http_rate_limited", { ip: clientIp(req), path: req.path }); res.status(429).json({ error: "rate_limited" }); },
+    handler: (req, res) => { stats.rateLimitTrips++; logSec("http_rate_limited", { ip: clientIp(req), path: req.path }); res.status(429).json({ error: "rate_limited" }); },
   });
   app.use(mkLimit(RATE.general));
   app.use("/api/auth", mkLimit(RATE.auth));
@@ -108,9 +132,42 @@ export async function startServer({ db, pool = null, port = PORT }) {
   // a screenname" — the client answers by re-sending auth with a name (the name gate).
   const NEED_NAME = Symbol("needName");
 
+  const isUniqueViolation = e => !!e && (e.code === "23505" || /unique|duplicate/i.test(e.message || ""));
+
+  // Up to 3 available, moderation-clean alternatives for a taken name (base + a small number).
+  async function suggestNames(base) {
+    const root = base.replace(/\d+$/, "").slice(0, 16) || "player";
+    const out = [];
+    for (let n = 2; out.length < 3 && n < 60; n++) {
+      const cand = root + n;
+      if (moderateText(cand, { context: "username" }).ok && !(await db.isNameTaken(cand))) out.push(cand);
+    }
+    return out;
+  }
+
+  // Create a user with a NEW display name: moderate it, enforce case-insensitive uniqueness, and
+  // survive the signup race (catch the UNIQUE violation). Returns the user row, or a rejection
+  // { rejected, reason, suggestions } the caller turns into a `nameError` for the client.
+  async function createNamedUser({ authId = null, name }) {
+    const verdict = moderateText(name, { context: "username" });
+    if (!verdict.ok) {
+      if (verdict.rule) db.logModeration({ userId: null, context: "username", rule: verdict.rule });
+      return { rejected: true, reason: verdict.reason, suggestions: [] };
+    }
+    const cleaned = verdict.cleaned;
+    if (await db.isNameTaken(cleaned)) return { rejected: true, reason: "taken", suggestions: await suggestNames(cleaned) };
+    try {
+      return authId ? await db.createAuthedUser({ authId, name: cleaned }) : await db.createGuestUser({ name: cleaned });
+    } catch (e) {
+      if (isUniqueViolation(e)) return { rejected: true, reason: "taken", suggestions: await suggestNames(cleaned) };
+      throw e;
+    }
+  }
+
   // Map a request to its game `users` row. A valid session cookie (a real account) always
   // wins and any client-supplied token is ignored (can't impersonate an account). With no
-  // session we fall back to the guest token exactly as before. New accounts start clean.
+  // session we fall back to the guest token. A NEW name (guest create or first account login)
+  // is moderated + uniqueness-checked here; a returning user keeps their existing name.
   async function resolveGameUser({ headers, guestToken, name }) {
     if (auth) {
       try {
@@ -118,13 +175,17 @@ export async function startServer({ db, pool = null, port = PORT }) {
         if (session?.user) {
           const existing = await db.getUserByAuthId(session.user.id);
           if (existing) return existing;
-          const screen = cleanText(name, NAME_MAX);
-          if (!screen) return NEED_NAME;            // first login: prompt for a screenname
-          return await db.createAuthedUser({ authId: session.user.id, name: screen });
+          if (!cleanText(name, NAME_MAX)) return NEED_NAME;      // first login: prompt for a screenname
+          return await createNamedUser({ authId: session.user.id, name });
         }
       } catch (e) { console.error("session resolve failed:", e.message); }
     }
-    return await db.getOrCreateUser({ token: guestToken, name });   // guest path (unchanged)
+    if (guestToken) {                                            // returning guest keeps their row + name
+      const existing = await db.getUserByToken(guestToken);
+      if (existing) return existing;
+    }
+    if (!cleanText(name, NAME_MAX)) return NEED_NAME;            // new guest must pick a name at the gate
+    return await createNamedUser({ name });
   }
 
   // Body cap: mounted AFTER the better-auth handler (which reads its own raw body). Oversized or
@@ -139,9 +200,32 @@ export async function startServer({ db, pool = null, port = PORT }) {
   app.get("/terms",  page("terms.html"));
   app.get("/privacy", page("privacy.html"));
   app.get("/about",  page("about.html"));
+  app.get("/agree",  page("agree.html"));    // consent step 1: read + agree to Terms/Privacy
+  app.get("/age",    page("age.html"));       // consent step 2: 18+ / peer-to-peer risk warning
   app.get("/api/leaderboard", async (_req, res) => {       // request/response data -> HTTP, not WS
     try { res.json(await db.topPlayers(10)); }
     catch { res.status(500).json({ error: "unavailable" }); }
+  });
+
+  // WebRTC ICE config (STUN always; TURN when configured). Credentials are short-lived, so we cache
+  // one shared set server-side until just before expiry rather than minting per request. Cloudflare
+  // Realtime TURN is preferred (network mint); then coturn/static from env; else STUN-only for dev.
+  let iceCache = null;   // { config, expiresAt }
+  async function getIce() {
+    const now = Date.now();
+    if (iceCache && now < iceCache.expiresAt) return iceCache.config;
+    const ttl = Math.max(60, +process.env.TURN_TTL || 3600);
+    try {
+      const cf = await cloudflareIce(process.env, { ttl });   // null when Cloudflare env absent
+      if (cf) { iceCache = { config: cf.config, expiresAt: now + Math.max(30, cf.ttl - 300) * 1000 }; return cf.config; }
+    } catch (e) { logSec("ice_cloudflare_failed", { msg: e.message }); }
+    const { config, ttl: envTtl } = iceFromEnv(process.env, { now });   // coturn/static/STUN (no network)
+    iceCache = { config, expiresAt: now + Math.min(300, Math.max(30, envTtl - 60)) * 1000 };
+    return config;
+  }
+  app.get("/api/ice", mkLimit(RATE.read), async (_req, res) => {
+    try { res.json(await getIce()); }
+    catch { res.json(iceFromEnv(process.env).config); }    // last-resort STUN/static, never 500
   });
   app.get("/api/me", async (req, res) => {                  // the signed-in player's profile + history
     try {
@@ -163,12 +247,166 @@ export async function startServer({ db, pool = null, port = PORT }) {
     } catch { res.status(500).json({ error: "unavailable" }); }
   });
 
+  // Consent capture (18+ & ToS/Privacy) — the legal paper trail. Records age_confirmed_at +
+  // tos_version_accepted on the user's row (server-authoritative). Matchmaking is hard-gated on this
+  // record server-side (see requireConsent), so it cannot be bypassed by a raw WebSocket.
+  app.post("/api/consent", async (req, res) => {
+    if (req.body?.agree !== true) return res.status(400).json({ error: "must_agree" });
+    try {
+      const { user } = await resolveRequester(req);       // session (account) or guest token
+      if (!user) return res.status(401).json({ error: "no_user" });
+      const rec = await db.setConsent(user.id, TOS_VERSION);
+      logSec("consent", { user: user.id, tos: TOS_VERSION });
+      res.json({ ok: true, tosVersion: rec?.tos_version_accepted || TOS_VERSION });
+    } catch (e) { logSec("consent_failed", { msg: e.message }); res.status(500).json({ error: "unavailable" }); }
+  });
+
+  // ---------- moderation admin (minimal, access-controlled; §7) ----------
+  // Admins are identified SERVER-SIDE only: a session email in ADMIN_EMAILS (recommended) or the
+  // resolved game-user id in ADMIN_USER_IDS. Never a client flag. If neither env is set there are no
+  // admins and every /api/admin/* + /admin returns 403 (fail closed). Actions reuse the existing
+  // issueBan/enforceBan path — there is no second ban path.
+  const adminEmails = () => (process.env.ADMIN_EMAILS || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+  const adminIds    = () => (process.env.ADMIN_USER_IDS || "").split(",").map(s => s.trim()).filter(Boolean);
+  const posInt = v => (Number.isInteger(+v) && +v > 0 ? +v : null);
+
+  // Resolve the requester like /api/me: session (account) first, then guest token. Both are
+  // server-verified credentials; a client can't self-declare admin.
+  async function resolveRequester(req) {
+    if (auth) {
+      try { const s = await auth.api.getSession({ headers: fromHeaders(req.headers) });
+            if (s?.user) return { session: s, user: await db.getUserByAuthId(s.user.id) }; } catch {}
+    }
+    const token = req.get("x-token");
+    if (token) { const u = await db.getUserByToken(token); if (u) return { session: null, user: u }; }
+    return { session: null, user: null };
+  }
+  function isAdmin({ session, user }) {
+    const email = session?.user?.email && String(session.user.email).toLowerCase();
+    if (email && adminEmails().includes(email)) return true;
+    if (user && adminIds().includes(String(user.id))) return true;
+    return false;
+  }
+  async function requireAdmin(req, res, next) {
+    let who; try { who = await resolveRequester(req); } catch { who = { session: null, user: null }; }
+    if (!isAdmin(who)) { logSec("admin_denied", { ip: clientIp(req), path: req.path }); return res.status(403).json({ error: "forbidden" }); }
+    req.admin = who; next();
+  }
+  const adminActor = req => (req.admin?.user?.id ?? req.admin?.session?.user?.id ?? "?");
+
+  // Gated admin page (kept OUT of /public so express.static can never serve it ungated).
+  app.get("/admin", requireAdmin, (_req, res) => res.sendFile(path.join(__dirname, "admin.html")));
+
+  app.get("/api/admin/reports", requireAdmin, async (req, res) => {
+    try {
+      const status = req.query.status === "reviewed" ? "reviewed" : "open";
+      const rows = await db.listReports({ status, limit: +req.query.limit || 50 });
+      const seen = new Map();                                  // annotate each distinct target once
+      for (const r of rows) {
+        const key = String(r.reported_id);
+        if (!seen.has(key)) {
+          const window = r.reported_guest ? WINDOW_GUEST : WINDOW_AUTHED;
+          const cluster = (await db.getReportCluster(r.reported_id, new Date(Date.now() - window)))
+            .map(x => ({ reporterId: x.reporter_id, trust: x.reporter_trust, guest: x.reporter_guest, reason: x.reason }));
+          const ban = await db.getActiveBan(r.reported_id);
+          seen.set(key, { heat: Math.round(heatOf(cluster) * 100) / 100, active_ban: ban ? { tier: ban.tier, expires_at: ban.expires_at } : null });
+        }
+        Object.assign(r, seen.get(key));
+      }
+      res.json({ reports: rows });
+    } catch (e) { logSec("admin_reports_failed", { msg: e.message }); res.status(500).json({ error: "unavailable" }); }
+  });
+
+  app.get("/api/admin/mod-events", requireAdmin, async (req, res) => {
+    try { res.json({ events: await db.listModEvents({ limit: +req.query.limit || 50 }) }); }
+    catch { res.status(500).json({ error: "unavailable" }); }
+  });
+
+  app.get("/api/admin/active-bans", requireAdmin, async (_req, res) => {
+    try { res.json({ bans: await db.listActiveBans(100) }); }
+    catch { res.status(500).json({ error: "unavailable" }); }
+  });
+
+  // At-a-glance launch stats (admin-only). Counters are since process start; live figures are current.
+  app.get("/api/admin/stats", requireAdmin, (_req, res) => {
+    const rtcTotal = stats.rtcConnected + stats.rtcFailed;
+    res.json({
+      uptimeSec: Math.round((Date.now() - stats.startedAt) / 1000),
+      online: online.size, liveSockets: clients.size, inQueue: (waiting !== null ? 1 : 0) + (duosWaiting !== null ? 2 : 0),
+      matchesStarted: stats.matchesStarted, bansIssued: stats.bansIssued, rateLimitTrips: stats.rateLimitTrips,
+      rtcConnected: stats.rtcConnected, rtcFailed: stats.rtcFailed,
+      rtcFailRate: rtcTotal ? Math.round((stats.rtcFailed / rtcTotal) * 100) / 100 : 0,
+      sentry: !!process.env.SENTRY_DSN,
+    });
+  });
+
+  app.get("/api/admin/user/:id", requireAdmin, async (req, res) => {
+    const id = posInt(req.params.id);
+    if (!id) return res.status(400).json({ error: "bad_id" });
+    try {
+      const u = await db.getUserById(id);
+      if (!u) return res.status(404).json({ error: "not_found" });
+      const [bans, against, by, ban] = await Promise.all([db.listBans(id), db.reportsAgainst(id), db.reportsBy(id), db.getActiveBan(id)]);
+      res.json({
+        user: { id: u.id, name: u.name, guest: u.auth_id == null, trust: u.trust_score, rating: u.rating, games: u.games },
+        active_ban: ban ? { tier: ban.tier, reason: ban.reason, expires_at: ban.expires_at } : null,
+        bans, reports_against: against, reports_by: by,
+      });
+    } catch (e) { logSec("admin_user_failed", { msg: e.message }); res.status(500).json({ error: "unavailable" }); }
+  });
+
+  // Ban: accepts a tier ('day'|'week'|'month'|'year') OR durationHours. Reuses issueBan + enforceBan.
+  app.post("/api/admin/ban", requireAdmin, async (req, res) => {
+    const userId = posInt(req.body?.userId);
+    const reason = cleanText(req.body?.reason, 200) || "admin action";
+    const hours = req.body?.durationHours != null ? +req.body.durationHours : null;
+    const tier = typeof req.body?.tier === "string" ? req.body.tier : null;
+    if (!userId) return res.status(400).json({ error: "bad_user" });
+    let tierLabel, expiresAt;
+    if (hours != null) {
+      if (!(hours > 0 && hours <= 24 * 366)) return res.status(400).json({ error: "bad_duration" });
+      tierLabel = hours + "h"; expiresAt = new Date(Date.now() + hours * 3600 * 1000);
+    } else if (tier && TIERS.includes(tier)) {
+      tierLabel = tier; expiresAt = banExpiry(tier);
+    } else return res.status(400).json({ error: "bad_tier" });
+    try {
+      const target = await db.getUserById(userId);
+      if (!target) return res.status(404).json({ error: "not_found" });
+      const ban = await db.issueBan({ userId, tier: tierLabel, reason, isGuest: target.auth_id == null, expiresAt });
+      stats.bansIssued++;
+      enforceBan(userId, ban);                                 // if live: tears the game down + sends `banned`
+      logSec("admin_ban", { by: adminActor(req), target: userId, tier: tierLabel });
+      res.json({ ok: true, ban: { tier: tierLabel, expires_at: expiresAt } });
+    } catch (e) { logSec("admin_ban_failed", { msg: e.message }); res.status(500).json({ error: "unavailable" }); }
+  });
+
+  app.post("/api/admin/unban", requireAdmin, async (req, res) => {
+    const userId = posInt(req.body?.userId);
+    if (!userId) return res.status(400).json({ error: "bad_user" });
+    try {
+      const cleared = await db.clearActiveBans(userId);
+      logSec("admin_unban", { by: adminActor(req), target: userId, cleared });
+      res.json({ ok: true, cleared });
+    } catch { res.status(500).json({ error: "unavailable" }); }
+  });
+
+  app.post("/api/admin/clear-report", requireAdmin, async (req, res) => {
+    const reportId = posInt(req.body?.reportId);
+    if (!reportId) return res.status(400).json({ error: "bad_report" });
+    try {
+      const ok = await db.clearReport(reportId);
+      logSec("admin_clear_report", { by: adminActor(req), report: reportId });
+      res.json({ ok });
+    } catch { res.status(500).json({ error: "unavailable" }); }
+  });
+
   // Generic error handler: log the detail server-side, return no stack/internal detail to the
   // client. 413 = body over the cap; everything else is an opaque 500.
-  app.use((err, _req, res, next) => {
+  app.use((err, req, res, next) => {
     if (res.headersSent) return next(err);
     const status = err && (err.status || err.statusCode) === 413 ? 413 : 500;
     logSec("http_error", { status, msg: err && err.message });
+    if (status >= 500) captureError(err, { where: "http", path: req.path });   // report 5xx (no PII)
     res.status(status).json({ error: status === 413 ? "too_large" : "server_error" });
   });
 
@@ -225,9 +463,23 @@ export async function startServer({ db, pool = null, port = PORT }) {
     return { you: game.scores[mine], them: game.scores[theirs] };
   };
 
+  // Consent hard-gate: a socket must have a server-logged 18+/ToS consent (age_confirmed_at) before it
+  // can enter the camera/matchmaking path. No consent -> tell the client and KILL the socket instantly,
+  // so raw WebSocket manipulation can't bypass the /login gate. Returns true if it blocked (+closed).
+  function requireConsent(id) {
+    const c = clients.get(id);
+    if (!c) return true;
+    if (c.consented) return false;
+    logSec("consent_block", { user: c.userId });
+    send(id, { type: "consentRequired" });
+    try { c.ws.close(1008, "consent required"); } catch {}
+    return true;
+  }
+
   async function findMatch(id) {
     const c = clients.get(id);
     if (!c || !c.userId || c.state !== "idle") return;
+    if (requireConsent(id)) return;                          // 18+/ToS consent required to matchmake
     if (await isBanned(c.userId, id)) return;                 // banned users can't queue (belt-and-suspenders)
     if (waiting !== null && waiting !== id && clients.get(waiting)?.state === "waiting") {
       const partnerId = waiting; waiting = null; await pair(id, partnerId);
@@ -281,7 +533,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
     for (const id of game.players)
       send(id, { type: "score", scores: scoreView(game, id) });
   }
-  function startCountdown(game) { setRoles(game, 0); setPhase(game, "countdown", dur.countdown, startRound1); broadcast(game, "countdown", dur.countdown / SEC); }
+  function startCountdown(game) { stats.matchesStarted++; setRoles(game, 0); setPhase(game, "countdown", dur.countdown, startRound1); broadcast(game, "countdown", dur.countdown / SEC); }
   function startRound1(game)    { setRoles(game, 0); setPhase(game, "round1",    dur.round,     startSwap);   broadcast(game, "round1",    dur.round / SEC); }
   function startSwap(game)      {                    setPhase(game, "swap",      dur.swap,      startRound2); broadcast(game, "swap",      dur.swap / SEC); }
   function startRound2(game)    { setRoles(game, 1); setPhase(game, "round2",    dur.round,     endGame);     broadcast(game, "round2",    dur.round / SEC); }
@@ -436,9 +688,13 @@ export async function startServer({ db, pool = null, port = PORT }) {
     if (lid == null) return;
     const lobby = lobbies.get(lid);
     if (!lobby || String(lobby.leader) !== String(uid) || lobby.members.length < 2) return;
-    for (const m of lobby.members) {             // a banned member blocks the whole duo (belt-and-suspenders)
+    const leaderConn = online.get(String(uid));
+    if (leaderConn != null && requireConsent(leaderConn)) return;   // leader must have consented
+    for (const m of lobby.members) {             // a banned OR non-consented member blocks the whole duo
       const cn = online.get(String(m));
-      if (cn != null && await isBanned(m, cn)) return;
+      if (cn == null) continue;
+      if (await isBanned(m, cn)) return;
+      if (!clients.get(cn)?.consented) { sendToUser(uid, { type: "friendError", reason: "unavailable" }); return; }
     }
     if (duosWaiting !== null && duosWaiting !== lid && lobbies.has(duosWaiting)) {
       const otherLobby = lobbies.get(duosWaiting); duosWaiting = null;
@@ -543,6 +799,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
       if (!decision.ban) return;
       if (await db.getActiveBan(reportedId)) return;        // already serving a ban — don't stack
       const ban = await db.issueBan({ userId: reportedId, tier: decision.tier, reason: decision.reason, isGuest: reportedGuest, expiresAt: banExpiry(decision.tier) });
+      stats.bansIssued++;
       // reward the distinct STRUCTURED reporters whose reports built this ban.
       const assisted = [...new Set(cluster.filter(r => r.reason !== "other").map(r => String(r.reporterId)))];
       for (const rid of assisted) await db.adjustTrust(rid, trustDelta("ban_assist"));
@@ -577,8 +834,12 @@ export async function startServer({ db, pool = null, port = PORT }) {
 
     const reason = ["cheating", "harassment", "other"].includes(msg.reason) ? msg.reason : null;
     if (!reason) return send(id, { type: "reportAck", ok: false, reason: "badreason" });
-    const detail = reason === "other" ? cleanText(msg.detail, DETAIL_MAX) : null;   // the one text gate
-    if (reason === "other" && !detail) return send(id, { type: "reportAck", ok: false, reason: "needdetail" });
+    let detail = null;
+    if (reason === "other") {                                    // moderate freetail (normalize/cap; quoting allowed)
+      const v = moderateText(msg.detail, { context: "report_detail" });
+      if (!v.ok) return send(id, { type: "reportAck", ok: false, reason: "needdetail" });
+      detail = v.cleaned;
+    }
 
     const reporterId = c.userId, reportedId = tc.userId;
     const reporterGuest = !!c.isGuest, reportedGuest = !!tc.isGuest;
@@ -638,13 +899,14 @@ export async function startServer({ db, pool = null, port = PORT }) {
     clients.set(id, { ws, reqHeaders: req.headers, ipHash, isGuest: true, state: "idle", partner: null, game: null, userId: null, name: null, rating: null });
 
     ws.on("message", async (data) => {
+     let msg = null;
      try {
       // Validate BEFORE dispatch, then rate-limit. A hand-crafted socket can't reach a handler
       // with a wrong-shaped payload; malformed/unknown messages still count toward the limiter.
-      let msg; try { msg = JSON.parse(data); } catch { limiter.check("_bad"); return; }
+      try { msg = JSON.parse(data); } catch { limiter.check("_bad"); return; }
       const type = validateMessage(msg);
       const gate = limiter.check(type || "_bad");
-      if (gate.disconnect) { logSec("ws_abuse_disconnect", { ip: rawIp }); try { ws.close(1008, "rate"); } catch {} return; }
+      if (gate.disconnect) { stats.rateLimitTrips++; logSec("ws_abuse_disconnect", { ip: rawIp }); try { ws.close(1008, "rate"); } catch {} return; }
       if (!gate.allow || !type) return;              // over budget, or malformed/unknown -> ignore
 
       const c = clients.get(id); if (!c) return;
@@ -652,14 +914,20 @@ export async function startServer({ db, pool = null, port = PORT }) {
       if (msg.type === "auth") {
         const user = await resolveGameUser({ headers: c.reqHeaders, guestToken: msg.token, name: msg.name });
         if (user === NEED_NAME) { send(id, { type: "needName" }); return; }   // first login: pick a screenname
+        if (user && user.rejected) {                                          // name blocked/taken -> reprompt
+          send(id, { type: "nameError", reason: user.reason, suggestions: user.suggestions || [] });
+          return;
+        }
         c.userId = user.id; c.name = user.name; c.rating = user.rating;
         c.isGuest = user.auth_id == null;         // guest vs account, used everywhere moderation branches
+        c.consented = user.age_confirmed_at != null;   // 18+ & ToS/Privacy consent logged? gates matchmaking
         let form = [];
         try { form = (await db.recentMatches(user.id, 5)).map(m => m.outcome); }
         catch (e) { console.error("recentMatches (auth) failed:", e.message); }
         send(id, { type: "authed", token: user.token, profile: {
           id: user.id, name: user.name, rating: user.rating, wins: user.wins, losses: user.losses,
-          draws: user.draws, games: user.games, form, friendCode: user.friend_code } });
+          draws: user.draws, games: user.games, form, friendCode: user.friend_code,
+          consented: c.consented, tosVersion: TOS_VERSION } });
         online.set(String(user.id), id);          // this connection is now the user's live socket
         sendFriends(user.id);                     // hand them their friends list (with online flags)
         refreshFriendsOf(user.id);                // tell their online friends they just came online
@@ -677,8 +945,24 @@ export async function startServer({ db, pool = null, port = PORT }) {
       } else if (msg.type === "reaction") {
         handleReaction(id, msg);
       } else if (msg.type === "chat" && c.userId) {
-        const text = cleanText(msg.text, CHAT_MAX);     // the one text gate (validate.mjs)
-        if (!text) return;
+        const now = Date.now();
+        if (c.chatMutedUntil && now < c.chatMutedUntil) { send(id, { type: "chatBlocked", reason: "muted" }); return; }
+        const verdict = moderateText(msg.text, { context: "chat" });   // slur->block, profanity->redact, url->block
+        if (!verdict.ok) {
+          // Hard block (slur/link): tell only the sender, broadcast nothing. Slurs cost trust,
+          // are logged (rule id, never the raw text), and repeat offenders get a short mute.
+          if (verdict.rule === "slur") {
+            c.chatStrikes = (c.chatStrikes || 0) + 1;
+            db.logModeration({ userId: c.userId, context: "chat", rule: verdict.rule });
+            db.adjustTrust(c.userId, trustDelta("chat_violation")).catch(() => {});
+            if (c.chatStrikes >= CHAT_MUTE_STRIKES) { c.chatMutedUntil = now + CHAT_MUTE_MS; c.chatStrikes = 0; }
+          }
+          send(id, { type: "chatBlocked", reason: verdict.reason });
+          return;
+        }
+        const text = verdict.cleaned;
+        if (c.lastChat === text && (now - (c.lastChatAt || 0)) < CHAT_DUP_WINDOW) { send(id, { type: "chatBlocked", reason: "dup" }); return; }
+        c.lastChat = text; c.lastChatAt = now;
         for (const pid of chatPeers(id)) send(pid, { type: "chat", from: c.name, fromId: id, text, self: pid === id });
       } else if (msg.type === "addFriend" && c.userId) {
         const r = await db.addFriendByCode(c.userId, msg.code);
@@ -687,12 +971,14 @@ export async function startServer({ db, pool = null, port = PORT }) {
       } else if (msg.type === "friends" && c.userId) {
         sendFriends(c.userId);
       } else if (msg.type === "invite" && c.userId) {
+        if (requireConsent(id)) return;                       // lobby cam needs consent too
         if (c.state !== "idle" || userLobby.get(String(c.userId)) != null) { send(id, { type: "friendError", reason: "unavailable" }); return; }
         const friend = connOfUser(msg.friendId);
         if (!friend) send(id, { type: "friendError", reason: "offline" });
         else if (friend.state !== "idle") send(id, { type: "friendError", reason: "unavailable" });
         else sendToUser(msg.friendId, { type: "invited", from: { id: c.userId, name: c.name } });
       } else if (msg.type === "acceptInvite" && c.userId) {
+        if (requireConsent(id)) return;                       // joining a lobby opens the cam
         const free = uid => userLobby.get(String(uid)) == null && connOfUser(uid)?.state === "idle";
         if (connOfUser(msg.fromId) && free(msg.fromId) && free(c.userId)) createLobby(msg.fromId, c.userId);
         else send(id, { type: "friendError", reason: "unavailable" });
@@ -706,6 +992,9 @@ export async function startServer({ db, pool = null, port = PORT }) {
         cancelDuos(c.userId);
       } else if (msg.type === "report" && c.userId) {
         await handleReport(id, msg);
+      } else if (msg.type === "rtcStat") {                    // client reports peer-connection outcome (observability)
+        if (msg.ok) stats.rtcConnected++;
+        else { stats.rtcFailed++; logSec("rtc_connect_failed", {}); }
       } else if ((msg.type === "offer" || msg.type === "answer" || msg.type === "candidate") && msg.target != null) {
         const target = +msg.target;
         const sameGame = c.game && c.game.players.includes(target) && clients.get(target)?.game === c.game;
@@ -715,8 +1004,9 @@ export async function startServer({ db, pool = null, port = PORT }) {
         send(c.partner, { ...msg, from: id });
       }
      } catch (err) {
-      // One thrown handler must never take down the process (§7.2). Log and keep the socket alive.
+      // One thrown handler must never take down the process (§7.2). Log, report, keep the socket alive.
       logSec("ws_handler_error", { msg: err && err.message });
+      captureError(err, { where: "ws_handler", type: msg && msg.type });
      }
     });
 
@@ -741,11 +1031,19 @@ export async function startServer({ db, pool = null, port = PORT }) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   if (!process.env.DATABASE_URL) { console.error("Set DATABASE_URL (see run notes)."); process.exit(1); }
 
+  await initSentry();   // error tracking (no-op unless SENTRY_DSN is set)
+
   // Last-resort guards: a stray async error must not take the whole process (and every live game)
   // down. Per-message handlers already try/catch (§7.2); this catches anything that escapes.
   // Run under a supervisor (pm2/systemd/container) so a truly wedged process gets restarted.
-  process.on("unhandledRejection", (reason) => logSec("unhandled_rejection", { msg: reason && (reason.message || String(reason)) }));
-  process.on("uncaughtException",  (err)    => logSec("uncaught_exception",  { msg: err && err.message }));
+  process.on("unhandledRejection", (reason) => {
+    logSec("unhandled_rejection", { msg: reason && (reason.message || String(reason)) });
+    captureError(reason, { where: "unhandledRejection" });
+  });
+  process.on("uncaughtException", (err) => {
+    logSec("uncaught_exception", { msg: err && err.message });
+    captureError(err, { where: "uncaughtException" });
+  });
 
   const pool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
   const db = makeDb(pool);

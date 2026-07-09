@@ -9,6 +9,10 @@ process.env.NODE_ENV = "test";                 // not production (keep http, no 
 process.env.ALLOWED_ORIGINS = "http://good.example";
 process.env.WS_MAX_CONNS_PER_IP = "3";
 delete process.env.BETTER_AUTH_SECRET;         // guest/token-only; /api/auth has a limiter but no handler
+for (const k of ["CLOUDFLARE_TURN_TOKEN_ID", "CLOUDFLARE_TURN_API_TOKEN", "TURN_URLS", "TURN_SECRET", "TURN_USERNAME", "TURN_PASSWORD"])
+  delete process.env[k];                       // /api/ice must serve STUN-only in tests (no network calls)
+delete process.env.ADMIN_EMAILS; delete process.env.ADMIN_USER_IDS;   // no admins -> admin routes fail closed
+delete process.env.SENTRY_DSN;                                         // error tracking stays off in tests
 
 import assert from "node:assert/strict";
 import { once } from "node:events";
@@ -17,6 +21,7 @@ import { startServer } from "./server.mjs";
 import { validateMessage, cleanText, escapeHtml } from "./validate.mjs";
 import { makeLimiter } from "./ratelimit.mjs";
 import { normalizeOrigin, isOriginAllowed, allowedOrigins, clientIp, cspDirectives } from "./security.mjs";
+import { coturnCredentials, iceFromEnv, cloudflareIce } from "./ice.mjs";
 
 let passed = 0;
 const ok = name => { passed++; console.log("  ok -", name); };
@@ -31,6 +36,9 @@ function memDb() {
   return {
     async initSchema() {},
     async getOrCreateUser({ token, name }) { if (token) { const u = users.find(x => x.token === token); if (u) return u; } const u = mk({ name }); users.push(u); return u; },
+    async createGuestUser({ name }) { const u = mk({ name }); users.push(u); return u; },
+    async isNameTaken(name, exceptId = null) { return users.some(u => u.name.toLowerCase() === String(name).toLowerCase() && u.id !== exceptId); },
+    async logModeration() {},
     async getUserByToken(t) { return users.find(u => u.token === t) || null; },
     async recentMatches() { return []; },
     async topPlayers() { return []; },
@@ -85,6 +93,8 @@ function unitTests() {
   assert.equal(validateMessage({ type: "reaction", delta: 999, tier: "nuke" }), null);
   assert.equal(validateMessage({ type: "offer", target: 2, sdp: { type: "offer", sdp: "v=0" } }), "offer");
   assert.equal(validateMessage({ type: "offer", target: 2, sdp: { x: "a".repeat(40000) } }), null); // oversized blob
+  assert.equal(validateMessage({ type: "rtcStat", ok: false }), "rtcStat");
+  assert.equal(validateMessage({ type: "rtcStat", ok: "yes" }), null);
   ok("validateMessage accepts good / rejects malformed, unknown, out-of-range, oversized");
 
   assert.equal(cleanText("  a\t\n  b  ", 50), "a b");
@@ -121,11 +131,41 @@ function unitTests() {
   assert.ok("upgradeInsecureRequests" in csp);
   assert.ok(!("upgradeInsecureRequests" in cspDirectives({ production: false })));
   ok("security helpers: origin normalize/allow, client IP, CSP shape");
+
+  // ICE sourcing (ice.mjs)
+  const cc = coturnCredentials("sekret", { ttl: 600, now: 1_000_000_000_000 });
+  assert.equal(cc.username, "1000000600:omeglol");                  // "<expiry>:<label>"
+  assert.ok(cc.credential.length > 0 && cc.credential === coturnCredentials("sekret", { ttl: 600, now: 1_000_000_000_000 }).credential); // deterministic
+  assert.deepEqual(iceFromEnv({}).config.iceServers.length, 1);    // STUN only when no TURN env
+  assert.ok(/stun:/.test(String(iceFromEnv({}).config.iceServers[0].urls)));
+  const staticIce = iceFromEnv({ TURN_URLS: "turn:t.example:3478", TURN_USERNAME: "u", TURN_PASSWORD: "p" }).config;
+  assert.equal(staticIce.iceServers.length, 2);
+  assert.equal(staticIce.iceServers[1].username, "u");
+  const coturnIce = iceFromEnv({ TURN_URLS: "turn:t:3478", TURN_SECRET: "s", TURN_TTL: "600" }, { now: 1_000_000_000_000 }).config;
+  assert.ok(coturnIce.iceServers[1].username.endsWith(":omeglol") && coturnIce.iceServers[1].credential.length > 0);
+  ok("ice: coturn creds deterministic; env builds STUN / static / coturn configs");
+}
+
+// async ICE test (injected fetch — no real network)
+async function iceCloudflareTest() {
+  let calledUrl = null, calledAuth = null;
+  const fakeFetch = async (url, opts) => {
+    calledUrl = url; calledAuth = opts.headers.authorization;
+    return { ok: true, json: async () => ({ iceServers: { urls: ["stun:stun.cloudflare.com:3478", "turn:turn.cloudflare.com:3478?transport=udp"], username: "cfu", credential: "cfc" } }) };
+  };
+  assert.equal(await cloudflareIce({}, { fetchImpl: fakeFetch }), null);   // no env -> null
+  const out = await cloudflareIce({ CLOUDFLARE_TURN_TOKEN_ID: "key123", CLOUDFLARE_TURN_API_TOKEN: "tok456" }, { ttl: 3600, fetchImpl: fakeFetch });
+  assert.ok(calledUrl.includes("/turn/keys/key123/credentials/generate"));
+  assert.equal(calledAuth, "Bearer tok456");
+  assert.equal(out.config.iceServers[0].username, "cfu");
+  assert.equal(out.config.iceServers[0].credential, "cfc");
+  ok("ice: Cloudflare TURN mints ephemeral creds via API (token stays server-side)");
 }
 
 // ==================== integration tests (live server) ====================
 async function main() {
   unitTests();
+  await iceCloudflareTest();
 
   const { server } = await startServer({ db: memDb(), pool: null, port: 0 });
   const port = server.address().port;
@@ -145,6 +185,51 @@ async function main() {
     assert.ok(/camera=\(self\)/.test(h.get("permissions-policy") || ""));
     assert.equal(h.get("x-powered-by"), null);
     ok("HTTP: security headers present, x-powered-by hidden, page cannot be framed");
+  }
+
+  // ---- /api/ice serves ICE config (STUN-only when no TURN env, no secrets) ----
+  {
+    const res = await fetch(base + "/api/ice");
+    assert.equal(res.status, 200);
+    const j = await res.json();
+    assert.ok(Array.isArray(j.iceServers) && j.iceServers.length >= 1, "iceServers array present");
+    assert.ok(j.iceServers.some(s => /stun:/.test(String(s.urls))), "STUN entry present");
+    assert.ok(!/TURN_|CLOUDFLARE|Bearer|credential.*secret/i.test(JSON.stringify(j)), "no secret leaked");
+    ok("HTTP: /api/ice serves ICE config (STUN-only with no TURN env)");
+  }
+
+  // ---- /healthz: 200 when up (no pool = liveness only); 503 when the DB check fails; leaks nothing ----
+  {
+    const res = await fetch(base + "/healthz");
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { ok: true });
+
+    const failPool = { query: async () => { throw new Error("db down"); } };
+    const { server: s2 } = await startServer({ db: memDb(), pool: failPool, port: 0 });
+    const dead = await fetch("http://127.0.0.1:" + s2.address().port + "/healthz");
+    assert.equal(dead.status, 503, "503 when DB unreachable");
+    assert.deepEqual(await dead.json(), { ok: false });
+    await new Promise(r => s2.close(r));
+    ok("HTTP: /healthz 200 healthy, 503 on DB failure, reveals nothing");
+  }
+
+  // ---- admin surface is fail-closed (no auth + no admin env -> 403 everywhere) ----
+  {
+    for (const p of ["/api/admin/reports", "/api/admin/mod-events", "/api/admin/active-bans", "/api/admin/stats", "/api/admin/user/1", "/admin"])
+      assert.equal((await fetch(base + p)).status, 403, p + " must 403");
+    const post = await fetch(base + "/api/admin/ban", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ userId: 1, tier: "day" }) });
+    assert.equal(post.status, 403, "admin ban must 403 for non-admin");
+    ok("HTTP: /api/admin/* and /admin are fail-closed (403 without an admin session)");
+  }
+
+  // ---- consent endpoint gating + legal pages (crawlable for Google OAuth) ----
+  {
+    assert.equal((await fetch(base + "/api/consent", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agree: false }) })).status, 400, "agree:true required");
+    assert.equal((await fetch(base + "/api/consent", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ agree: true }) })).status, 401, "needs a resolved user");
+    for (const p of ["/terms", "/privacy", "/about", "/agree", "/age"]) assert.equal((await fetch(base + p)).status, 200, p + " renders");
+    const terms = await (await fetch(base + "/terms")).text();
+    assert.ok(/peer-to-peer/i.test(terms) && /\b18\b/.test(terms), "/terms states 18+ and P2P risk");
+    ok("HTTP: /api/consent gated (400/401); /terms /privacy /about /agree /age render");
   }
 
   // ---- HTTP body cap (413) ----
@@ -183,7 +268,7 @@ async function main() {
     cl.send("{ not json");                                         // invalid JSON
     cl.send({ type: "totally-unknown", x: 1 });                   // unknown type
     cl.send({ type: "report", target: "abc", reason: "banana" }); // malformed report
-    cl.send({ type: "auth" });                                     // valid -> should still work
+    cl.send({ type: "auth", name: "tester" });                    // valid -> should still work
     const authed = await cl.waitFor("authed");
     assert.ok(authed.profile && authed.profile.id);
     cl.close(); await delay(150);

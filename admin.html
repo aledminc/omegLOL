@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>omegLOL — Moderation</title>
+<meta name="robots" content="noindex,nofollow" />
+<link rel="stylesheet" href="/css/base.css" />
+<style>
+  /* Minimal, dense moderation console. Reuses base.css tokens; no framework. */
+  body { padding: 18px; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 10px 0 18px; }
+  .msg { font-family: "VT323", monospace; font-size: 18px; min-height: 22px; color: var(--accent); }
+  h2 { font-size: 15px; margin: 22px 0 8px; border-bottom: 1px solid var(--line-2); padding-bottom: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line-2); vertical-align: top; }
+  th { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--dim); }
+  td.detail { max-width: 320px; word-break: break-word; }
+  .tag { font-family: "VT323", monospace; font-size: 15px; padding: 0 6px; border: 1px solid var(--line-2); border-radius: 4px; }
+  .tag.slur { color: var(--lose); } .tag.hot { color: var(--lose); font-weight: 700; }
+  button { font: inherit; font-size: 12px; padding: 4px 8px; cursor: pointer; }
+  input, select { font: inherit; font-size: 13px; padding: 5px 7px; }
+  .empty { color: var(--dim); font-style: italic; padding: 8px; }
+  .row-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+</style>
+</head>
+<body class="home">
+<h1>omeg<span style="color:var(--gold)">LOL</span> · moderation</h1>
+<div class="bar">
+  <button id="refresh">Refresh</button>
+  <label>reports: <select id="repStatus"><option value="open">open</option><option value="reviewed">reviewed</option></select></label>
+  <span class="msg" id="msg"></span>
+</div>
+
+<h2>Direct ban</h2>
+<div class="bar">
+  <input id="banUser" type="number" min="1" placeholder="user id" style="width:110px" />
+  <select id="banTier"><option value="day">1 day</option><option value="week">1 week</option><option value="month">1 month</option><option value="year">1 year</option></select>
+  <input id="banReason" placeholder="reason" style="width:240px" />
+  <button id="banBtn">Ban</button>
+</div>
+
+<h2>Open reports</h2>
+<table id="reports"><thead><tr>
+  <th>when</th><th>reporter</th><th>reported</th><th>reason</th><th>detail</th><th>trusted</th><th>heat</th><th>ban</th><th>actions</th>
+</tr></thead><tbody></tbody></table>
+
+<h2>Recent moderation events</h2>
+<table id="events"><thead><tr><th>when</th><th>user</th><th>context</th><th>rule</th></tr></thead><tbody></tbody></table>
+
+<h2>Active bans</h2>
+<table id="bans"><thead><tr><th>user</th><th>tier</th><th>reason</th><th>expires</th><th></th></tr></thead><tbody></tbody></table>
+
+<script>
+const $ = id => document.getElementById(id);
+const msg = (t, err) => { const m = $("msg"); m.textContent = t || ""; m.style.color = err ? "var(--lose)" : "var(--accent)"; };
+const when = ts => { try { return new Date(ts).toLocaleString(); } catch { return String(ts); } };
+const who = (name, id) => (name ? name : "?") + " #" + id;
+
+// Session cookie (ADMIN_EMAILS) is sent automatically; x-token covers ADMIN_USER_IDS admins.
+function headers(json) {
+  const h = { "x-token": localStorage.getItem("lastlaugh_token") || "" };
+  if (json) h["content-type"] = "application/json";
+  return h;
+}
+async function api(path, opts = {}) {
+  const res = await fetch(path, { credentials: "same-origin", headers: headers(opts.body != null), ...opts });
+  if (res.status === 403) { msg("403 — not an admin (log in as an admin account)", true); throw new Error("forbidden"); }
+  if (!res.ok) { msg(path + " → " + res.status, true); throw new Error(res.status); }
+  return res.json();
+}
+const post = (path, body) => api(path, { method: "POST", body: JSON.stringify(body) });
+
+// Build a tbody from rows; each cell is a value (set via textContent) or a DOM node (e.g. buttons).
+function fill(tblId, rows, cols, emptyText) {
+  const tb = $(tblId).querySelector("tbody"); tb.textContent = "";
+  if (!rows.length) { const tr = document.createElement("tr"); const td = document.createElement("td"); td.className = "empty"; td.colSpan = cols.length; td.textContent = emptyText; tr.appendChild(td); tb.appendChild(tr); return; }
+  for (const r of rows) {
+    const tr = document.createElement("tr");
+    for (const col of cols) {
+      const td = document.createElement("td");
+      const v = col(r, td);
+      if (v instanceof Node) td.appendChild(v);
+      else if (v != null) td.textContent = String(v);   // output-encoded: user text never touches innerHTML
+      tr.appendChild(td);
+    }
+    tb.appendChild(tr);
+  }
+}
+function btn(label, fn) { const b = document.createElement("button"); b.textContent = label; b.addEventListener("click", fn); return b; }
+
+async function loadAll() {
+  msg("loading…");
+  const status = $("repStatus").value;
+  const [rep, ev, bn] = await Promise.all([
+    api("/api/admin/reports?status=" + status), api("/api/admin/mod-events"), api("/api/admin/active-bans"),
+  ]);
+  fill("reports", rep.reports, [
+    r => when(r.created_at),
+    r => who(r.reporter_name, r.reporter_id),
+    r => who(r.reported_name, r.reported_id),
+    r => r.reason,
+    (r, td) => { td.className = "detail"; return r.detail || ""; },
+    r => (r.reporter_trusted ? "✓" : ""),
+    (r, td) => { const s = document.createElement("span"); s.className = "tag" + (r.heat >= 2 ? " hot" : ""); s.textContent = r.heat ?? "—"; return s; },
+    r => (r.active_ban ? r.active_ban.tier : ""),
+    (r) => {
+      const wrap = document.createElement("div"); wrap.className = "row-actions";
+      wrap.appendChild(btn("Ban 1d", () => act(() => post("/api/admin/ban", { userId: r.reported_id, tier: "day", reason: "report: " + r.reason }))));
+      wrap.appendChild(btn("Ban 1w", () => act(() => post("/api/admin/ban", { userId: r.reported_id, tier: "week", reason: "report: " + r.reason }))));
+      wrap.appendChild(btn("Clear", () => act(() => post("/api/admin/clear-report", { reportId: r.id }))));
+      return wrap;
+    },
+  ], "no reports");
+  fill("events", ev.events, [
+    e => when(e.created_at),
+    e => who(e.user_name, e.user_id),
+    e => e.context,
+    (e, td) => { const s = document.createElement("span"); s.className = "tag" + (e.rule === "slur" ? " slur" : ""); s.textContent = e.rule; return s; },
+  ], "no events");
+  fill("bans", bn.bans, [
+    b => who(b.user_name, b.user_id),
+    b => b.tier,
+    (b, td) => { td.className = "detail"; return b.reason; },
+    b => when(b.expires_at),
+    b => btn("Unban", () => act(() => post("/api/admin/unban", { userId: b.user_id }))),
+  ], "no active bans");
+  msg("loaded " + rep.reports.length + " reports, " + bn.bans.length + " active bans");
+}
+async function act(fn) { try { await fn(); await loadAll(); msg("done"); } catch (e) { /* api() already set the message */ } }
+
+$("refresh").addEventListener("click", () => loadAll().catch(() => {}));
+$("repStatus").addEventListener("change", () => loadAll().catch(() => {}));
+$("banBtn").addEventListener("click", () => {
+  const userId = +$("banUser").value; if (!userId) { msg("enter a user id", true); return; }
+  act(() => post("/api/admin/ban", { userId, tier: $("banTier").value, reason: $("banReason").value || "admin action" }));
+});
+loadAll().catch(() => {});
+</script>
+</body>
+</html>

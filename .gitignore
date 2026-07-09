@@ -1,6 +1,56 @@
+# ---- dependencies ----
 node_modules/
+*.tgz
+.npm/
+
+# ---- secrets / local config (NEVER commit) ----
+# Ignore every .env variant, but keep the committed, valueless template.
 .env
-.env.local
-npm-debug.log*
+.env.*
+!.env.example
+# local auth notes + generated auth config (may hold secrets)
 AUTH.md
 auth.config.mjs
+# keys / certificates / service-account creds (TLS, TURN, SSH, etc.)
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+id_rsa*
+*-key.json
+service-account*.json
+
+# ---- logs ----
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ---- build / coverage / caches ----
+dist/
+build/
+coverage/
+.nyc_output/
+.cache/
+
+# ---- OS cruft (OneDrive/Windows/macOS) ----
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+desktop.ini
+
+# ---- editors / IDEs ----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ---- temp / scratch ----
+tmp/
+temp/
+*.tmp

@@ -22,8 +22,17 @@ infrastructure items (Cloudflare, DB, secret manager, error tracker) are flagged
   shape/value types, length caps, enum membership (report reason, reaction tier), numeric bounds.
   Malformed/unknown messages are ignored and count toward the rate limiter. JSON.parse output is
   never trusted.
-- One text gate (`cleanText`) for all user-authored strings (names, chat, report detail): strips
-  control/zero-width chars, collapses whitespace, hard-caps length. Used by both server and db.
+- One text gate: `validate.mjs::cleanText` for transport-level normalization, and the content-policy
+  chokepoint `moderation.mjs::moderateText(raw, {context})` (`username` | `chat` | `report_detail`)
+  for everything user-authored. It NFC-normalizes, strips control/zero-width chars, enforces
+  per-context length, applies a username charset (rejecting HTML metacharacters), and matches a
+  leet-folded, word-boundary blocklist (`blocklist.mjs`) that avoids the Scunthorpe problem.
+- Usernames: case-insensitively **unique** (dedup migration + `users_name_lower_idx`, race-safe on
+  the UNIQUE violation), reserved/impersonation names blocked, collisions re-prompt with suggestions.
+- Chat: server-authoritative moderation before broadcast — slurs are hard-blocked (sender-only
+  feedback, trust penalty, short mute on repeats), profanity is redacted, links are blocked,
+  duplicates suppressed; delivered only to the match/lobby participants. Violations are logged to
+  `mod_events` by **rule id, never the raw text**.
 - SQL: every query in `db.mjs` is parameterized (`$1,$2,…`); no user input is interpolated into SQL.
 - Signaling: `offer`/`answer`/`candidate` are relayed only to a participant of the sender's own
   match/lobby, and SDP/candidate blobs are relayed verbatim, never interpreted.

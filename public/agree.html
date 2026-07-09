@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>omegLOL — Terms & Privacy</title>
+<meta name="robots" content="noindex,nofollow" />
+<link rel="stylesheet" href="/css/base.css" />
+<style>
+  /* Step 1 of the post-login consent flow. Mirrors the login page's centered card, with a tall
+     scroll region holding the full Terms + Privacy — the "I agree" button unlocks only at the end. */
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  .auth-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px 56px; }
+  .agree-card { width: 100%; max-width: 660px; }
+  .agree-card h1 { text-align: center; font-size: 24px; }
+  .agree-card > .muted { text-align: center; margin-bottom: 16px; }
+
+  .login-cam {
+    width: 96px; height: 66px; margin: 4px auto 16px;
+    border: 4px solid #2A3B52; border-radius: 10px;
+    background: radial-gradient(circle at 35% 35%, #4DF3FF55 0%, transparent 55%), #0B1622;
+    box-shadow: inset 0 0 0 2px #1E2A38, 0 4px 0 #1E2A38, 0 0 22px rgba(77,243,255,.35);
+    position: relative; display: grid; place-items: center;
+  }
+  .login-cam::after {
+    content: ""; width: 15px; height: 15px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff 0 12%, #6EFF8E 13% 55%, #1E2A38 56% 100%);
+    box-shadow: 0 0 8px #6EFF8E;
+  }
+
+  .doc-wrap { padding: 6px; }
+  .doc-scroll { max-height: 56vh; overflow-y: auto; padding: 14px 18px; background: var(--panel-2);
+    border: 1px solid var(--line-2); border-radius: 8px; box-shadow: var(--bevel-in); }
+  /* legal typography for the injected Terms/Privacy content (kept in step with those pages) */
+  .doc-scroll h1 { font-size: 18px; }
+  .doc-scroll h2 { font-family: "Press Start 2P", monospace; font-size: 11px; line-height: 1.7;
+    color: var(--accent); margin: 26px 0 10px; padding-top: 16px; border-top: 1px dashed var(--line-2); }
+  .doc-scroll h2:first-of-type { margin-top: 2px; padding-top: 0; border-top: 0; }
+  .doc-scroll p { margin: 0 0 11px; }
+  .doc-scroll .doc-meta { font-family: "VT323", monospace; font-size: 16px; color: var(--dim); margin: -4px 0 16px; }
+  .doc-scroll .cl { font-weight: 800; color: var(--ink); margin-right: 5px; }
+  .doc-scroll .sub { font-weight: 700; margin: 4px 0 6px; }
+  .doc-scroll ul { margin: 0 0 12px; padding-left: 20px; }
+  .doc-scroll li { margin: 0 0 6px; }
+  .doc-sep { margin: 30px 0; border: 0; border-top: 2px solid #1E2A38; }
+
+  .scroll-hint { text-align: center; font-family: "VT323", monospace; font-size: 17px; color: var(--dim); margin: 12px 0 10px; }
+  .scroll-hint.done { color: var(--accent); }
+  #agreeBtn { width: 100%; }
+  #agreeBtn:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+</style>
+</head>
+<body>
+<header id="site-nav"></header>
+<main class="auth-wrap">
+  <div class="agree-card">
+    <div class="login-cam" aria-hidden="true"></div>
+    <h1>Review &amp; agree</h1>
+    <p class="muted">Please read the Terms of Service and Privacy Policy in full. Scroll to the bottom to continue.</p>
+
+    <div class="panel doc-wrap">
+      <div class="doc-scroll" id="docScroll" tabindex="0">
+        <p class="muted" id="docLoading">Loading the Terms of Service and Privacy Policy…</p>
+      </div>
+    </div>
+
+    <p class="scroll-hint" id="scrollHint">↓ scroll to the end of both documents to continue</p>
+    <button class="btn" id="agreeBtn" disabled>I have read and agree to the Terms of Service and Privacy Policy</button>
+  </div>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const docScroll = $("docScroll"), agreeBtn = $("agreeBtn"), scrollHint = $("scrollHint");
+  let unlocked = false;
+
+  // Fetch a legal page and return its <main> content (same-origin, trusted static text; scripts
+  // stripped defensively). Keeps this page in step with /terms and /privacy — no duplicated text.
+  async function loadDoc(url) {
+    const res = await fetch(url, { credentials: "same-origin" });
+    if (!res.ok) throw new Error(url + " " + res.status);
+    const doc = new DOMParser().parseFromString(await res.text(), "text/html");
+    const main = doc.querySelector("main");
+    if (!main) throw new Error("no main in " + url);
+    main.querySelectorAll("script, header, footer, #site-nav").forEach(n => n.remove());
+    return main.innerHTML;
+  }
+
+  function unlock() {
+    if (unlocked) return;
+    unlocked = true;
+    agreeBtn.disabled = false;
+    scrollHint.textContent = "✓ you've reached the end — you can continue";
+    scrollHint.classList.add("done");
+  }
+  function checkScroll() {
+    if (docScroll.scrollTop + docScroll.clientHeight >= docScroll.scrollHeight - 8) unlock();
+  }
+  docScroll.addEventListener("scroll", checkScroll);
+
+  (async () => {
+    try {
+      const [tos, priv] = await Promise.all([loadDoc("/terms"), loadDoc("/privacy")]);
+      docScroll.innerHTML = tos + '<hr class="doc-sep" />' + priv;
+      // if the content is short enough that there's nothing to scroll, unlock right away
+      requestAnimationFrame(checkScroll);
+    } catch {
+      docScroll.innerHTML = '<p class="muted">Couldn\'t load the documents here. Please open the ' +
+        '<a href="/terms" target="_blank" rel="noopener">Terms of Service</a> and ' +
+        '<a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>, then reload this page.</p>';
+    }
+  })();
+
+  agreeBtn.addEventListener("click", () => {
+    if (agreeBtn.disabled) return;
+    try { sessionStorage.setItem("omeglol_tos_ok", "1"); } catch {}
+    location.href = "/age";
+  });
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

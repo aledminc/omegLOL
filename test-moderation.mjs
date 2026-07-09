@@ -2,10 +2,10 @@
 // Run: node test-moderation.mjs
 import assert from "node:assert/strict";
 import {
-  trustWeight, severityWeight, heatOf, decideBan, trustDelta, banExpiry, clampTrust, overReporting,
+  trustWeight, severityWeight, heatOf, decideBan, trustDelta, banExpiry, clampTrust, overReporting, moderateText,
   TRUSTED_THRESHOLD, HEAT_AUTHED, HEAT_GUEST, HEAT_AUTHED_SEVERE,
   CORROB_BONUS, BAN_ASSIST_BONUS, SPAM_PENALTY, REPORTED_PENALTY, OVERREPORT_PENALTY, STALE_PENALTY,
-  TRUST_MAX, TRUST_MIN, TRUST_MAX_GUEST,
+  TRUST_MAX, TRUST_MIN, TRUST_MAX_GUEST, CHAT_VIOLATION_PENALTY,
 } from "./moderation.mjs";
 
 let n = 0;
@@ -155,6 +155,61 @@ t("banExpiry maps tier -> future date", () => {
   assert.equal(banExpiry("day", now).getTime(), now + 24 * 3600e3);
   assert.equal(banExpiry("week", now).getTime(), now + 7 * 24 * 3600e3);
   assert.ok(banExpiry("bogus", now).getTime() === now + 24 * 3600e3);   // defaults to day
+});
+
+// ---- text moderation chokepoint ----
+const uname = s => moderateText(s, { context: "username" });
+const chat  = s => moderateText(s, { context: "chat" });
+const detail = s => moderateText(s, { context: "report_detail" });
+
+t("username: accepts a clean name, normalizes whitespace", () => {
+  assert.deepEqual(uname("  Cool_Guy-7  "), { ok: true, cleaned: "Cool_Guy-7", reason: null });
+});
+t("username: length bounds", () => {
+  assert.equal(uname("ab").reason, "too_short");
+  assert.equal(uname("a".repeat(21)).reason, "too_long");
+});
+t("username: rejects HTML metacharacters (anti-XSS layer 1)", () => {
+  assert.equal(uname("hi<b>").reason, "charset");
+  assert.equal(uname('a"b').reason, "charset");
+  assert.equal(uname("a/b").reason, "charset");
+  assert.equal(uname("<img src=x onerror=alert(1)>").ok, false);   // never accepted (too long here, charset if short)
+});
+t("username: rejects emoji-only / separator-only", () => {
+  assert.equal(uname("😀😀😀").ok, false);
+  assert.equal(uname("___").reason, "charset");
+});
+t("username: reserved names + close variants rejected", () => {
+  assert.equal(uname("admin").reason, "reserved");
+  assert.equal(uname("adm1n").reason, "reserved");
+  assert.equal(uname("admin1").reason, "reserved");
+  assert.equal(uname("omeglol").reason, "reserved");
+});
+t("username: slurs and profanity rejected (leet-folded, word-boundary)", () => {
+  assert.equal(uname("f4ggot").reason, "blocked");     // slur, whole token (leet-folded)
+  assert.equal(uname("fuck_you").reason, "blocked");   // profanity token; word-boundary avoids Scunthorpe
+});
+t("username: no Scunthorpe false-positives", () => {
+  for (const good of ["Scunthorpe", "assassin", "classic", "Dickinson", "shitake_no"]) assert.equal(uname(good).ok, true, good);
+});
+t("chat: profanity is redacted (not blocked), slurs are blocked", () => {
+  assert.equal(chat("you are shit").cleaned, "you are ****");
+  assert.equal(chat("sh1t man").cleaned.startsWith("****"), true);
+  assert.equal(chat("you nigger").reason, "blocked");
+  assert.equal(chat("n i g g e r").ok, false);        // spaced-out evasion caught
+});
+t("chat: links blocked, zero-width stripped, empty rejected", () => {
+  assert.equal(chat("dm me at evil.com").reason, "nolinks");
+  assert.equal(chat("http://x.io/p").reason, "nolinks");
+  assert.equal(chat("he​llo").cleaned, "hello");
+  assert.equal(chat("   ").reason, "empty");
+});
+t("report_detail: allows quoting abuse, still caps + normalizes", () => {
+  assert.equal(detail("he called me a slur (nigger) on cam").ok, true);
+  assert.equal(detail("").reason, "empty");
+});
+t("chat_violation trust delta is negative", () => {
+  assert.equal(trustDelta("chat_violation"), -CHAT_VIOLATION_PENALTY);
 });
 
 console.log(`\nAll ${n} moderation policy tests passed.`);

@@ -66,6 +66,7 @@ const SCHEMA = {
   reaction:      m => (m.delta === undefined || (typeof m.delta === "number" && Number.isFinite(m.delta))) &&
                       (m.tier  === undefined || REACTION_TIERS.includes(m.tier)),
   chat:          m => strOk(m.text ?? "", CHAT_MAX * 4),   // generous pre-clean cap; cleanText trims to CHAT_MAX
+  rtcStat:       m => typeof m.ok === "boolean",           // peer-connection outcome (observability counter)
   addFriend:     m => strOk(m.code ?? "", CODE_MAX * 2),
   invite:        m => isId(m.friendId),
   acceptInvite:  m => isId(m.fromId),

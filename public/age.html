@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>omegLOL — 18+ confirmation</title>
+<meta name="robots" content="noindex,nofollow" />
+<link rel="stylesheet" href="/css/base.css" />
+<style>
+  /* Step 2 of the post-login consent flow: the peer-to-peer risk warning + the 18+ checkbox.
+     Same centered card as the login page. */
+  body { display: flex; flex-direction: column; min-height: 100vh; }
+  .auth-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 40px 16px 64px; }
+  .auth-card { width: 100%; max-width: 460px; }
+  .auth-card h1 { text-align: center; font-size: 24px; }
+
+  .login-cam {
+    width: 96px; height: 66px; margin: 4px auto 16px;
+    border: 4px solid #2A3B52; border-radius: 10px;
+    background: radial-gradient(circle at 35% 35%, #4DF3FF55 0%, transparent 55%), #0B1622;
+    box-shadow: inset 0 0 0 2px #1E2A38, 0 4px 0 #1E2A38, 0 0 22px rgba(77,243,255,.35);
+    position: relative; display: grid; place-items: center;
+  }
+  .login-cam::after {
+    content: ""; width: 15px; height: 15px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, #fff 0 12%, #6EFF8E 13% 55%, #1E2A38 56% 100%);
+    box-shadow: 0 0 8px #6EFF8E;
+  }
+
+  .warn-box { border: 1px solid var(--warn); background: #FFF3E6; border-radius: 8px;
+    padding: 14px 16px; box-shadow: var(--bevel-in); margin-bottom: 16px; }
+  .warn-box .warn-head { font-family: "Press Start 2P", monospace; font-size: 11px; color: #B4530E; margin: 0 0 10px; line-height: 1.6; }
+  .warn-box p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.5; color: #4A3016; }
+  .warn-box p:last-child { margin-bottom: 0; }
+  .warn-box strong { color: #7A2E12; }
+
+  .age-check { display: flex; gap: 10px; align-items: flex-start; margin: 4px 0 14px; font-size: 14px; line-height: 1.45; }
+  .age-check input { flex: none; width: 18px; height: 18px; margin-top: 2px; }
+
+  .auth-msg { margin: 0 0 12px; padding: 9px 11px; font-size: 13px; font-weight: 600; line-height: 1.4;
+    color: #7A2E12; background: #FFE9D6; border: 1px solid var(--warn); border-radius: 8px; box-shadow: var(--bevel-in); }
+  #enterBtn { width: 100%; }
+  #enterBtn:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+</style>
+</head>
+<body>
+<header id="site-nav"></header>
+<main class="auth-wrap">
+  <div class="auth-card">
+    <div class="login-cam" aria-hidden="true"></div>
+    <h1>Before you enter</h1>
+
+    <div class="panel">
+      <div class="warn-box">
+        <p class="warn-head">⚠ Adults only · live strangers</p>
+        <p><strong>omegLOL matches you live, one-on-one, with strangers over a direct peer-to-peer video and audio connection.</strong></p>
+        <p>Because these streams are peer-to-peer and are <strong>not pre-screened</strong>, you may be exposed to behavior or content that is offensive, explicit, or otherwise objectionable, despite our rules and moderation. You use the service at your own risk.</p>
+        <p>This service is <strong>strictly for adults</strong>. You must be 18 or older to continue. Explicit or sexual behavior is banned and results in an immediate ban.</p>
+      </div>
+
+      <label class="age-check">
+        <input type="checkbox" id="ageBox" />
+        <span>I am <strong>18 years of age or older</strong>, and I understand and accept these risks.</span>
+      </label>
+
+      <p id="ageMsg" class="auth-msg" hidden></p>
+      <button class="btn" id="enterBtn" disabled>Enter omegLOL</button>
+    </div>
+  </div>
+</main>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const ageBox = $("ageBox"), enterBtn = $("enterBtn"), ageMsg = $("ageMsg");
+  function note(t) { ageMsg.textContent = t || ""; ageMsg.hidden = !t; }
+
+  // Must complete step 1 (read & agree to Terms/Privacy) first.
+  if (sessionStorage.getItem("omeglol_tos_ok") !== "1") location.href = "/agree";
+
+  ageBox.addEventListener("change", () => { enterBtn.disabled = !ageBox.checked; });
+
+  enterBtn.addEventListener("click", async () => {
+    if (!ageBox.checked) return;
+    note(""); enterBtn.disabled = true;
+    try {
+      const r = await fetch("/api/consent", {
+        method: "POST", credentials: "same-origin",
+        headers: { "content-type": "application/json", "x-token": localStorage.getItem("lastlaugh_token") || "" },
+        body: JSON.stringify({ agree: true }),
+      });
+      if (r.ok) { try { sessionStorage.removeItem("omeglol_tos_ok"); } catch {} location.href = "/play"; return; }
+      if (r.status === 401) { location.href = "/login"; return; }   // no identity yet -> sign in / guest
+      note("Something went wrong recording your consent. Please try again.");
+      enterBtn.disabled = false;
+    } catch {
+      note("Network error — is the server running?");
+      enterBtn.disabled = false;
+    }
+  });
+</script>
+<script src="/js/nav.js"></script>
+</body>
+</html>

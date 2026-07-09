@@ -91,7 +91,7 @@
       </p>
     </div>
 
-    <p class="guest-link"><a href="/play">Continue as guest →</a></p>
+    <p class="guest-link"><a href="/play" id="guestLink">Continue as guest →</a></p>
   </div>
 </main>
 
@@ -103,6 +103,9 @@
 
   const msg = $("msg");
   function note(text) { msg.textContent = text || ""; msg.hidden = !text; }
+
+  // Consent (18+ & ToS/Privacy) is collected AFTER sign-in on the /agree -> /age flow, and the
+  // server hard-gates matchmaking on it. Login is just sign-in / guest entry.
 
   function setMode(m) {
     mode = m;
@@ -203,7 +206,8 @@
     $("switchLink").style.opacity = ".5";
   }
 
-  // On load: if auth isn't configured, degrade gracefully; if already signed in, skip to play.
+  // On load: if auth isn't configured, degrade gracefully; if already signed in, skip to play
+  // (the /play consent gate will route them through /agree -> /age if they haven't consented yet).
   (async () => {
     try {
       const r = await fetch(AUTH + "/get-session", { credentials: "same-origin" });

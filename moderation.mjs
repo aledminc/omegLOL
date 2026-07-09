@@ -1,6 +1,8 @@
-// Pure moderation policy: reporter trust math, cluster "heat", and ban tiers.
-// No database, no network — numbers/objects in, decisions out (mirrors elo.mjs).
+// Pure moderation policy: reporter trust math, cluster "heat", ban tiers, and the shared
+// text-moderation chokepoint (usernames / chat / report detail).
+// No database, no network — values in, decisions out (mirrors elo.mjs).
 // EVERY tunable lives here as a named constant so Xander can retune in one place.
+import { SLURS, PROFANITY, RESERVED } from "./blocklist.mjs";
 
 // ---- time units (ms) ----
 const MIN = 60_000, HOUR = 60 * MIN, DAY = 24 * HOUR;
@@ -24,6 +26,7 @@ export const OVERREPORT_RATE = 0.5;         // reports/games over 7d above this 
 export const OVERREPORT_PENALTY = 3;        // - on each further report while over the rate
 export const STALE_PENALTY = 3;             // - for a report that never got corroborated (lazy, capped)
 export const REPORTED_PENALTY = 8;          // - to a user's OWN trust when they get banned (bad actors report badly)
+export const CHAT_VIOLATION_PENALTY = 4;    // - to a user's trust for each hard-blocked (slur) chat line
 
 // ---- ban thresholds (weighted, distinct-reporter "heat") ----
 // Windows differ: logged-in offenses accumulate over 3 days; guests only over a day/session.
@@ -119,6 +122,7 @@ export function trustDelta(event) {
     case "overreport":  return -OVERREPORT_PENALTY;
     case "stale":       return -STALE_PENALTY;
     case "reported":    return -REPORTED_PENALTY;
+    case "chat_violation": return -CHAT_VIOLATION_PENALTY;
     default:            return 0;
   }
 }
@@ -137,4 +141,113 @@ export function clampTrust(score, isGuest = false) {
 // is a reporter trigger-happy? reports-per-game over the trailing window above the allowed rate.
 export function overReporting(reportCount, games) {
   return reportCount / Math.max(1, games) > OVERREPORT_RATE;
+}
+
+// ============================================================================
+// Shared text-moderation chokepoint. ALL user-authored text (usernames, chat, report detail)
+// goes through moderateText on the server before it is stored or shown to anyone. Pure + tunable.
+// ============================================================================
+
+// ---- per-context length bounds ----
+export const USERNAME_MIN = 3, USERNAME_MAX = 20;
+export const CHAT_MIN = 1, CHAT_MAX = 200;
+export const DETAIL_MIN = 1, DETAIL_MAX = 500;
+
+// ---- chat behavior tunables (flood/dup/mute; the transport rate limit lives in ratelimit.mjs) ----
+export const ALLOW_CHAT_LINKS = false;      // URLs in chat are a scam/grooming vector — blocked by default
+export const CHAT_DUP_WINDOW = 4000;        // identical back-to-back message within this (ms) = spam
+export const CHAT_MUTE_STRIKES = 3;         // hard-blocked lines before a short auto-mute
+export const CHAT_MUTE_MS = 60_000;         // how long that mute lasts
+
+// Usernames: letters, digits, and a short set of safe separators. HTML metacharacters
+// (< > & " ' /) and everything else are rejected — the first layer of the anti-XSS defense.
+const USERNAME_RE = /^[A-Za-z0-9 _.\-]+$/;
+
+// Control chars (C0 + DEL), zero-width, BOM, word-joiner — evasion/homoglyph tools. Built from an
+// ASCII escape string so this file contains no literal control characters.
+const STRIP_RE = new RegExp("[\\u0000-\\u001F\\u007F\\u200B-\\u200D\\u2060\\uFEFF]", "g");
+
+// Leet folding so "h4te"/"sh1t" normalize to letters before blocklist matching.
+const LEET = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b", "@": "a", "$": "s", "!": "i", "|": "i" };
+const LEET_RE = /[0134578@$!|]/g;
+const leetFold = s => s.toLowerCase().replace(LEET_RE, c => LEET[c] || c);
+
+const SLUR_SET = new Set(SLURS.map(s => s.toLowerCase()));
+const PROFANITY_SET = new Set(PROFANITY.map(s => s.toLowerCase()));
+const RESERVED_SET = new Set(RESERVED.map(s => s.toLowerCase()));
+// Bare-domain / URL sniff for chat (kept deliberately broad; tune the TLD tail as needed).
+const URL_RE = /(https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|net|org|io|gg|xyz|co|me|tv|ru|link|to|app|dev|info|biz|live|online|site|club|shop)\b)/i;
+
+// Normalize once: NFC (fold composed forms), strip control/zero-width, collapse whitespace, trim.
+function normalize(raw) {
+  return String(raw ?? "").normalize("NFC").replace(STRIP_RE, "").replace(/\s+/g, " ").trim();
+}
+
+// Slur present? word-boundary match on the leet-folded text, plus a separator-stripped pass so
+// "n-i-g..." style spacing is caught. Returns boolean only (callers log a rule id, never the term).
+function hasSlur(text) {
+  const folded = leetFold(text);
+  const words = folded.split(/[^a-z0-9]+/).filter(Boolean);
+  if (words.some(w => SLUR_SET.has(w))) return true;
+  const collapsed = folded.replace(/[^a-z]/g, "");
+  for (const s of SLUR_SET) if (s.length >= 4 && collapsed.includes(s)) return true;
+  return false;
+}
+// Whole-word profanity only (no substrings -> no Scunthorpe problem).
+function hasProfanityWord(text) {
+  const words = new Set(leetFold(text).split(/[^a-z0-9]+/).filter(Boolean));
+  for (const p of PROFANITY_SET) if (words.has(p)) return true;
+  return false;
+}
+// Replace whole-word profanity (incl. simple leet spellings) with same-length asterisks.
+function redactProfanity(text) {
+  return text.replace(/[A-Za-z0-9@$!|]+/g, tok => (PROFANITY_SET.has(leetFold(tok)) ? "*".repeat(tok.length) : tok));
+}
+// Reserved / impersonation name? Check two cores so both "adm1n" (leet in the middle) and
+// "admin1"/"admin_" (trailing digits/separators) are caught: one leet-folded, one raw-with-trailing-
+// digits-stripped (folding a trailing digit would otherwise turn "admin1" into "admini").
+function isReserved(name) {
+  const rawCore = name.toLowerCase().replace(/[^a-z0-9]/g, "").replace(/[0-9]+$/, "");
+  const foldCore = leetFold(name).replace(/[^a-z0-9]/g, "").replace(/[0-9]+$/, "");
+  return RESERVED_SET.has(rawCore) || RESERVED_SET.has(foldCore);
+}
+
+const fail = (reason) => ({ ok: false, cleaned: null, reason });
+
+// moderateText(raw, { context }) -> { ok, cleaned, reason } (+ `rule` on a hard block, for logging).
+//   context: 'username' | 'chat' | 'report_detail'
+// Server is authoritative — never trust the client to have filtered. `cleaned` is the value to
+// store/broadcast. Reasons: 'empty' | 'too_short' | 'too_long' | 'charset' | 'reserved' |
+// 'blocked' | 'nolinks'.
+export function moderateText(raw, { context } = {}) {
+  const cleaned = normalize(raw);
+
+  if (context === "username") {
+    if (cleaned.length < USERNAME_MIN) return fail(cleaned ? "too_short" : "empty");
+    if (cleaned.length > USERNAME_MAX) return fail("too_long");
+    if (!USERNAME_RE.test(cleaned)) return fail("charset");
+    if (!/[a-z0-9]/i.test(cleaned)) return fail("charset");       // must have an alphanumeric (no separator/emoji-only)
+    if (isReserved(cleaned)) return fail("reserved");
+    if (hasSlur(cleaned)) return { ok: false, cleaned: null, reason: "blocked", rule: "slur" };
+    if (hasProfanityWord(cleaned)) return { ok: false, cleaned: null, reason: "blocked", rule: "profanity" };
+    return { ok: true, cleaned, reason: null };
+  }
+
+  if (context === "chat") {
+    if (cleaned.length < CHAT_MIN) return fail("empty");
+    let text = cleaned.slice(0, CHAT_MAX);
+    if (!ALLOW_CHAT_LINKS && URL_RE.test(text)) return fail("nolinks");
+    if (hasSlur(text)) return { ok: false, cleaned: null, reason: "blocked", rule: "slur" };
+    return { ok: true, cleaned: redactProfanity(text), reason: null };   // profanity is redacted, not blocked
+  }
+
+  if (context === "report_detail") {
+    // A reporter may legitimately quote the abuse they're reporting, so no blocklist here — just
+    // normalize, require some content, and cap. (No links check: quoting a link can be evidence.)
+    if (cleaned.length < DETAIL_MIN) return fail("empty");
+    return { ok: true, cleaned: cleaned.slice(0, DETAIL_MAX), reason: null };
+  }
+
+  // unknown context: safest default — plain, normalized, capped.
+  return { ok: true, cleaned: cleaned.slice(0, CHAT_MAX), reason: null };
 }
