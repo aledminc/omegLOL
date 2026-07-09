@@ -14,7 +14,26 @@
 
   .hero-cta.stacked { flex-direction: column; align-items: stretch; gap: 14px; max-width: 380px; margin: 0 auto; }
   .cta-row { display: flex; gap: 14px; }
-  .cta-row .btn { flex: 1; text-align: center; padding: 13px 18px; }
+  .cta-row .btn { flex: 1; text-align: center; padding: 13px 18px; font-size: 16px; }
+
+  /* age note + social icon-buttons, sharing the row below the CTAs */
+  .hero-social { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; }
+  .age-note { font-size: 13px; font-weight: 700; color: #1E2A38; opacity: .7; white-space: nowrap; }
+  .soc-icons { display: flex; gap: 10px; }
+  .soc-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 40px; height: 40px;
+    background: var(--grad-btn);
+    border: 1px solid #1E2A38; border-radius: 10px;
+    color: var(--ink);
+    box-shadow: var(--bevel-out);
+    transition: transform .12s ease, background .15s ease, color .15s ease, box-shadow .15s ease;
+  }
+  .soc-btn:hover { transform: translateY(-2px); }
+  .soc-btn.yt:hover { background: #FF0000; color: #fff; box-shadow: var(--bevel-out), 0 0 16px rgba(255,0,0,.55); }
+  .soc-btn.ig:hover { background: #C13584; color: #fff; box-shadow: var(--bevel-out), 0 0 16px rgba(193,53,132,.55); }
+  .soc-btn.tt:hover { background: #111;     color: #fff; box-shadow: var(--bevel-out), 0 0 16px rgba(0,0,0,.5); }
+  .soc-btn:active { transform: translateY(1px); }
 
   /* --- alive buttons --- */
   /* Big play: arcade type + a breathing gold glow + a shine sweeping across every few seconds. */
@@ -67,8 +86,22 @@
     <div class="hero-cta stacked">
       <a class="btn gold xl play-big" href="/play"><span class="blink">▶</span> PLAY FREE</a>
       <div class="cta-row">
-        <a class="btn ghost" href="/login">Log in</a>
-        <a class="btn ghost" href="/ranked">The ladder</a>
+        <a class="btn ghost" href="/login">Log In</a>
+        <a class="btn ghost" href="/ranked">Ranked</a>
+      </div>
+      <div class="hero-social">
+        <span class="age-note">omegLOL is 18+</span>
+        <div class="soc-icons">
+          <a href="https://www.youtube.com/@omegLOLofficial" class="soc-btn yt" aria-label="YouTube" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.5 12 4.5 12 4.5s-7 0-8.9.6A3 3 0 0 0 1 7.2C.5 9.1.5 12 .5 12s0 2.9.5 4.8a3 3 0 0 0 2.1 2.1c1.9.6 8.9.6 8.9.6s7 0 8.9-.6a3 3 0 0 0 2.1-2.1c.5-1.9.5-4.8.5-4.8s0-2.9-.5-4.8zM9.8 15.5v-7l6 3.5-6 3.5z"/></svg>
+          </a>
+          <a href="https://www.instagram.com/omeglolofficial/" class="soc-btn ig" aria-label="Instagram" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.2.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.2.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.2-2.2-.4a3.7 3.7 0 0 1-1.4-.9 3.7 3.7 0 0 1-.9-1.4c-.2-.4-.4-1-.4-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.7.1-1.1.1-1.7.2-2.1.4-.5.2-.9.4-1.3.8-.4.4-.6.8-.8 1.3-.2.4-.3 1-.4 2.1-.1 1.2-.1 1.6-.1 4.7s0 3.5.1 4.7c.1 1.1.2 1.7.4 2.1.2.5.4.9.8 1.3.4.4.8.6 1.3.8.4.2 1 .3 2.1.4 1.2.1 1.6.1 4.7.1s3.5 0 4.7-.1c1.1-.1 1.7-.2 2.1-.4.5-.2.9-.4 1.3-.8.4-.4.6-.8.8-1.3.2-.4.3-1 .4-2.1.1-1.2.1-1.6.1-4.7s0-3.5-.1-4.7c-.1-1.1-.2-1.7-.4-2.1a2.4 2.4 0 0 0-.8-1.3 2.4 2.4 0 0 0-1.3-.8c-.4-.2-1-.3-2.1-.4-1.2-.1-1.6-.1-4.7-.1zM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 1.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zM17.6 5.6a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4z"/></svg>
+          </a>
+          <a href="https://www.tiktok.com/@omeglol.com" class="soc-btn tt" aria-label="TikTok" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M19.6 6.7a5.4 5.4 0 0 1-3.2-1V16a5.6 5.6 0 1 1-5.6-5.6c.3 0 .6 0 .9.1v2.7a3 3 0 1 0 2 2.8V2h2.6a5.4 5.4 0 0 0 3.3 4.7v2z"/></svg>
+          </a>
+        </div>
       </div>
     </div>
   </div>
@@ -119,34 +152,6 @@
         <span>One rule: try not to laugh.</span><span>★</span>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- ============ SOCIALS ============ -->
-<section class="socials-wrap">
-  <p class="socials-label">Follow @omeglolofficial</p>
-  <div class="socials">
-    <a href="https://www.youtube.com/@omegLOLofficial" class="soc yt" aria-label="YouTube" target="_blank">
-      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M23 7.2a3 3 0 0 0-2.1-2.1C19 4.5 12 4.5 12 4.5s-7 0-8.9.6A3 3 0 0 0 1 7.2C.5 9.1.5 12 .5 12s0 2.9.5 4.8a3 3 0 0 0 2.1 2.1c1.9.6 8.9.6 8.9.6s7 0 8.9-.6a3 3 0 0 0 2.1-2.1c.5-1.9.5-4.8.5-4.8s0-2.9-.5-4.8zM9.8 15.5v-7l6 3.5-6 3.5z"/></svg>
-      <span>YouTube</span>
-    </a>
-    <a href="https://www.instagram.com/omeglolofficial/" class="soc ig" aria-label="Instagram" target="_blank">
-      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M12 2.2c3.2 0 3.6 0 4.8.1 1.2.1 1.8.2 2.2.4.6.2 1 .5 1.4.9.4.4.7.8.9 1.4.2.4.4 1 .4 2.2.1 1.2.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 1.2-.2 1.8-.4 2.2-.2.6-.5 1-.9 1.4-.4.4-.8.7-1.4.9-.4.2-1 .4-2.2.4-1.2.1-1.6.1-4.8.1s-3.6 0-4.8-.1c-1.2-.1-1.8-.2-2.2-.4a3.7 3.7 0 0 1-1.4-.9 3.7 3.7 0 0 1-.9-1.4c-.2-.4-.4-1-.4-2.2C2.2 15.6 2.2 15.2 2.2 12s0-3.6.1-4.8c.1-1.2.2-1.8.4-2.2.2-.6.5-1 .9-1.4.4-.4.8-.7 1.4-.9.4-.2 1-.4 2.2-.4C8.4 2.2 8.8 2.2 12 2.2zm0 1.8c-3.1 0-3.5 0-4.7.1-1.1.1-1.7.2-2.1.4-.5.2-.9.4-1.3.8-.4.4-.6.8-.8 1.3-.2.4-.3 1-.4 2.1-.1 1.2-.1 1.6-.1 4.7s0 3.5.1 4.7c.1 1.1.2 1.7.4 2.1.2.5.4.9.8 1.3.4.4.8.6 1.3.8.4.2 1 .3 2.1.4 1.2.1 1.6.1 4.7.1s3.5 0 4.7-.1c1.1-.1 1.7-.2 2.1-.4.5-.2.9-.4 1.3-.8.4-.4.6-.8.8-1.3.2-.4.3-1 .4-2.1.1-1.2.1-1.6.1-4.7s0-3.5-.1-4.7c-.1-1.1-.2-1.7-.4-2.1a2.4 2.4 0 0 0-.8-1.3 2.4 2.4 0 0 0-1.3-.8c-.4-.2-1-.3-2.1-.4-1.2-.1-1.6-.1-4.7-.1zM12 7a5 5 0 1 1 0 10 5 5 0 0 1 0-10zm0 1.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4zM17.6 5.6a1.2 1.2 0 1 1 0 2.4 1.2 1.2 0 0 1 0-2.4z"/></svg>
-      <span>Instagram</span>
-    </a>
-    <a href="https://www.tiktok.com/@omeglol.com" class="soc tt" aria-label="TikTok" target="_blank">
-      <svg viewBox="0 0 24 24" width="22" height="22"><path fill="currentColor" d="M19.6 6.7a5.4 5.4 0 0 1-3.2-1V16a5.6 5.6 0 1 1-5.6-5.6c.3 0 .6 0 .9.1v2.7a3 3 0 1 0 2 2.8V2h2.6a5.4 5.4 0 0 0 3.3 4.7v2z"/></svg>
-      <span>TikTok</span>
-    </a>
-  </div>
-</section>
-
-<!-- ============ COMMUNITY & SAFETY ============ -->
-<section class="section safety">
-  <div class="panel safety-panel">
-    <span class="kicker">COMMUNITY & SAFETY</span>
-    <h3>omegLOL is 18+.</h3>
-    <p>Every match has a purpose. Detection runs on your own device. Play respectfully — more safety tools are coming.</p>
   </div>
 </section>
 
