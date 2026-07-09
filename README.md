@@ -17,11 +17,10 @@ npm install
 cp .env.example .env      # then fill in DATABASE_URL (+ optional keys)
 npm start                 # -> http://localhost:8080
 ```
-The game tables auto-migrate on boot. For real accounts, also run the better-auth migration once:
-```bash
-npx @better-auth/cli migrate
-```
-Without `BETTER_AUTH_SECRET` + `DATABASE_URL` the server still runs in guest/token-only mode.
+Both the game tables **and** better-auth's tables (user/session/account/verification) auto-migrate on
+boot — no separate CLI step. Without `BETTER_AUTH_SECRET` + `DATABASE_URL` the server still runs in
+guest/token-only mode. (`npx @better-auth/cli migrate --config auth.config.mjs` still works if you ever
+want to run it by hand.)
 
 ## Test
 ```bash
@@ -36,7 +35,8 @@ npm test    # moderation policy, moderation WS protocol, and security suites (no
      `ALLOWED_ORIGINS`, `MOD_IP_SALT`.
    - Optional: `GOOGLE_CLIENT_ID`/`SECRET`, Cloudflare TURN keys, `SENTRY_DSN`, `ADMIN_EMAILS`.
 4. Health check / uptime monitor: point it at `GET /healthz` (200 healthy, 503 if DB is down).
-5. Run the better-auth migration against the deployed database once (see above).
+
+Auth tables are created automatically on first boot (see above) — no manual migration needed.
 
 `PORT` is provided by Railway and read automatically. Set `TRUST_PROXY_HOPS` to match the number of
 proxies in front (Railway edge = 1; add 1 more if you also front it with Cloudflare).
