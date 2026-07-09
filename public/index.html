@@ -7,71 +7,68 @@
 <meta name="description" content="omegLOL is a 1v1 comedy duel on cam. 30 seconds to make a stranger laugh. Your webcam keeps score." />
 <link rel="stylesheet" href="/css/base.css" />
 <style>
-  /* Slim hero: logo + CTAs own the left column. Visual vocabulary lives in /css/base.css. */
-  .hero-cta.stacked { flex-direction: column; align-items: stretch; max-width: 400px; gap: 12px; margin-top: 24px; }
-  .hero-cta .play-big {
+  /* Solo hero: just the logo and the CTAs, centered in the CRT. Vocabulary from /css/base.css. */
+  .hero-wrap { max-width: 860px; }
+  .hero-solo { text-align: center; padding: clamp(44px, 7vw, 72px) 24px clamp(48px, 7vw, 76px); }
+  .hero-solo .hero-logo { margin: 0 0 30px; font-size: clamp(58px, 11vw, 112px); }
+
+  .hero-cta.stacked { flex-direction: column; align-items: stretch; gap: 14px; max-width: 380px; margin: 0 auto; }
+  .cta-row { display: flex; gap: 14px; }
+  .cta-row .btn { flex: 1; text-align: center; padding: 13px 18px; }
+
+  /* --- alive buttons --- */
+  /* Big play: arcade type + a breathing gold glow + a shine sweeping across every few seconds. */
+  .play-big {
     font-family: "Press Start 2P", monospace;
-    font-size: clamp(15px, 1.8vw, 19px);
-    padding: 22px 28px;
-    text-align: center;
+    font-size: clamp(15px, 2vw, 19px);
+    padding: 24px 30px;
     letter-spacing: .04em;
+    position: relative;
+    overflow: hidden;
+    animation: glowPulse 2.4s ease-in-out infinite;
   }
-  .cta-row { display: flex; gap: 12px; }
-  .cta-row .btn { flex: 1; text-align: center; }
-  .hero-left .trust { margin-top: 16px; }
+  .play-big .blink { animation: blink 1.2s infinite step-end; }
+  .play-big::after {                                   /* shine sweep */
+    content: ""; position: absolute; top: -4px; bottom: -4px; left: -80%; width: 45%;
+    background: linear-gradient(105deg, transparent, rgba(255,255,255,.75), transparent);
+    transform: skewX(-20deg);
+    animation: shine 3.4s ease-in-out infinite;
+    pointer-events: none;
+  }
+  @keyframes glowPulse {                               /* keep the bevel stack, breathe the glow */
+    0%, 100% { box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -2px 0 rgba(0,0,0,.18), 0 2px 0 #1E2A38, 0 6px 14px -6px rgba(30,42,56,.55), 0 0 0 rgba(255,214,64,0); }
+    50%      { box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -2px 0 rgba(0,0,0,.18), 0 2px 0 #1E2A38, 0 6px 14px -6px rgba(30,42,56,.55), 0 0 30px rgba(255,214,64,.6); }
+  }
+  @keyframes shine { 0%, 55% { left: -80%; } 100% { left: 130%; } }
+  .play-big:hover { transform: translateY(-2px) scale(1.02); filter: brightness(1.08); }
+  .play-big:active { animation: none; transform: translateY(2px) scale(1); }
+
+  /* Ghosts: perk up on hover instead of just tinting. */
+  .hero-cta .btn { transition: transform .12s ease, box-shadow .12s ease, filter .15s ease, background .15s ease; }
+  .cta-row .btn:hover {
+    transform: translateY(-2px);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.55), inset 0 -2px 0 rgba(0,0,0,.18), 0 4px 0 #1E2A38, 0 10px 18px -6px rgba(30,42,56,.5);
+  }
+  .cta-row .btn:active { transform: translateY(2px); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .play-big, .play-big::after, .play-big .blink { animation: none; }
+  }
 </style>
 </head>
 <body class="home">
-
-<!-- floating retro emojis across the bg -->
-<div class="bg-deco" aria-hidden="true">
-  <span style="--x:6%;  --y:14%; --d:0s;   --r:-8deg;  font-size:46px">😂</span>
-  <span style="--x:92%; --y:8%;  --d:1.2s; --r:12deg;  font-size:38px">🤣</span>
-  <span style="--x:3%;  --y:48%; --d:2s;   --r:6deg;   font-size:54px">📺</span>
-  <span style="--x:96%; --y:42%; --d:.6s;  --r:-10deg; font-size:42px">🎤</span>
-  <span style="--x:8%;  --y:78%; --d:1.6s; --r:14deg;  font-size:48px">💀</span>
-  <span style="--x:94%; --y:82%; --d:2.4s; --r:-6deg;  font-size:40px">🏆</span>
-  <span style="--x:50%; --y:96%; --d:.9s;  --r:4deg;   font-size:36px">🎭</span>
-</div>
 
 <header id="site-nav"></header>
 
 <!-- ============ HERO ============ -->
 <section class="hero-wrap">
-  <div class="crt hero-crt">
-    <div class="hero-grid">
-      <div class="hero-left">
-        <span class="kicker">▶ LIVE · 1v1 COMEDY DUEL</span>
-        <h1 class="hero-logo">omeg<span class="lol">LOL</span></h1>
-        <p class="hero-tag">Make a stranger laugh. Don't laugh back.</p>
-        <div class="hero-cta stacked">
-          <a class="btn gold xl play-big" href="/play">▶ PLAY FREE</a>
-          <div class="cta-row">
-            <a class="btn ghost" href="/login">Log in</a>
-            <a class="btn ghost" href="/ranked">The ladder</a>
-          </div>
-        </div>
-        <p class="trust">No download · No signup · We never see your camera</p>
-      </div>
-      <div class="hero-right">
-        <div class="duel">
-          <div class="cam cam-a">
-            <span class="rec">REC ●</span>
-            <div class="face">😆</div>
-            <span class="cam-label">stranger</span>
-          </div>
-          <div class="vs">VS</div>
-          <div class="cam cam-b">
-            <span class="rec">REC ●</span>
-            <div class="face straight">😐</div>
-            <span class="cam-label">you</span>
-          </div>
-        </div>
-        <div class="scoretape">
-          <span>YOU <b>+120</b></span>
-          <span>THEM <b>+80</b></span>
-          <span class="timer">0:23</span>
-        </div>
+  <div class="crt hero-crt hero-solo">
+    <h1 class="hero-logo">omeg<span class="lol">LOL</span></h1>
+    <div class="hero-cta stacked">
+      <a class="btn gold xl play-big" href="/play"><span class="blink">▶</span> PLAY FREE</a>
+      <div class="cta-row">
+        <a class="btn ghost" href="/login">Log in</a>
+        <a class="btn ghost" href="/ranked">The ladder</a>
       </div>
     </div>
   </div>
