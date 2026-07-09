@@ -115,12 +115,32 @@ export async function startServer({ db, pool = null, port = PORT }) {
   // runs exactly as before (guests + anonymous tokens), so nothing external is needed to boot.
   let auth = null, fromHeaders = null;
   if (process.env.BETTER_AUTH_SECRET && pool) {
-    const [{ makeAuth }, nodeHandler] = await Promise.all([
+    const [{ makeAuth }, nodeHandler, { getMigrations }] = await Promise.all([
       import("./auth.mjs"),
       import("better-auth/node"),
+      import("better-auth/db/migration"),   // 1.6.x path; on <1.5 it was "better-auth/db"
     ]);
     auth = makeAuth(pool);
     fromHeaders = nodeHandler.fromNodeHeaders;
+    // Ensure better-auth's own tables (user/session/account/verification) exist. This replaces the
+    // manual `npx @better-auth/cli migrate` step: Railway (and any host) only runs `npm start`, so
+    // we apply any missing tables/columns programmatically on boot. Idempotent — a no-op once the
+    // schema is current — and transactional inside runMigrations().
+    try {
+      const { toBeCreated, toBeAdded, runMigrations } = await getMigrations(auth.options);
+      if (toBeCreated.length || toBeAdded.length) {
+        await runMigrations();
+        console.log("auth: better-auth schema migrated (%d table(s) created, %d altered)",
+          toBeCreated.length, toBeAdded.length);
+      } else {
+        console.log("auth: better-auth schema up to date");
+      }
+    } catch (e) {
+      // Don't take the whole server down over auth-schema issues — guests, /healthz and the game
+      // stay up; auth endpoints will surface the error. Loud in logs + Sentry so it isn't missed.
+      logSec("auth_migrate_failed", { msg: e && e.message });
+      captureError(e, { where: "auth_migrate" });
+    }
     // better-auth reads the raw request body itself; mount before any json parser (there are none).
     app.all("/api/auth/{*any}", nodeHandler.toNodeHandler(auth));
     console.log("auth: better-auth mounted (email/password)");
