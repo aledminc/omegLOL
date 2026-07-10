@@ -9,17 +9,22 @@
 <style>
   /* Solo hero: just the logo and the CTAs, centered in the CRT. Vocabulary from /css/base.css. */
   .hero-wrap { max-width: 860px; }
-  .hero-solo { text-align: center; padding: clamp(44px, 7vw, 72px) 24px clamp(48px, 7vw, 76px); }
+  .hero-solo { text-align: center; padding: clamp(44px, 7vw, 72px) 24px clamp(30px, 4vw, 42px); }
   .hero-solo .hero-logo { margin: 0 0 30px; font-size: clamp(58px, 11vw, 112px); }
 
   .hero-cta.stacked { flex-direction: column; align-items: stretch; gap: 14px; max-width: 380px; margin: 0 auto; }
   .cta-row { display: flex; gap: 14px; }
   .cta-row .btn { flex: 1; text-align: center; padding: 13px 18px; font-size: 16px; }
 
-  /* age note + social icon-buttons, sharing the row below the CTAs */
-  .hero-social { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 2px; }
-  .age-note { font-size: 13px; font-weight: 700; color: #1E2A38; opacity: .7; white-space: nowrap; }
-  .soc-icons { display: flex; gap: 10px; }
+  /* age note + social icon-buttons: two equal columns mirroring the CTA row above,
+     so the 18+ text centers under Log In and the icons center under Ranked. */
+  .hero-social { display: flex; align-items: center; gap: 14px; margin-top: 4px; }
+  .age-note {
+    flex: 1; text-align: center;
+    font-family: "Press Start 2P", monospace; font-size: 10px; letter-spacing: .02em;
+    color: #1E2A38; opacity: .75; white-space: nowrap;
+  }
+  .soc-icons { flex: 1; display: flex; justify-content: center; gap: 10px; }
   .soc-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 40px; height: 40px;
