@@ -43,6 +43,10 @@ function memDb() {
     async recentMatches() { return []; },
     async topPlayers() { return []; },
     async listFriends() { return []; },
+    async listFriendRequests() { return []; },
+    async requestFriend() { return { ok: false, reason: "not_found" }; },
+    async acceptFriendRequest() { return { ok: false, reason: "not_found" }; },
+    async declineFriendRequest() { return { ok: true }; },
     async getActiveBan() { return null; },
   };
 }

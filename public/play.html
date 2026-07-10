@@ -24,9 +24,6 @@
   .action-panel .gamebar button { width:100%; }
 
   /* side rails fill their (script-synced) height; the scroll regions flex to fill and scroll */
-  .control-panel .friends { flex:1; min-height:0; display:flex; }
-  .control-panel .friends .pcard { flex:1; min-height:0; }
-  .control-panel .fr-list { flex:1; min-height:0; height:auto; max-height:none; }
   .action-panel .chat { flex:1; min-height:0; display:flex; }
   .action-panel .chat .pcard { flex:1; min-height:0; }
   .action-panel .chat-log { flex:1; min-height:0; height:auto; }
@@ -69,21 +66,21 @@
   #local { transform:scaleX(-1); }
 
   /* player card overlaid on the top-left of its camera — retro 2000s look */
-  .cam-card { position:absolute; top:8px; left:8px; z-index:6; max-width:calc(100% - 16px);
-    display:flex; flex-direction:column; gap:3px; padding:6px 8px;
-    background:rgba(245,247,250,.92); border:1px solid #1E2A38; border-radius:6px;
+  .cam-card { position:absolute; top:6px; left:6px; z-index:6; max-width:calc(100% - 12px);
+    display:flex; flex-direction:column; gap:2px; padding:4px 6px;
+    background:rgba(245,247,250,.92); border:1px solid #1E2A38; border-radius:5px;
     box-shadow:var(--bevel-out); }
-  .cam-card .cc-name { font-weight:800; font-size:13px; line-height:1.1; color:var(--ink);
+  .cam-card .cc-name { font-weight:800; font-size:11px; line-height:1.1; color:var(--ink);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-  .cam-card .cc-rank { font-family:"Press Start 2P", monospace; font-size:8px; line-height:1.5; }
-  .cam-card .cc-form { display:flex; gap:3px; margin-top:2px; }
-  .cam-card .form-cell { width:16px; height:16px; display:grid; place-items:center; color:#fff;
-    font-family:"VT323", monospace; font-size:14px; line-height:1;
+  .cam-card .cc-rank { font-family:"Press Start 2P", monospace; font-size:7px; line-height:1.5; }
+  .cam-card .cc-form { display:flex; gap:2px; margin-top:1px; }
+  .cam-card .form-cell { width:13px; height:13px; display:grid; place-items:center; color:#fff;
+    font-family:"VT323", monospace; font-size:12px; line-height:1;
     border:1px solid #1E2A38; border-radius:3px; box-shadow:var(--bevel-in); }
   .cam-card .form-cell.w { background:var(--win); }
   .cam-card .form-cell.l { background:var(--lose); }
   .cam-card .form-cell.d { background:var(--dim); }
-  .cam-card .form-empty { font-family:"VT323", monospace; font-size:13px; color:var(--dim); }
+  .cam-card .form-empty { font-family:"VT323", monospace; font-size:11px; color:var(--dim); }
 
   .banner { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
     text-align:center; pointer-events:none; z-index:6; }
@@ -213,9 +210,40 @@
   .modebar .toggle { display:inline-flex; padding:3px; border-radius:10px; }
   .modebar .seg { padding:7px 14px; border:0; background:transparent; font:inherit; font-weight:800; border-radius:7px; cursor:pointer; }
 
-  /* friends panel */
-  .friends { width:auto; flex:none; }
-  .friends .pcard { padding:12px; height:100%; display:flex; flex-direction:column; gap:10px; }
+  /* ---- friends drawer: slides out from the left screen edge, below the nav ---- */
+  .topbar { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .topbar .status { padding-bottom:0; }
+  .friends-fab { position:relative; width:42px; height:38px; display:grid; place-items:center; flex:none;
+    background:var(--grad-btn); color:var(--ink); border:1px solid #1E2A38; border-radius:9px;
+    box-shadow:var(--bevel-out); cursor:pointer;
+    transition:transform .12s ease, background .15s ease; }
+  .friends-fab:hover { transform:translateY(-2px); background:var(--grad-btn-h); }
+  .friends-fab:active { transform:translateY(1px); }
+  .fab-badge { position:absolute; top:-7px; right:-7px; min-width:18px; height:18px; padding:0 4px;
+    display:grid; place-items:center; background:var(--lose); color:#fff; font-size:11px; font-weight:800;
+    line-height:1; border:1px solid #1E2A38; border-radius:9px; box-shadow:var(--bevel-out); }
+  .fab-badge.hidden { display:none; }
+
+  .friends-drawer { position:fixed; top:var(--navH, 56px); bottom:0; left:0; z-index:27;
+    width:min(320px, 88vw); display:flex; flex-direction:column; gap:10px; padding:14px 12px;
+    background:linear-gradient(180deg, #FFFFFF 0%, #EDF2F8 100%);
+    border-right:2px solid #1E2A38; box-shadow:6px 0 22px -8px rgba(30,42,56,.55);
+    transform:translateX(-103%); transition:transform .22s ease; }
+  .friends-drawer.open { transform:translateX(0); }
+  .fd-head { display:flex; align-items:center; justify-content:space-between; }
+  .fd-close { border:0; background:none; font-size:24px; line-height:1; cursor:pointer; color:var(--dim); padding:0 4px; }
+  .fd-close:hover { color:var(--ink); }
+  /* Friends | Requests slider (same .toggle/.seg vocabulary as the mode bar) */
+  .fd-tabs { display:flex; padding:3px; border-radius:10px; }
+  .fd-tabs .seg { flex:1; padding:8px 0; border:0; background:transparent; font:inherit; font-weight:800;
+    border-radius:7px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+  .tab-count { min-width:17px; height:17px; padding:0 4px; display:grid; place-items:center;
+    background:var(--lose); color:#fff; font-size:10px; font-weight:800; line-height:1;
+    border:1px solid #1E2A38; border-radius:8px; }
+  .tab-count.hidden { display:none; }
+  .friends-drawer .fr-list { flex:1; min-height:0; height:auto; max-height:none; }
+  .fr-req-actions { display:flex; gap:5px; }
+
   .fr-code { display:flex; align-items:center; justify-content:space-between; gap:8px;
     padding:8px 10px; background:#F7FBFF; border:1px solid var(--line-2); border-radius:8px;
     box-shadow:var(--bevel-in); color:var(--dim); font-size:12px; font-weight:800;
@@ -322,16 +350,14 @@
     .match-panel { order:1; }
     .action-panel { order:2; }
     .control-panel { order:3; }
-    .control-panel .friends, .action-panel .chat { flex:none; }
+    .action-panel .chat { flex:none; }
     .action-panel .chat-log { flex:none; height:200px; }
-    .control-panel .fr-list { flex:none; height:224px; }
   }
   @media (max-width:560px) {
     .invite-prompt { grid-template-columns:auto minmax(0, 1fr); top:50px; padding:13px; }
     .invite-actions { grid-column:1 / -1; justify-content:flex-end; }
     .invite-copy span:last-child { white-space:normal; }
   }
-  @media (max-width:680px) { .friends { width:auto; } }
 </style>
 </head>
 <body data-phase="idle" data-role="">
@@ -357,11 +383,36 @@
   </div>
 </div>
 
+<!-- Friends drawer: slides out from the left screen edge, under the nav, full height.
+     Lives OUTSIDE .app so it never affects the camera/mode-select layout. -->
+<aside class="friends-drawer" id="friendsDrawer" aria-hidden="true" aria-label="friends">
+  <div class="fd-head">
+    <span class="pc-tag">Friends</span>
+    <button class="fd-close" id="friendsClose" aria-label="close friends">×</button>
+  </div>
+  <div class="fr-code">your code: <b id="myCode">—</b></div>
+  <div class="fr-add">
+    <input id="codeInput" placeholder="friend code" maxlength="9" />
+    <button class="btn ghost" id="addFriendBtn">Add</button>
+  </div>
+  <div class="toggle fd-tabs" id="frTabs">
+    <button class="seg active" data-tab="friends">Friends</button>
+    <button class="seg" data-tab="requests">Requests <span class="tab-count hidden" id="tabReqCount">0</span></button>
+  </div>
+  <div class="fr-list" id="friendList"></div>
+</aside>
+
 <div class="app">
-  <div class="status is-busy" id="status">
-    <span class="status-led" aria-hidden="true"></span>
-    <span class="status-spinner" aria-hidden="true"></span>
-    <span id="statusText">connecting…</span>
+  <div class="topbar">
+    <button class="friends-fab" id="friendsFab" aria-label="open friends" aria-expanded="false" title="friends">
+      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M9 11.5a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5zm7.5.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM1.5 20.5v-1.6c0-3.2 3.2-5.4 7.5-5.4s7.5 2.2 7.5 5.4v1.6H1.5zm16.7 0v-1.6c0-1.7-.6-3.2-1.7-4.3.6-.1 1.3-.2 2-.2 3.2 0 5.5 1.9 5.5 4.5v1.6h-5.8z"/></svg>
+      <span class="fab-badge hidden" id="reqBadge">0</span>
+    </button>
+    <div class="status is-busy" id="status">
+      <span class="status-led" aria-hidden="true"></span>
+      <span class="status-spinner" aria-hidden="true"></span>
+      <span id="statusText">connecting…</span>
+    </div>
   </div>
 
   <div class="play-shell">
@@ -377,17 +428,6 @@
         </div>
       </div>
 
-      <aside class="friends">
-        <div class="pcard panel" id="friendsCard">
-          <span class="pc-tag">Friends</span>
-          <div class="fr-code">your code: <b id="myCode">—</b></div>
-          <div class="fr-add">
-            <input id="codeInput" placeholder="friend code" maxlength="9" />
-            <button class="btn ghost" id="addFriendBtn">Add</button>
-          </div>
-          <div class="fr-list" id="friendList"></div>
-        </div>
-      </aside>
     </aside>
 
     <main class="match-panel">
@@ -706,11 +746,41 @@ function endIntro() {
 }
 
 // ---------- friends, lobby, modes ----------
-let mode = "solo", topMode = "pvp", currentMatchMode = "solo", lobby = null, myUserId = null, friends = [], pendingInvite = null, isSearching = false, duosQueued = false;
+let mode = "solo", topMode = "pvp", currentMatchMode = "solo", lobby = null, myUserId = null, friends = [], requests = [], pendingInvite = null, isSearching = false, duosQueued = false;
 let matchPeers = [], reportedThisMatch = false, bannedNow = false;   // reporting + ban-gate state
-const friendReason = { not_found: "no player with that code", self: "that's your own code", offline: "they're offline", unavailable: "they're busy", empty: "enter a code" };
+const friendReason = { not_found: "no player with that code", self: "that's your own code", offline: "they're offline",
+  unavailable: "they're busy", empty: "enter a code", already: "you're already friends", pending: "request already sent" };
 
+// ---- friends drawer (left-edge slide-out, below the nav) ----
+const drawer = $("friendsDrawer"), friendsFab = $("friendsFab");
+let frTab = "friends";
+// the drawer sits under the injected nav: measure the real nav height into --navH
+const navEl = document.getElementById("site-nav");
+function setNavH() { document.documentElement.style.setProperty("--navH", ((navEl && navEl.offsetHeight) || 56) + "px"); }
+setNavH();
+if (window.ResizeObserver && navEl) new ResizeObserver(setNavH).observe(navEl);
+function setDrawer(open) {
+  drawer.classList.toggle("open", open);
+  drawer.setAttribute("aria-hidden", String(!open));
+  friendsFab.setAttribute("aria-expanded", String(open));
+}
+friendsFab.addEventListener("click", () => setDrawer(!drawer.classList.contains("open")));
+$("friendsClose").addEventListener("click", () => setDrawer(false));
+document.addEventListener("keydown", e => { if (e.key === "Escape") setDrawer(false); });
+$("frTabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) { frTab = b.dataset.tab; renderFriends(); } });
+
+// Dispatcher: every existing call site keeps working — it redraws whichever tab is active
+// and keeps the request badges current.
 function renderFriends() {
+  for (const b of $("frTabs").children) b.classList.toggle("active", b.dataset.tab === frTab);
+  if (frTab === "requests") renderRequests(); else renderFriendRows();
+  renderReqBadge();
+}
+function renderReqBadge() {
+  const n = requests.length;
+  for (const el of [$("reqBadge"), $("tabReqCount")]) { el.textContent = n; el.classList.toggle("hidden", !n); }
+}
+function renderFriendRows() {
   const wrap = $("friendList"); wrap.innerHTML = "";
   if (!friends.length) { wrap.innerHTML = `<div class="fr-empty">add a friend by code</div>`; return; }
   for (const f of friends) {
@@ -722,6 +792,21 @@ function renderFriends() {
     btn.disabled = !(f.online && mode === "duos" && !lobby && $("next").disabled);     // invite only makes sense in duos, pre-lobby
     btn.onclick = () => { signal({ type: "invite", friendId: f.id }); setStatus("invited " + f.name + "…"); };
     row.append(dot, nm, btn); wrap.appendChild(row);
+  }
+}
+function renderRequests() {
+  const wrap = $("friendList"); wrap.innerHTML = "";
+  if (!requests.length) { wrap.innerHTML = `<div class="fr-empty">no pending requests</div>`; return; }
+  for (const r of requests) {
+    const row = document.createElement("div"); row.className = "fr-row";
+    const nm = document.createElement("span"); nm.className = "fr-name"; nm.textContent = r.name;
+    const actions = document.createElement("span"); actions.className = "fr-req-actions";
+    const yes = document.createElement("button"); yes.className = "btn gold fr-invite"; yes.textContent = "Accept";
+    yes.onclick = () => signal({ type: "acceptFriend", fromId: r.id });
+    const no = document.createElement("button"); no.className = "btn ghost fr-invite"; no.textContent = "Decline";
+    no.onclick = () => signal({ type: "declineFriend", fromId: r.id });
+    actions.append(yes, no);
+    row.append(nm, actions); wrap.appendChild(row);
   }
 }
 function renderLobby() {
@@ -934,6 +1019,9 @@ async function startLobbyPreview() {
   const partner = lobby.members.find(m => String(m.id) !== String(myUserId));
   if (!me || !partner || me.peerId == null || partner.peerId == null) return;
   myPeerId = me.peerId;
+  // Seed the partner's profile (keyed by the peer/conn id used in the mesh) so their lobby-cam
+  // card shows rank + last-5 form — exactly like a real match. tileFor() reads this on build.
+  peerProfiles.set(String(partner.peerId), { name: partner.name, rating: partner.rating, form: partner.form || [], team: "ally" });
   try {
     await startMesh([{ id: partner.peerId, name: partner.name,
       initiator: Number(me.peerId) < Number(partner.peerId) }]);   // lower conn id offers
@@ -1127,6 +1215,8 @@ ws.addEventListener("message", async (e) => {
       if (selfProfile) { selfProfile.rating = msg.rating; renderCard("self", selfProfile); }
       break;
     case "friends": friends = msg.list; renderFriends(); break;
+    case "friendRequests": requests = msg.list || []; renderFriends(); break;
+    case "friendRequestSent": setStatus(msg.accepted ? "you're now friends with " + msg.to : "friend request sent to " + msg.to); break;
     case "friendError": setStatus(friendReason[msg.reason] || msg.reason); break;
     case "invited": showInvite(msg.from); break;
     case "lobby": lobby = msg.lobby; mode = "duos"; duosQueued = false; renderLobby(); updateModeUI(); startLobbyPreview(); setChatEnabled(true); break;

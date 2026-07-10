@@ -667,6 +667,15 @@ export async function startServer({ db, pool = null, port = PORT }) {
     if (connId == null) return;
     try { send(connId, { type: "friends", list: await friendsPayload(userId) }); } catch {}
   }
+  // Push a user's INCOMING friend requests (live: the badge lights up the moment someone adds you).
+  async function sendFriendRequests(userId) {
+    const connId = online.get(String(userId));
+    if (connId == null) return;
+    try {
+      const list = (await db.listFriendRequests(userId)).map(r => ({ id: r.id, name: r.name, rating: r.rating }));
+      send(connId, { type: "friendRequests", list });
+    } catch {}
+  }
   async function refreshFriendsOf(userId) {     // my online flag flipped -> push fresh lists to my online friends
     try { for (const f of await db.listFriends(userId)) if (online.has(String(f.id))) await sendFriends(f.id); } catch {}
   }
@@ -682,16 +691,22 @@ export async function startServer({ db, pool = null, port = PORT }) {
     return la != null && la === lb;
   }
   // peerId = the member's live connection id, so the client can open a P2P call to them.
-  const lobbyPayload = lobby => ({
+  // Includes each member's rating + recent form so the lobby cam cards match a real match's cards.
+  const lobbyPayload = async lobby => ({
     id: lobby.id, leader: lobby.leader,
-    members: lobby.members.map(uid => ({ id: uid, name: connOfUser(uid)?.name || "?", peerId: online.get(String(uid)) })),
+    members: await Promise.all(lobby.members.map(async uid => {
+      const connId = online.get(String(uid));
+      const card = connId != null ? await playerCard(connId) : { name: "?", rating: 1000, form: [] };
+      return { id: uid, name: card.name, rating: card.rating, form: card.form, peerId: connId };
+    })),
   });
-  function createLobby(uidA, uidB) {            // inviter (A) is the leader
+  async function createLobby(uidA, uidB) {      // inviter (A) is the leader
     const lid = nextLobby++;
     const lobby = { id: lid, members: [uidA, uidB], leader: uidA };
     lobbies.set(lid, lobby);
     userLobby.set(String(uidA), lid); userLobby.set(String(uidB), lid);
-    for (const u of lobby.members) sendToUser(u, { type: "lobby", lobby: lobbyPayload(lobby) });
+    const payload = await lobbyPayload(lobby);
+    for (const u of lobby.members) sendToUser(u, { type: "lobby", lobby: payload });
   }
   function leaveLobby(connId) {                 // a duo needs both, so leaving disbands it
     const c = clients.get(connId);
@@ -953,6 +968,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
           consented: c.consented, tosVersion: TOS_VERSION } });
         online.set(String(user.id), id);          // this connection is now the user's live socket
         sendFriends(user.id);                     // hand them their friends list (with online flags)
+        sendFriendRequests(user.id);              // ...and any friend requests waiting on them
         refreshFriendsOf(user.id);                // tell their online friends they just came online
         await isBanned(user.id, id);              // banned accounts see the suspension screen on first load
       } else if (msg.type === "leaderboard") {
@@ -988,9 +1004,26 @@ export async function startServer({ db, pool = null, port = PORT }) {
         c.lastChat = text; c.lastChatAt = now;
         for (const pid of chatPeers(id)) send(pid, { type: "chat", from: c.name, fromId: id, text, self: pid === id });
       } else if (msg.type === "addFriend" && c.userId) {
-        const r = await db.addFriendByCode(c.userId, msg.code);
-        if (r.ok) { sendFriends(c.userId); sendFriends(r.friend.id); }   // refresh both sides
-        else send(id, { type: "friendError", reason: r.reason });
+        // Sends a friend REQUEST; the friendship only forms when the other side accepts.
+        // (Crossed requests auto-accept in db.requestFriend — both sides already said yes.)
+        const r = await db.requestFriend(c.userId, msg.code);
+        if (!r.ok) send(id, { type: "friendError", reason: r.reason });
+        else if (r.accepted) {                                     // they had already asked us
+          send(id, { type: "friendRequestSent", to: r.friend.name, accepted: true });
+          sendFriends(c.userId); sendFriends(r.friend.id); sendFriendRequests(c.userId);
+        } else {
+          send(id, { type: "friendRequestSent", to: r.friend.name });
+          sendFriendRequests(r.friend.id);                         // light their badge up live
+        }
+      } else if (msg.type === "acceptFriend" && c.userId) {
+        const r = await db.acceptFriendRequest(c.userId, msg.fromId);
+        if (!r.ok) { send(id, { type: "friendError", reason: r.reason }); sendFriendRequests(c.userId); }
+        else { sendFriends(c.userId); sendFriends(r.friend.id); sendFriendRequests(c.userId); }
+      } else if (msg.type === "declineFriend" && c.userId) {
+        await db.declineFriendRequest(c.userId, msg.fromId);
+        sendFriendRequests(c.userId);
+      } else if (msg.type === "friendRequests" && c.userId) {
+        sendFriendRequests(c.userId);
       } else if (msg.type === "friends" && c.userId) {
         sendFriends(c.userId);
       } else if (msg.type === "invite" && c.userId) {

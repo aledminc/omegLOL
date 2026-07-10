@@ -72,7 +72,10 @@ function makeMemDb() {
     async recordMatch() { return null; },
     async recordDuosRatings() { return {}; },
     async getUserById(id) { return byId(id) || null; },
-    async addFriendByCode() { return { ok: false, reason: "not_found" }; },
+    async requestFriend() { return { ok: false, reason: "not_found" }; },
+    async listFriendRequests() { return []; },
+    async acceptFriendRequest() { return { ok: false, reason: "not_found" }; },
+    async declineFriendRequest() { return { ok: true }; },
     async listFriends() { return []; },
 
     // ---- moderation ----

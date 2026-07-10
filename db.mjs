@@ -141,6 +141,13 @@ export function makeDb(pool) {
         friend_id BIGINT NOT NULL,
         UNIQUE (user_id, friend_id)
       );`);
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS friend_requests (
+        from_id    BIGINT NOT NULL,
+        to_id      BIGINT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE (from_id, to_id)
+      );`);
   }
 
   // Resolve a browser to an account. Known token -> that user. Otherwise mint a
@@ -522,8 +529,23 @@ export function makeDb(pool) {
     return rows[0] || null;
   }
 
-  // Add a friend by their shareable code. Mutual + idempotent (two directed rows).
-  async function addFriendByCode(userId, code) {
+  // Friendship is mutual (two directed rows), created only when a request is accepted.
+  const linkFriends = async (a, b) => {
+    const link = async (x, y) => {
+      const { rows: ex } = await pool.query("SELECT 1 FROM friends WHERE user_id = $1 AND friend_id = $2", [x, y]);
+      if (!ex.length) await pool.query("INSERT INTO friends (user_id, friend_id) VALUES ($1, $2)", [x, y]);
+    };
+    await link(a, b);
+    await link(b, a);
+  };
+  async function areFriends(a, b) {
+    const { rows } = await pool.query("SELECT 1 FROM friends WHERE user_id = $1 AND friend_id = $2", [a, b]);
+    return rows.length > 0;
+  }
+
+  // Send a friend request by shareable code. If the target already asked US, that counts as
+  // mutual consent — accept on the spot instead of leaving two crossed requests dangling.
+  async function requestFriend(userId, code) {
     let norm = (code || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
     if (norm.length === 6) norm = norm.slice(0, 3) + "-" + norm.slice(3);
     if (!norm) return { ok: false, reason: "empty" };
@@ -531,13 +553,46 @@ export function makeDb(pool) {
     const friend = rows[0];
     if (!friend) return { ok: false, reason: "not_found" };
     if (String(friend.id) === String(userId)) return { ok: false, reason: "self" };
-    const link = async (a, b) => {
-      const { rows: ex } = await pool.query("SELECT 1 FROM friends WHERE user_id = $1 AND friend_id = $2", [a, b]);
-      if (!ex.length) await pool.query("INSERT INTO friends (user_id, friend_id) VALUES ($1, $2)", [a, b]);
-    };
-    await link(userId, friend.id);
-    await link(friend.id, userId);
-    return { ok: true, friend: { id: friend.id, name: friend.name, rating: friend.rating } };
+    const card = { id: friend.id, name: friend.name, rating: friend.rating };
+    if (await areFriends(userId, friend.id)) return { ok: false, reason: "already" };
+    const { rows: reverse } = await pool.query(
+      "SELECT 1 FROM friend_requests WHERE from_id = $1 AND to_id = $2", [friend.id, userId]);
+    if (reverse.length) {                                    // they already asked us -> instant friends
+      await pool.query("DELETE FROM friend_requests WHERE from_id = $1 AND to_id = $2", [friend.id, userId]);
+      await linkFriends(userId, friend.id);
+      return { ok: true, accepted: true, friend: card };
+    }
+    const { rows: dup } = await pool.query(
+      "SELECT 1 FROM friend_requests WHERE from_id = $1 AND to_id = $2", [userId, friend.id]);
+    if (dup.length) return { ok: false, reason: "pending" };
+    await pool.query("INSERT INTO friend_requests (from_id, to_id) VALUES ($1, $2)", [userId, friend.id]);
+    return { ok: true, requested: true, friend: card };
+  }
+
+  // Incoming requests for a user (who wants to befriend ME).
+  async function listFriendRequests(userId) {
+    const { rows } = await pool.query(
+      `SELECT u.id, u.name, u.rating
+         FROM friend_requests fr JOIN users u ON u.id = fr.from_id
+        WHERE fr.to_id = $1
+        ORDER BY fr.created_at ASC`,
+      [userId]
+    );
+    return rows;
+  }
+
+  async function acceptFriendRequest(userId, fromId) {
+    const { rowCount } = await pool.query(
+      "DELETE FROM friend_requests WHERE from_id = $1 AND to_id = $2", [fromId, userId]);
+    if (!rowCount) return { ok: false, reason: "not_found" };   // no such request (expired/declined)
+    await linkFriends(userId, fromId);
+    const friend = await getUserById(fromId);
+    return { ok: true, friend: friend ? { id: friend.id, name: friend.name, rating: friend.rating } : { id: fromId } };
+  }
+
+  async function declineFriendRequest(userId, fromId) {
+    await pool.query("DELETE FROM friend_requests WHERE from_id = $1 AND to_id = $2", [fromId, userId]);
+    return { ok: true };
   }
 
   async function listFriends(userId) {
@@ -551,7 +606,8 @@ export function makeDb(pool) {
     return rows;
   }
 
-  return { initSchema, getOrCreateUser, getUserByAuthId, createAuthedUser, createGuestUser, isNameTaken, logModeration, setConsent, recordMatch, recordDuosRatings, topPlayers, getUserByToken, recentMatches, getUserById, addFriendByCode, listFriends,
+  return { initSchema, getOrCreateUser, getUserByAuthId, createAuthedUser, createGuestUser, isNameTaken, logModeration, setConsent, recordMatch, recordDuosRatings, topPlayers, getUserByToken, recentMatches, getUserById,
+    requestFriend, listFriendRequests, acceptFriendRequest, declineFriendRequest, listFriends,
     insertReport, getReportCluster, getActiveBan, countPriorBans, issueBan, adjustTrust, getTrust, recentReportsBy, gamesPlayed, agingUncorroboratedReports, markStaleChecked,
     listReports, listModEvents, listActiveBans, listBans, reportsAgainst, reportsBy, clearReport, clearActiveBans };
 }
