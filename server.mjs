@@ -41,7 +41,8 @@ const PUBLIC = path.join(__dirname, "public");
 const PORT = +process.env.PORT || 8080;
 const SEC = 1000;
 const dur = {
-  countdown: (+process.env.T_COUNTDOWN || 3)  * SEC,
+  intro:     (+process.env.T_INTRO     || 5)  * SEC,   // VS screen + player-card reveal before the countdown
+  countdown: (+process.env.T_COUNTDOWN || 5)  * SEC,
   round:     (+process.env.T_ROUND     || 30) * SEC,
   swap:      (+process.env.T_SWAP      || 3)  * SEC,
   result:    (+process.env.T_RESULT    || 8)  * SEC,
@@ -538,7 +539,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
     };
     ca.game = game; cb.game = game;
     await announceMatch(game);
-    startCountdown(game);
+    startIntro(game);
   }
 
   function setPhase(game, phase, ms, next) { clearTimeout(game.timer); game.phase = phase; game.timer = setTimeout(() => next(game), ms); }
@@ -553,7 +554,9 @@ export async function startServer({ db, pool = null, port = PORT }) {
     for (const id of game.players)
       send(id, { type: "score", scores: scoreView(game, id) });
   }
-  function startCountdown(game) { stats.matchesStarted++; setRoles(game, 0); setPhase(game, "countdown", dur.countdown, startRound1); broadcast(game, "countdown", dur.countdown / SEC); }
+  // Match opener: a client-rendered VS screen + player-card reveal (intro), then the countdown.
+  function startIntro(game)     { stats.matchesStarted++; setRoles(game, 0); setPhase(game, "intro", dur.intro, startCountdown); broadcast(game, "intro", dur.intro / SEC); }
+  function startCountdown(game) {                    setRoles(game, 0); setPhase(game, "countdown", dur.countdown, startRound1); broadcast(game, "countdown", dur.countdown / SEC); }
   function startRound1(game)    { setRoles(game, 0); setPhase(game, "round1",    dur.round,     startSwap);   broadcast(game, "round1",    dur.round / SEC); }
   function startSwap(game)      {                    setPhase(game, "swap",      dur.swap,      startRound2); broadcast(game, "swap",      dur.swap / SEC); }
   function startRound2(game)    { setRoles(game, 1); setPhase(game, "round2",    dur.round,     endGame);     broadcast(game, "round2",    dur.round / SEC); }
@@ -763,7 +766,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
       c.game = game;
     }
     await announceMatch(game);
-    startCountdown(game);
+    startIntro(game);
   }
 
   // ---------- moderation: reports, reporter trust, progressive bans ----------

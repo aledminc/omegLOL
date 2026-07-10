@@ -2,8 +2,9 @@
 // (no auth env, no Postgres). Cameras can't be tested, so we exercise the report/ban PROTOCOL.
 // Run: node test-moderation-ws.mjs
 //
-// Phases sit in "countdown" indefinitely (durations pinned huge below) so a match stays live
+// Phases sit in "intro" indefinitely (durations pinned huge below) so a match stays live
 // while we drive reports; we tear games down explicitly via `next`, disconnect, or a ban.
+process.env.T_INTRO = "36000";
 process.env.T_COUNTDOWN = "36000";
 process.env.T_ROUND = "36000";
 process.env.T_SWAP = "36000";

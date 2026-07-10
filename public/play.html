@@ -110,6 +110,40 @@
   .searching .s-elapsed { font-family:"VT323", monospace; font-size:22px; color:var(--neon);
     letter-spacing:.08em; text-shadow:0 0 8px rgba(77,243,255,.5); }
 
+  /* ---- match intro: VS slam between the cams, then a name+rank reveal over each dimmed cam ---- */
+  .vs-screen { position:absolute; inset:0; z-index:8; display:flex; align-items:center; justify-content:center;
+    background:rgba(7,17,28,.55); pointer-events:none; }
+  .vs-screen.hidden { display:none; }
+  .vs-emblem { position:relative; display:grid; place-items:center; animation:vsSlam .5s cubic-bezier(.2,1.7,.4,1) both; }
+  .vs-bolt { position:absolute; width:clamp(110px,22vw,200px); height:clamp(170px,34vw,310px);
+    background:#0D1420; transform:rotate(14deg);
+    clip-path:polygon(69% 0, 24% 57%, 43% 57%, 31% 100%, 76% 43%, 57% 43%);
+    filter:drop-shadow(0 0 18px rgba(77,243,255,.35)); }
+  .vs-text { position:relative; font-family:"Press Start 2P", monospace; line-height:1; }
+  .vs-text span { display:inline-block; font-size:clamp(48px,9vw,96px);
+    text-shadow:4px 4px 0 #1E2A38, -3px -3px 0 #1E2A38, 3px -3px 0 #1E2A38, -3px 3px 0 #1E2A38, 8px 8px 0 rgba(0,0,0,.45); }
+  .vs-text .v { color:#E23B4A; transform:translate(-6%,-22%) rotate(-6deg); }
+  .vs-text .s { color:#FFB53B; transform:translate(6%,22%) rotate(-6deg); }
+  @keyframes vsSlam { 0% { transform:scale(2.6); opacity:0; } 55% { transform:scale(.92); opacity:1; }
+    75% { transform:scale(1.06); } 100% { transform:scale(1); } }
+
+  /* dimmed cam + big name/rank card (numeral badge + tier, colors from /js/ranks.mjs) */
+  .intro-card { position:absolute; inset:0; z-index:7; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; gap:10px; padding:12px; text-align:center;
+    background:rgba(7,17,28,.7); pointer-events:none; animation:introIn .35s ease-out both; }
+  .intro-card .in-name { font-family:"Press Start 2P", monospace; font-size:clamp(13px,2.4vw,22px); line-height:1.4;
+    color:#fff; text-shadow:2px 2px 0 #1E2A38; max-width:94%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .intro-card .in-badge { font-family:"Press Start 2P", monospace; font-size:clamp(14px,2vw,18px);
+    padding:9px 13px; background:var(--tc); color:#1E2A38; border:2px solid #1E2A38; border-radius:8px;
+    box-shadow:var(--bevel-out), 0 0 16px var(--tc); }
+  .intro-card .in-tier { font-family:"VT323", monospace; font-size:clamp(18px,2.4vw,24px); color:var(--tc);
+    text-shadow:1px 1px 0 #1E2A38; letter-spacing:.04em; }
+  @keyframes introIn { from { opacity:0; transform:scale(1.08); } to { opacity:1; transform:scale(1); } }
+
+  /* countdown/swap: the role line below the count gets big + readable */
+  body[data-phase="countdown"] .banner .sub,
+  body[data-phase="swap"] .banner .sub { font-size:26px !important; color:var(--gold) !important; text-shadow:1px 1px 0 #1E2A38; }
+
   /* juice layer */
   .fx { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:5; }
   .pop { position:absolute; font-weight:800; white-space:nowrap; transform:translate(-50%,-50%);
@@ -376,6 +410,12 @@
         <div class="sub" id="bannerSub"></div>
         <div class="delta" id="bannerDelta"></div>
       </div>
+      <div class="vs-screen hidden" id="vsScreen" aria-hidden="true">
+        <div class="vs-emblem">
+          <div class="vs-bolt"></div>
+          <div class="vs-text"><span class="v">V</span><span class="s">S</span></div>
+        </div>
+      </div>
       <div class="searching hidden" id="searchOverlay">
         <div class="ring" aria-hidden="true"></div>
         <div class="s-label" id="searchLabel">Finding a match</div>
@@ -470,7 +510,7 @@
 
 <script type="module">
 import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12";
-import { rankFor } from "/js/ranks.mjs";
+import { TIERS, rankFor } from "/js/ranks.mjs";
 
 const $ = id => document.getElementById(id);
 const statusEl = $("status"), statusText = $("statusText"), banner = $("banner"), localVideo = $("local"), remoteGrid = $("remoteGrid");
@@ -626,6 +666,44 @@ function renderMatchCards(msg) {
   for (const [id, prof] of peerProfiles) fillTileCard(id, prof);   // fill any tiles already built
 }
 function clearOpponent() { peerProfiles.clear(); }
+
+// ---------- match intro: VS slam, then a name+rank reveal over each dimmed cam ----------
+// Sequenced inside the server's "intro" phase: VS screen first (~2s), then every camera dims
+// under an intro-card (big name, ladder numeral badge, tier). The server's "countdown" ends it.
+const ROMAN = ["VI", "V", "IV", "III", "II", "I"];   // TIERS index -> ladder numeral (as on /ranked)
+let introTimer = null;
+function introCardEl(prof) {
+  const t = rankFor(prof.rating || 0);
+  const el = document.createElement("div");
+  el.className = "intro-card";
+  el.style.setProperty("--tc", t.color);
+  const nm = document.createElement("div"); nm.className = "in-name"; nm.textContent = prof.name || "Player";
+  const bd = document.createElement("div"); bd.className = "in-badge"; bd.textContent = ROMAN[TIERS.indexOf(t)] || "VI";
+  const tn = document.createElement("div"); tn.className = "in-tier"; tn.textContent = t.name;
+  el.append(nm, bd, tn);
+  return el;
+}
+function showIntroCards() {
+  removeIntroCards();
+  if (selfProfile) $("localTile").appendChild(introCardEl(selfProfile));
+  for (const [id, prof] of peerProfiles) {
+    const tile = remoteGrid.querySelector(`[data-peer="${id}"]`);
+    if (tile) tile.appendChild(introCardEl(prof));
+  }
+}
+function removeIntroCards() { for (const el of document.querySelectorAll(".intro-card")) el.remove(); }
+function runIntro(seconds) {
+  endIntro(); hideBanner();
+  $("vsScreen").classList.remove("hidden");
+  // VS slam holds ~2s, then the card reveal covers the rest (the server moves us to countdown)
+  const vsMs = Math.min(2200, (seconds || 5) * 1000 * 0.45);
+  introTimer = setTimeout(() => { $("vsScreen").classList.add("hidden"); showIntroCards(); }, vsMs);
+}
+function endIntro() {
+  clearTimeout(introTimer); introTimer = null;
+  $("vsScreen").classList.add("hidden");
+  removeIntroCards();
+}
 
 // ---------- friends, lobby, modes ----------
 let mode = "solo", topMode = "pvp", currentMatchMode = "solo", lobby = null, myUserId = null, friends = [], pendingInvite = null, isSearching = false, duosQueued = false;
@@ -946,6 +1024,7 @@ function setScores(s) {
   $("youBar").style.width = (s.you / max * 100) + "%"; $("themBar").style.width = (s.them / max * 100) + "%";
 }
 function resetMatchUi() {
+  endIntro();                    // clear any VS screen / intro cards from an aborted opener
   isSearching = false;
   currentMatchMode = "solo";
   myPeerId = null;
@@ -969,13 +1048,21 @@ function applyGameState(msg) {
   const inRound = msg.phase === "round1" || msg.phase === "round2";
   if (inRound && msg.role === "watcher") ensureDetector().then(startScoring); else stopScoring();
   switch (msg.phase) {
-    case "countdown": localCountdown(msg.seconds, "Get ready", msg.role === "performer" ? "you're up first" : "you watch first"); break;
+    case "intro": runIntro(msg.seconds); break;
+    case "countdown":
+      endIntro();
+      // the role is explained DURING the countdown, so the round can start clean with just "GO!"
+      localCountdown(msg.seconds, "Get ready", msg.role === "performer"
+        ? "you're the joke teller — make them laugh"
+        : "you're the reactor — don't laugh"); break;
     case "round1": case "round2":
       clearInterval(countdownTimer);
-      if (msg.role === "performer") showBanner("You're on", "", "be funny — make them crack");
-      else showBanner("Don't laugh", "", "every smile feeds their score");
-      setTimeout(hideBanner, 1400); break;
-    case "swap": localCountdown(msg.seconds, "Swap!", "roles flip"); break;
+      showBanner("", "GO!", "");
+      setTimeout(hideBanner, 700); break;
+    // during swap msg.role is still the ROUND-1 role, so the hint announces its flip
+    case "swap": localCountdown(msg.seconds, "Swap!", msg.role === "performer"
+      ? "now you react — don't laugh"
+      : "now you tell the jokes"); break;
     case "result": {
       clearInterval(countdownTimer);
       const word = msg.outcome === "win" ? "You win" : msg.outcome === "lose" ? "You lose" : "Draw";
@@ -987,7 +1074,7 @@ function applyGameState(msg) {
 }
 
 ws.addEventListener("open", () => { setStatus("connecting…"); authenticate(); });
-ws.addEventListener("close", () => { isSearching = false; duosQueued = false; updateModeUI(); setStatus("disconnected"); endCall(); stopScoring(); setChatEnabled(false); setBodyState("idle", ""); showSearching(false); setReportVisible(false); });
+ws.addEventListener("close", () => { isSearching = false; duosQueued = false; updateModeUI(); setStatus("disconnected"); endCall(); endIntro(); stopScoring(); setChatEnabled(false); setBodyState("idle", ""); showSearching(false); setReportVisible(false); });
 ws.addEventListener("message", async (e) => {
   const msg = JSON.parse(e.data);
   switch (msg.type) {
