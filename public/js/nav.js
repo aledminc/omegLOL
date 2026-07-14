@@ -1,5 +1,5 @@
 // Shared nav, injected into every page. Single source of truth, highlights the active link.
-// The last slot is auth-aware: "Log in" for guests, or the signed-in name + "Log out".
+// The auth area is auth-aware: "Log in" for guests, or the signed-in name + "Log out".
 const here = location.pathname;
 const el = document.getElementById("site-nav");
 
@@ -7,7 +7,7 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function render(authSlot) {
+function render(authSlot, userSlot = "") {
   if (!el) return;
   const links = [
     { href: "/play", label: "Play" },
@@ -16,8 +16,11 @@ function render(authSlot) {
   el.innerHTML =
     `<a class="brand" href="/"><span class="dot"></span>omeg<span class="lol">LOL</span></a>` +
     `<nav>` +
+    userSlot +
+    `<span class="nav-buttons">` +
     links.map(l => `<a class="${here === l.href ? "active" : ""}" href="${l.href}">${l.label}</a>`).join("") +
     authSlot +
+    `</span>` +
     `</nav>`;
 }
 
@@ -39,8 +42,8 @@ render(`<a class="${here === "/login" ? "active" : ""}" href="/login">Log in</a>
     } catch { /* fall back to account name */ }
 
     render(
-      `<span class="nav-user" title="signed in">${escapeHtml(name)}</span>` +
-      `<a href="#" id="logoutLink">Log out</a>`
+      `<a href="#" id="logoutLink">Log out</a>`,
+      `<span class="nav-user" title="signed in">${escapeHtml(name)}</span>`
     );
     const out = document.getElementById("logoutLink");
     if (out) out.addEventListener("click", async e => {

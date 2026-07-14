@@ -89,7 +89,18 @@ body {
   box-shadow: 0 0 6px #6EFF8E, inset 0 0 0 1px #1E2A38;
   animation: blink 1.6s infinite step-end;
 }
-#site-nav nav { display: flex; gap: 6px; }
+#site-nav nav {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+#site-nav .nav-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
 #site-nav nav a {
   display: inline-flex; align-items: center;
   padding: 6px 12px;
@@ -110,13 +121,26 @@ body {
 }
 #site-nav nav .nav-user {
   display: inline-flex; align-items: center;
-  padding: 6px 10px;
-  font-size: 12px; font-weight: 800;
-  color: #fff;
-  background: rgba(255,255,255,.14);
+  min-width: 0;
+  max-width: 220px;
+  padding: 7px 11px;
+  font-family: "Press Start 2P", monospace;
+  font-size: 10px; font-weight: 800;
+  line-height: 1.2;
+  color: #1E2A38;
+  background: var(--grad-gold);
   border: 1px solid #1E2A38;
-  border-radius: 8px;
-  text-shadow: 1px 1px 0 #1E2A38;
+  border-radius: 6px;
+  box-shadow: inset 1px 1px 0 rgba(255,255,255,.9), inset -1px -1px 0 rgba(30,42,56,.35), 0 2px 0 #1E2A38;
+  text-shadow: 1px 1px 0 rgba(255,255,255,.6);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+@media (max-width: 640px) {
+  #site-nav { align-items: flex-start; }
+  #site-nav nav { flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+  #site-nav nav .nav-user { max-width: min(220px, 100%); }
 }
 
 @keyframes blink {
