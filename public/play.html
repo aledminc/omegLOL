@@ -310,15 +310,16 @@
   /* the Find CTA: big, gold, breathing glow + shine sweep (same energy as the homepage hero).
      base.css pins .gamebar button box-shadow with !important, so the glow animates `filter`. */
   #find {
+    display:flex !important; align-items:center; justify-content:center; gap:10px;
     font-family:"Press Start 2P", monospace !important;
-    font-size:12.5px !important; line-height:1.6 !important; letter-spacing:.03em;
-    padding:19px 10px !important;
+    font-size:15px !important; line-height:1.35 !important; letter-spacing:.045em;
+    padding:21px 12px !important;
     background:var(--grad-gold) !important; color:#4A3A00 !important;
     text-shadow:1px 1px 0 #FFF3A0;
     position:relative; overflow:hidden;
     animation:findPulse 2.2s ease-in-out infinite;
   }
-  #find .blink { animation:blink 1.2s infinite step-end; }
+  #find .blink { flex:none; animation:blink 1.2s infinite step-end; }
   #find::after {                                       /* shine sweep */
     content:""; position:absolute; top:-4px; bottom:-4px; left:-80%; width:45%;
     background:linear-gradient(105deg, transparent, rgba(255,255,255,.7), transparent);
