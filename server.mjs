@@ -38,7 +38,7 @@ const HEARTBEAT_MS     = 30 * 1000;                             // ping idle soc
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(__dirname, "public");
-const PORT = +process.env.PORT || 8080;
+const PORT = +process.env.PORT || 3000;
 const SEC = 1000;
 const dur = {
   intro:     (+process.env.T_INTRO     || 5)  * SEC,   // VS screen + player-card reveal before the countdown
@@ -1079,7 +1079,9 @@ export async function startServer({ db, pool = null, port = PORT }) {
     });
   });
 
-  server.listen(port, () => console.log(`omegLOL on http://localhost:${port}`));
+  server.listen(PORT, () => {
+    console.log(`omegLOL running on port ${PORT}`);
+  });
   return { server, wss };
 }
 
