@@ -14,9 +14,11 @@
      longer shown top-left — it's off-screen, not deleted, so nothing that calls setStatus() breaks. */
   #status { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
 
-  /* two columns: camera | mode-select + find. The right rail is height-synced to the camera
-     column (see syncRails) so its contents always sit beside the stage. */
-  .play-shell { display:grid; grid-template-columns:minmax(0, 1fr) 300px; gap:14px; align-items:start; }
+  /* two columns: rail | camera. The rail is anchored LEFT (order:-1) and its width flexes in a
+     range rather than a rigid px so it never dead-airs on wide screens or heavy zoom; it's also a
+     query container so its own cards/text scale off its rendered width (cqw), not the viewport.
+     The rail is height-synced to the camera column (see syncRails) so it always sits beside it. */
+  .play-shell { display:grid; grid-template-columns:minmax(230px, 21vw) minmax(0, 1fr); gap:14px; align-items:start; }
   body[data-phase="matched"] .play-shell,
   body[data-phase="intro"] .play-shell,
   body[data-phase="countdown"] .play-shell,
@@ -26,8 +28,8 @@
   body[data-phase="result"] .play-shell { grid-template-columns:minmax(0, 1fr); }
   .match-panel { min-width:0; position:relative; }
 
-  /* right-hand rail, top to bottom: game mode -> Find CTA -> standing/lobby details */
-  .action-panel { display:flex; flex-direction:column; gap:12px; min-width:0; min-height:0; }
+  /* left rail, top to bottom: game mode -> Find CTA -> standing/lobby details */
+  .action-panel { order:-1; container-type:inline-size; display:flex; flex-direction:column; gap:12px; min-width:0; min-height:0; }
   body[data-phase="matched"] .action-panel,
   body[data-phase="intro"] .action-panel,
   body[data-phase="countdown"] .action-panel,
@@ -37,32 +39,35 @@
   body[data-phase="result"] .action-panel { display:none; }
   .action-panel .gamebar { flex-direction:column; gap:10px; margin-top:0 !important; }
   .action-panel .gamebar button { width:100%; }
-  /* "Your Standing" card: compact rank header + useful season-at-a-glance stats */
-  .me-card { flex:none; gap:10px; margin-top:12px; overflow:hidden; }   /* breathing room under the Find CTA */
+  /* "Your Standing" card: compact rank header + useful season-at-a-glance stats.
+     Every size below is clamp(min, Xcqw, max) off the rail's own container width, so the card's
+     text/paddings grow or shrink WITH the card instead of sitting fixed-size in variable white
+     space (the exact issue at different screen sizes / browser zoom). */
+  .me-card { flex:none; gap:clamp(7px, 3.3cqw, 14px); margin-top:clamp(9px, 4cqw, 16px); overflow:hidden; }
   body.in-lobby .me-card { display:none; }
-  .me-head { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:10px; align-items:center; }
-  .me-label { display:block; font-size:11px; font-weight:800; color:var(--dim); text-transform:uppercase; }
-  .me-tier { display:block; margin-top:2px; font-family:"Press Start 2P", monospace; font-size:12px; line-height:1.45; }
-  .me-badge { font-family:"Press Start 2P", monospace; font-size:14px; line-height:1; flex:none;
-    padding:10px 11px; background:var(--tc, var(--gold)); color:#1E2A38;
+  .me-head { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:clamp(7px, 3.3cqw, 14px); align-items:center; }
+  .me-label { display:block; font-size:clamp(9px, 3.7cqw, 13px); font-weight:800; color:var(--dim); text-transform:uppercase; }
+  .me-tier { display:block; margin-top:2px; font-family:"Press Start 2P", monospace; font-size:clamp(10px, 4cqw, 15px); line-height:1.45; }
+  .me-badge { font-family:"Press Start 2P", monospace; font-size:clamp(11px, 4.7cqw, 17px); line-height:1; flex:none;
+    padding:clamp(7px, 3.3cqw, 13px) clamp(8px, 3.7cqw, 14px); background:var(--tc, var(--gold)); color:#1E2A38;
     border:2px solid #1E2A38; border-radius:8px; box-shadow:var(--bevel-out); }
-  .me-stats { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
-  .me-stat { min-width:0; padding:7px 6px; background:#F7FBFF; border:1px solid var(--line-2);
+  .me-stats { display:grid; grid-template-columns:repeat(3, 1fr); gap:clamp(4px, 2cqw, 9px); }
+  .me-stat { min-width:0; padding:clamp(5px, 2.3cqw, 10px) clamp(4px, 2cqw, 9px); background:#F7FBFF; border:1px solid var(--line-2);
     border-radius:8px; box-shadow:var(--bevel-in); text-align:center; }
-  .me-stat span { display:block; font-size:10px; font-weight:800; color:var(--dim); text-transform:uppercase; }
-  .me-stat b { display:block; margin-top:2px; font-family:"VT323", monospace; font-size:21px; line-height:1; color:var(--ink); }
-  .me-next { padding:6px 8px; background:rgba(77,243,255,.08); border:1px dashed rgba(48,69,93,.38);
-    border-radius:7px; color:var(--dim); font-size:12px; font-weight:700; }
-  .me-form-row, .me-friends-row { display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding-top:10px; border-top:1px dashed var(--line-2); }
+  .me-stat span { display:block; font-size:clamp(8px, 3.3cqw, 12px); font-weight:800; color:var(--dim); text-transform:uppercase; }
+  .me-stat b { display:block; margin-top:2px; font-family:"VT323", monospace; font-size:clamp(16px, 7cqw, 26px); line-height:1; color:var(--ink); }
+  .me-next { padding:clamp(5px, 2cqw, 9px) clamp(6px, 2.7cqw, 10px); background:rgba(77,243,255,.08); border:1px dashed rgba(48,69,93,.38);
+    border-radius:7px; color:var(--dim); font-size:clamp(10px, 4cqw, 15px); font-weight:700; }
+  .me-form-row, .me-friends-row { display:flex; align-items:center; justify-content:space-between; gap:clamp(7px, 3.3cqw, 14px);
+    padding-top:clamp(7px, 3.3cqw, 14px); border-top:1px dashed var(--line-2); }
   .me-form { display:flex; gap:3px; align-items:center; justify-content:flex-end; min-width:0; }
-  .me-form .form-cell { width:17px; height:17px; display:grid; place-items:center; color:#fff;
-    font-size:10px; font-weight:800; border:1px solid #1E2A38; border-radius:4px; box-shadow:var(--bevel-out); }
+  .me-form .form-cell { width:clamp(14px, 5.7cqw, 22px); height:clamp(14px, 5.7cqw, 22px); display:grid; place-items:center; color:#fff;
+    font-size:clamp(8px, 3.3cqw, 12px); font-weight:800; border:1px solid #1E2A38; border-radius:4px; box-shadow:var(--bevel-out); }
   .me-form .form-cell.w { background:var(--win); }
   .me-form .form-cell.l { background:var(--lose); }
   .me-form .form-cell.d { background:var(--dim); }
-  .me-form .form-empty { font-family:"VT323", monospace; font-size:16px; color:var(--dim); }
-  .me-online { font-size:12.5px; font-weight:700; color:var(--dim); display:inline-flex; align-items:center; gap:6px; }
+  .me-form .form-empty { font-family:"VT323", monospace; font-size:clamp(13px, 5.3cqw, 19px); color:var(--dim); }
+  .me-online { font-size:clamp(10px, 4.2cqw, 15px); font-weight:700; color:var(--dim); display:inline-flex; align-items:center; gap:6px; }
   .me-online::before { content:""; width:8px; height:8px; border-radius:50%; flex:none;
     background:#6EFF8E; box-shadow:0 0 6px #6EFF8E, inset 0 0 0 1px #1E2A38; }
   .stage .friends-fab { position:absolute; top:8px; left:8px; z-index:8; width:42px; height:38px; }
@@ -70,10 +75,12 @@
   /* friends + lobby cards keep their panel look */
   .arena { display:flex; gap:12px; align-items:stretch; justify-content:center; }
   .pcard { flex:1; padding:12px; display:flex; flex-direction:column; gap:7px; }
-  /* retro section title badge (Friends / Duo Lobby) */
-  .pc-tag { align-self:flex-start; font-family:"Press Start 2P", monospace; font-size:10px;
+  /* retro section title badge (Friends / Duo Lobby). Font/padding scale with the container
+     (cqw) so it fills a wide rail instead of floating tiny in a sea of white space. */
+  .pc-tag { align-self:flex-start; font-family:"Press Start 2P", monospace; font-size:clamp(9px, 3.3cqw, 12px);
     letter-spacing:.06em; text-transform:uppercase; color:#1E2A38; background:var(--gold);
-    border:1px solid #1E2A38; border-radius:4px; padding:5px 8px; box-shadow:var(--bevel-out); }
+    border:1px solid #1E2A38; border-radius:4px; padding:clamp(4px, 1.7cqw, 7px) clamp(6px, 2.7cqw, 10px);
+    box-shadow:var(--bevel-out); }
 
   /* every camera is an equal-size SQUARE tile inside the stage grid.
      The stage aspect-ratio flexes with the cam count so the tiles stay square:
@@ -301,19 +308,22 @@
   #banGate .ban-note { font-size:13px; color:#1E2A38; max-width:440px; text-align:center; margin:6px 0 0; }
   #banGate.guest h1 { color:#4A3A00; }
 
-  /* mode select: clean stacked panel in the right rail (full-width segmented rows) */
-  .modebar { display:flex; flex-direction:column; gap:9px; margin:0; padding:12px; }
+  /* mode select: clean stacked panel in the left rail (full-width segmented rows). Scales off
+     the rail's own width (cqw), so it doesn't sit tiny-and-lost in a wide rail or cramped in a
+     narrow one. */
+  .modebar { display:flex; flex-direction:column; gap:clamp(7px, 3cqw, 12px); margin:0; padding:clamp(9px, 4cqw, 16px); }
   .modebar .toggle { display:flex; width:100%; padding:3px; border-radius:10px; }
-  .modebar .seg { flex:1; padding:10px 4px; border:0; background:transparent; font:inherit;
-    font-weight:800; font-size:13.5px; border-radius:7px; cursor:pointer; white-space:nowrap; }
+  .modebar .seg { flex:1; padding:clamp(8px, 3.3cqw, 14px) clamp(3px, 1.3cqw, 6px); border:0; background:transparent; font:inherit;
+    font-weight:800; font-size:clamp(11px, 4.5cqw, 16px); border-radius:7px; cursor:pointer; white-space:nowrap; }
 
   /* the Find CTA: big, gold, breathing glow + shine sweep (same energy as the homepage hero).
-     base.css pins .gamebar button box-shadow with !important, so the glow animates `filter`. */
+     base.css pins .gamebar button box-shadow with !important, so the glow animates `filter`.
+     Also cqw-scaled so it stays a dominant, well-filled CTA at any rail width. */
   #find {
-    display:flex !important; align-items:center; justify-content:center; gap:10px;
+    display:flex !important; align-items:center; justify-content:center; gap:clamp(7px, 3.3cqw, 14px);
     font-family:"Press Start 2P", monospace !important;
-    font-size:15px !important; line-height:1.35 !important; letter-spacing:.045em;
-    padding:21px 12px !important;
+    font-size:clamp(12px, 5cqw, 18px) !important; line-height:1.35 !important; letter-spacing:.045em;
+    padding:clamp(16px, 7cqw, 26px) clamp(9px, 4cqw, 16px) !important;
     background:var(--grad-gold) !important; color:#4A3A00 !important;
     text-shadow:1px 1px 0 #FFF3A0;
     position:relative; overflow:hidden;
@@ -471,10 +481,10 @@
   }
 
   @media (max-width:1024px) {
-    /* stack: camera first, then the mode select + Find right under it */
+    /* stack: mode select + Find first, camera under it (mirrors the left-anchored desktop order) */
     .play-shell { grid-template-columns:1fr; }
-    .match-panel { order:1; }
-    .action-panel { order:2; }
+    .action-panel { order:1; }
+    .match-panel { order:2; }
   }
   @media (max-width:560px) {
     .invite-prompt { grid-template-columns:auto minmax(0, 1fr); top:50px; padding:13px; }

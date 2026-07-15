@@ -393,13 +393,9 @@ a:hover { color: #25527E; }
 /* ============================================================
    PLAY page — overrides for inline styles
    ============================================================ */
-.app {
-  background: var(--panel);
-  border: 1px solid #1E2A38;
-  border-radius: 14px;
-  padding: 14px !important;
-  box-shadow: var(--shadow-panel);
-}
+/* .app is intentionally bare — no card/background here. Sizing (width/margin/padding)
+   comes from play.html's own <style> block; individual pieces (.panel cards, .stage) carry
+   their own backgrounds, so the page canvas (body background) shows through between them. */
 
 body[data-phase] .profile {
   border-bottom: 1px dashed var(--line-2);
