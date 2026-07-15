@@ -6,25 +6,28 @@
 <title>omegLOL</title>
 <link rel="icon" href="/favicons/favicon.ico" sizes="any" />
 <meta name="description" content="What omegLOL is, and a note from its maker, Alexander (Xander) Minch." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/css/base.css" />
 <style>
-  /* Reuses the homepage's retro vocabulary (crt / kicker / section / panel); a little extra
-     styling for the maker's note, fact chips, and the "open to work" badge. */
-  .about-hero { text-align: center; padding: 34px 24px 40px; }
-  .about-hero .kicker { margin-bottom: 16px; }
-  .about-hero .hero-logo { margin: 6px 0 14px; font-size: clamp(40px, 8vw, 72px); }
+  /* Reuses the shared vocabulary (crt / kicker / section / panel); a little extra
+     styling for the maker's note. Typographic pass only — copy untouched. */
+  .about-hero { text-align: center; padding: var(--s6) var(--s5) var(--s6); }
+  .about-hero .kicker { margin-bottom: var(--s3); }
+  .about-hero .hero-logo { margin: var(--s1) 0 var(--s3); font-size: clamp(2.5rem, 7vw, 4rem); }
   .about-hero .hero-tag { display: inline-block; }
 
-  .about-copy { max-width: 960px; margin: 0 auto; }
-  .about-copy p { font-size: 16px; margin: 0 0 14px; }
+  .about-copy { max-width: 70ch; margin: 0 auto; }
+  .about-copy p { font-size: 1rem; margin: 0 0 var(--s3); color: var(--text-2); }
   .about-copy p:last-child { margin-bottom: 0; }
 
-  .about-notes { max-width: 960px; margin: 0 auto; }
-  .note-body p { margin: 0 0 12px; }
+  .about-notes { max-width: 70ch; margin: 0 auto; }
+  .note-body p { margin: 0 0 var(--s3); color: var(--text-2); }
   .note-body p:last-child { margin-bottom: 0; }
-  .note-body em { font-style: normal; font-weight: 800; color: var(--accent); }
-  .sig { margin-top: 16px; font-family: "Press Start 2P", monospace; font-size: 11px; color: var(--accent); }
-  .note-actions { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+  .note-body em { font-style: normal; font-weight: 600; color: var(--gold); }
+  .sig { margin-top: var(--s4); font-family: var(--font-display); font-weight: 700; font-size: 1rem; color: var(--gold); }
+  .note-actions { margin-top: var(--s4); display: flex; gap: 10px; flex-wrap: wrap; }
 </style>
 </head>
 <body class="home">
@@ -104,7 +107,7 @@
 <footer class="site-footer">
   <div class="foot-grid">
     <div>
-      <div class="foot-brand">omeg<span style="color:var(--gold)">LOL</span></div>
+      <div class="foot-brand">omeg<span class="lol">LOL</span></div>
       <p class="muted">Make a stranger laugh. Don't laugh back.</p>
     </div>
     <div>

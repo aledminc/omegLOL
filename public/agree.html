@@ -6,49 +6,52 @@
 <title>Login: omegLOL</title>
 <link rel="icon" href="/favicons/favicon.ico" sizes="any" />
 <meta name="robots" content="noindex,nofollow" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/css/base.css" />
 <style>
   /* Step 1 of the post-login consent flow. Mirrors the login page's centered card, with a tall
      scroll region holding the full Terms + Privacy — the "I agree" button unlocks only at the end. */
   body { display: flex; flex-direction: column; min-height: 100vh; }
-  .auth-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 16px 56px; }
+  .auth-wrap { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: var(--s6) var(--s4) var(--s7); }
   .agree-card { width: 100%; max-width: 660px; }
-  .agree-card h1 { text-align: center; font-size: 24px; }
-  .agree-card > .muted { text-align: center; margin-bottom: 16px; }
+  .agree-card h1 { text-align: center; font-size: 1.5rem; }
+  .agree-card > .muted { text-align: center; margin-bottom: var(--s4); }
 
+  /* small camera mark: dark tile + gold live dot (same as /login) */
   .login-cam {
-    width: 96px; height: 66px; margin: 4px auto 16px;
-    border: 4px solid #2A3B52; border-radius: 10px;
-    background: radial-gradient(circle at 35% 35%, #4DF3FF55 0%, transparent 55%), #0B1622;
-    box-shadow: inset 0 0 0 2px #1E2A38, 0 4px 0 #1E2A38, 0 0 22px rgba(77,243,255,.35);
+    width: 88px; height: 60px; margin: var(--s1) auto var(--s4);
+    border: 1px solid var(--border-2); border-radius: var(--r-md);
+    background: var(--cam);
     position: relative; display: grid; place-items: center;
   }
   .login-cam::after {
-    content: ""; width: 15px; height: 15px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #fff 0 12%, #6EFF8E 13% 55%, #1E2A38 56% 100%);
-    box-shadow: 0 0 8px #6EFF8E;
+    content: ""; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--gold);
   }
 
   .doc-wrap { padding: 6px; }
-  .doc-scroll { max-height: 56vh; overflow-y: auto; padding: 14px 18px; background: var(--panel-2);
-    border: 1px solid var(--line-2); border-radius: 8px; box-shadow: var(--bevel-in); }
+  .doc-scroll { max-height: 56vh; overflow-y: auto; padding: var(--s4) 18px; background: var(--bg);
+    border: 1px solid var(--border); border-radius: var(--r-sm); }
   /* legal typography for the injected Terms/Privacy content (kept in step with those pages) */
-  .doc-scroll h1 { font-size: 18px; }
-  .doc-scroll h2 { font-family: "Press Start 2P", monospace; font-size: 11px; line-height: 1.7;
-    color: var(--accent); margin: 26px 0 10px; padding-top: 16px; border-top: 1px dashed var(--line-2); }
+  .doc-scroll h1 { font-size: 1.125rem; }
+  .doc-scroll h2 { font-size: 0.75rem; font-weight: 500; line-height: 1.6;
+    text-transform: uppercase; letter-spacing: 0.08em;
+    color: var(--gold); margin: 26px 0 10px; padding-top: var(--s4); border-top: 1px solid var(--border); }
   .doc-scroll h2:first-of-type { margin-top: 2px; padding-top: 0; border-top: 0; }
   .doc-scroll p { margin: 0 0 11px; }
-  .doc-scroll .doc-meta { font-family: "VT323", monospace; font-size: 16px; color: var(--dim); margin: -4px 0 16px; }
-  .doc-scroll .cl { font-weight: 800; color: var(--ink); margin-right: 5px; }
-  .doc-scroll .sub { font-weight: 700; margin: 4px 0 6px; }
+  .doc-scroll .doc-meta { font-family: var(--font-mono); font-size: 0.8125rem; color: var(--text-2); margin: -4px 0 var(--s4); }
+  .doc-scroll .cl { font-weight: 600; color: var(--text); margin-right: 5px; }
+  .doc-scroll .sub { font-weight: 600; margin: 4px 0 6px; }
   .doc-scroll ul { margin: 0 0 12px; padding-left: 20px; }
   .doc-scroll li { margin: 0 0 6px; }
-  .doc-sep { margin: 30px 0; border: 0; border-top: 2px solid #1E2A38; }
+  .doc-sep { margin: 30px 0; border: 0; border-top: 1px solid var(--border-2); }
 
-  .scroll-hint { text-align: center; font-family: "VT323", monospace; font-size: 17px; color: var(--dim); margin: 12px 0 10px; }
-  .scroll-hint.done { color: var(--accent); }
+  .scroll-hint { text-align: center; font-size: 0.875rem; color: var(--text-2); margin: var(--s3) 0 10px; }
+  .scroll-hint.done { color: var(--gold); }
   #agreeBtn { width: 100%; }
-  #agreeBtn:disabled { opacity: .5; cursor: not-allowed; filter: none; }
+  #agreeBtn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
 </style>
 </head>
 <body>
@@ -66,7 +69,7 @@
     </div>
 
     <p class="scroll-hint" id="scrollHint">↓ scroll to the end of both documents to continue</p>
-    <button class="btn" id="agreeBtn" disabled>I have read and agree to the Terms of Service and Privacy Policy</button>
+    <button class="btn gold" id="agreeBtn" disabled>I have read and agree to the Terms of Service and Privacy Policy</button>
   </div>
 </main>
 

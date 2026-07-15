@@ -5,32 +5,39 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>omegLOL | Ranked</title>
 <link rel="icon" href="/favicons/favicon.ico" sizes="any" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/css/base.css" />
 <style>
   /* Layout-only; visual treatment lives in /css/base.css */
-  .toggle { display:inline-flex; border-radius:10px; padding:3px; margin:6px 0 20px; }
-  .seg { padding:8px 16px; border:0; background:transparent; font:inherit; font-weight:600; border-radius:7px; cursor:pointer; }
+  .page-head { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+  .page-head h1 { margin-bottom:0; }
+  .toggle { display:inline-flex; border-radius:var(--r-sm); padding:3px; margin:14px 0 20px; }
+  .seg { padding:8px 16px; border:0; background:transparent; font:inherit; font-weight:500; border-radius:6px; cursor:pointer; }
 
   .rankhead { display:flex; align-items:center; justify-content:space-between; gap:12px; }
-  .rankname { font-size:27px; font-weight:800; letter-spacing:-.5px; }
-  .info { width:23px; height:23px; border-radius:50%; font-style:italic; font-weight:700; font-size:13px; line-height:1; cursor:pointer; }
+  .rankname { font-size:1.625rem; }
+  .info { width:23px; height:23px; border-radius:50%; font-style:italic; font-weight:600; font-size:13px; line-height:1; cursor:pointer; }
 
+  .sec-label { margin:22px 0 6px; }
   .match { display:flex; align-items:center; gap:10px; padding:9px 0; font-size:14px; }
   .match:last-child { border-bottom:0 !important; }
-  .res { width:24px; height:24px; border-radius:6px; display:grid; place-items:center; font-weight:700; font-size:12px; }
+  .res { width:24px; height:24px; border-radius:6px; display:grid; place-items:center; font-weight:600; font-size:12px; }
   .opp { flex:1; } .elo { font-variant-numeric:tabular-nums; }
 
   #board { list-style:none; margin:0; padding:0; }
-  #board li { display:flex; align-items:center; gap:12px; padding:10px 0; }
+  #board li { display:flex; align-items:center; gap:12px; padding:10px 8px; }
   #board li:last-child { border-bottom:0 !important; }
   .pos { width:22px; font-variant-numeric:tabular-nums; }
-  .who { flex:1; font-weight:500; } .rk { font-size:13px; font-weight:700; } .rt { font-variant-numeric:tabular-nums; font-size:13px; }
+  .who { flex:1; font-weight:500; } .rk { font-size:13px; font-weight:600; } .rt { font-variant-numeric:tabular-nums; font-size:13px; }
 
-  .modal { position:fixed; inset:0; background:rgba(11,22,34,.6); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
+  .modal { position:fixed; inset:0; background:var(--scrim); display:flex; align-items:center; justify-content:center; padding:20px; z-index:50; }
   .modal.hidden { display:none; }
-  .modal .box { border-radius:14px; padding:22px; max-width:560px; width:100%; }
+  .modal .box { border-radius:var(--r-lg); padding:22px; max-width:560px; width:100%; }
   .modal h3 { margin:0 0 16px; }
-  .modal .close { float:right; cursor:pointer; border:0; background:0; font-size:18px; }
+  .modal .close { float:right; cursor:pointer; border:0; background:0; font-size:18px; color:var(--text-2); }
+  .modal .close:hover { color:var(--text); }
   /* Tier cards (.ladder / .badge-tier from base.css) — force 2 columns inside the narrow modal. */
   .modal .ladder { grid-template-columns:repeat(2, 1fr); }
   .modal .ladder-caption { font-size:13px; }
@@ -39,7 +46,10 @@
 <body>
 <header id="site-nav"></header>
 <main class="page">
-  <h1>Ranked</h1>
+  <div class="page-head">
+    <h1>Ranked</h1>
+    <a class="btn gold" href="/play">Jump back in</a>
+  </div>
   <div class="toggle">
     <button id="tabRank" class="seg active">Your rank</button>
     <button id="tabBoard" class="seg">Leaderboard</button>
@@ -47,7 +57,7 @@
 
   <section id="viewRank">
     <div id="rankBox" class="panel">loading…</div>
-    <h3 style="margin:22px 0 6px">Recent matches</h3>
+    <h3 class="sec-label">Recent matches</h3>
     <div id="history" class="muted">loading…</div>
   </section>
 

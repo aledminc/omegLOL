@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Login: omegLOL</title>
 <link rel="icon" href="/favicons/favicon.ico" sizes="any" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/css/base.css" />
 <style>
   /* Full-height, dead-centered sign-in — the card is the focal point of the page. */
@@ -13,45 +16,48 @@
     flex: 1;
     display: flex; flex-direction: column;
     align-items: center; justify-content: center;
-    padding: 40px 16px 64px;
+    padding: var(--s6) var(--s4) var(--s8);
   }
   .auth-card { width: 100%; max-width: 400px; }
-  .auth-card h1 { text-align: center; font-size: 25px; }
-  .auth-card > .muted { text-align: center; margin-bottom: 18px; }
+  .auth-card h1 { text-align: center; font-size: 1.5rem; }
+  .auth-card > .muted { text-align: center; margin-bottom: var(--s4); font-size: 0.9375rem; }
 
+  /* small camera mark: dark tile + gold live dot */
   .login-cam {
-    width: 96px; height: 66px; margin: 4px auto 16px;
-    border: 4px solid #2A3B52; border-radius: 10px;
-    background: radial-gradient(circle at 35% 35%, #4DF3FF55 0%, transparent 55%), #0B1622;
-    box-shadow: inset 0 0 0 2px #1E2A38, 0 4px 0 #1E2A38, 0 0 22px rgba(77,243,255,.35);
+    width: 88px; height: 60px; margin: var(--s1) auto var(--s4);
+    border: 1px solid var(--border-2); border-radius: var(--r-md);
+    background: var(--cam);
     position: relative; display: grid; place-items: center;
   }
   .login-cam::after {
-    content: ""; width: 15px; height: 15px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 35%, #fff 0 12%, #6EFF8E 13% 55%, #1E2A38 56% 100%);
-    box-shadow: 0 0 8px #6EFF8E;
+    content: ""; width: 10px; height: 10px; border-radius: 50%;
+    background: var(--gold);
   }
 
   /* informational / error banner — reused for both notices and validation errors */
   .auth-msg {
-    margin: 0 0 14px; padding: 9px 11px;
-    font-size: 13px; font-weight: 600; line-height: 1.4;
-    color: #7A2E12; background: #FFE9D6;
-    border: 1px solid var(--warn); border-radius: 8px;
-    box-shadow: var(--bevel-in);
+    margin: 0 0 var(--s3); padding: 9px 11px;
+    font-size: 0.8125rem; font-weight: 500; line-height: 1.4;
+    color: var(--text);
+    background: var(--lose-dim);
+    border: 1px solid var(--lose); border-radius: var(--r-sm);
   }
-  .panel .btn { margin-top: 4px; }
-  .auth-switch { margin: 14px 0 0; text-align: center; font-size: 13px; }
-  .guest-link { margin: 18px 0 0; text-align: center; }
+  .panel .btn { margin-top: var(--s1); }
+  #authForm .btn { width: 100%; }
+  .auth-switch { margin: var(--s3) 0 0; text-align: center; font-size: 0.8125rem; }
+  .guest-link { margin: var(--s4) 0 0; text-align: center; }
+  .guest-link a { color: var(--text-2); }
+  .guest-link a:hover { color: var(--text); }
 
-  /* Continue with Google — white ghost button + the real multicolor G mark */
+  /* Continue with Google — the gold primary of this page, with the multicolor G mark */
   .gbtn { width: 100%; margin-top: 0; display: flex; align-items: center; justify-content: center; gap: 10px; }
   .gbtn .gmark { flex: none; display: block; }
   .gbtn[hidden] { display: none; }
   /* "or" divider between social + email sign-in */
-  .or-div { display: flex; align-items: center; gap: 10px; margin: 14px 0;
-    color: var(--dim); font-family: "VT323", monospace; font-size: 16px; letter-spacing: .06em; }
-  .or-div::before, .or-div::after { content: ""; flex: 1; height: 1px; background: var(--line-2); }
+  .or-div { display: flex; align-items: center; gap: 10px; margin: var(--s3) 0;
+    color: var(--text-3); font-size: 0.75rem; font-weight: 500;
+    text-transform: uppercase; letter-spacing: 0.08em; }
+  .or-div::before, .or-div::after { content: ""; flex: 1; height: 1px; background: var(--border); }
   .or-div[hidden] { display: none; }
 </style>
 </head>
@@ -66,7 +72,7 @@
     <div class="panel">
       <p id="msg" class="auth-msg" hidden></p>
 
-      <button class="btn ghost gbtn" id="googleBtn" type="button">
+      <button class="btn gold gbtn" id="googleBtn" type="button">
         <svg class="gmark" viewBox="0 0 48 48" width="18" height="18" aria-hidden="true">
           <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
           <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
@@ -84,7 +90,7 @@
         <label>Password
           <input id="password" type="password" autocomplete="current-password" placeholder="••••••••" />
         </label>
-        <button class="btn" id="submitBtn" type="submit" style="width:100%">Sign in</button>
+        <button class="btn" id="submitBtn" type="submit">Sign in</button>
       </form>
       <p class="auth-switch muted">
         <span id="switchText">New here?</span>
