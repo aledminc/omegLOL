@@ -52,7 +52,9 @@
   .me-card { flex:1 1 auto; min-height:0; justify-content:space-between;
     gap:clamp(7px, 3.3cqw, 14px); margin-top:clamp(9px, 4cqw, 16px); overflow:hidden; }
   body.in-lobby .me-card { display:none; }
-  .me-head { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:clamp(7px, 3.3cqw, 14px); align-items:center; }
+  /* rank text + numeral badge hug each other, centered in the card */
+  .me-head { display:flex; align-items:center; justify-content:center; gap:clamp(8px, 3.5cqw, 14px); min-width:0; }
+  .me-head > div { min-width:0; }
   .me-label { display:block; font-size:clamp(9px, 3.7cqw, 12px); font-weight:500; color:var(--text-2);
     text-transform:uppercase; letter-spacing:.08em; }
   .me-tier { display:block; margin-top:2px; font-family:var(--font-display); font-weight:700;
@@ -396,11 +398,31 @@
      cqw-scaled so it stays a dominant, well-filled CTA at any rail width. */
   #find {
     display:flex; align-items:center; justify-content:center; gap:clamp(7px, 3.3cqw, 14px);
-    font-size:clamp(13px, 5cqw, 17px); font-weight:500; line-height:1.35;
-    padding:clamp(14px, 6cqw, 22px) clamp(9px, 4cqw, 16px);
+    font-size:clamp(16px, 6.7cqw, 22px); font-weight:500; line-height:1.35;
+    padding:clamp(22px, 9.5cqw, 36px) clamp(9px, 4cqw, 16px);
     background:var(--gold); color:var(--bg); border-color:transparent;
+    position:relative; overflow:hidden;
   }
-  #find .blink { flex:none; }
+  #find .blink { flex:none; display:inline-block; }
+  /* every ~3.5s: a sheen sweeps across the gold while the ▶ gives a little "go" nudge.
+     Animations live on the pseudo/child so #find's own hover translateY still works. */
+  #find::after { content:""; position:absolute; top:-4px; bottom:-4px; left:-60%; width:40%;
+    background:linear-gradient(105deg, transparent, rgba(255,255,255,.5), transparent);
+    transform:skewX(-18deg); pointer-events:none; opacity:0; }
+  @media (prefers-reduced-motion: no-preference) {
+    #find:not(:disabled):not(.cancel-search)::after { animation:findShine 3.5s ease-in-out infinite; }
+    #find:not(:disabled):not(.cancel-search) .blink { animation:findNudge 3.5s ease-in-out infinite; }
+  }
+  @keyframes findShine {
+    0%, 55% { left:-60%; opacity:0; }
+    60%     { opacity:1; }
+    85%, 100% { left:130%; opacity:0; }
+  }
+  @keyframes findNudge {
+    0%, 55%, 75%, 100% { transform:translateX(0); }
+    62% { transform:translateX(0.22em); }
+    68% { transform:translateX(-0.06em); }
+  }
   #find:hover:not(:disabled) { background:var(--gold-2); transform:translateY(-1px); }
   #find:active:not(:disabled) { transform:translateY(0); }
   #find.cancel-search {                                /* leaving the queue reads as danger, quietly */
@@ -565,7 +587,9 @@
 </style>
 </head>
 <body data-phase="idle" data-role="">
-<div class="gate" id="nameGate">
+<!-- starts hidden so returning players never see it flash before auth resolves; every
+     path that actually needs a name (no token, needName, nameError) un-hides it -->
+<div class="gate hidden" id="nameGate">
   <h1>Pick a stage name</h1>
   <input id="nameInput" placeholder="stage name" maxlength="20" autocomplete="off" spellcheck="false" />
   <button id="nameBtn">Enter the club</button>
