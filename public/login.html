@@ -22,18 +22,6 @@
   .auth-card h1 { text-align: center; font-size: 1.5rem; }
   .auth-card > .muted { text-align: center; margin-bottom: var(--s4); font-size: 0.9375rem; }
 
-  /* small camera mark: dark tile + gold live dot */
-  .login-cam {
-    width: 88px; height: 60px; margin: var(--s1) auto var(--s4);
-    border: 1px solid var(--border-2); border-radius: var(--r-md);
-    background: var(--cam);
-    position: relative; display: grid; place-items: center;
-  }
-  .login-cam::after {
-    content: ""; width: 10px; height: 10px; border-radius: 50%;
-    background: var(--gold);
-  }
-
   /* informational / error banner — reused for both notices and validation errors */
   .auth-msg {
     margin: 0 0 var(--s3); padding: 9px 11px;

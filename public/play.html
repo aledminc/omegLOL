@@ -73,9 +73,11 @@
     border-radius:var(--r-sm); color:var(--text-2); font-size:clamp(10px, 4cqw, 13px); font-weight:500; }
   .me-form-row, .me-friends-row { display:flex; align-items:center; justify-content:space-between; gap:clamp(7px, 3.3cqw, 14px);
     padding-top:clamp(7px, 3.3cqw, 14px); border-top:1px solid var(--border); }
-  .me-form { display:flex; gap:3px; align-items:center; justify-content:flex-end; min-width:0; }
-  .me-form .form-cell { width:clamp(14px, 5.7cqw, 22px); height:clamp(14px, 5.7cqw, 22px); display:grid; place-items:center;
-    font-size:clamp(8px, 3.3cqw, 12px); font-weight:600; border:1px solid var(--border); border-radius:4px; background:var(--bg); }
+  /* the Last 5 row reads at a glance: bigger label + chunky W/L/D cells that fill the row */
+  .me-form-row .me-label { font-size:clamp(11px, 4.5cqw, 15px); }
+  .me-form { display:flex; gap:clamp(4px, 1.7cqw, 7px); align-items:center; justify-content:flex-end; min-width:0; }
+  .me-form .form-cell { width:clamp(20px, 8.5cqw, 32px); height:clamp(20px, 8.5cqw, 32px); display:grid; place-items:center;
+    font-size:clamp(11px, 4.7cqw, 17px); font-weight:600; border:1px solid var(--border); border-radius:5px; background:var(--bg); }
   .me-form .form-cell.w { color:var(--win); }
   .me-form .form-cell.l { color:var(--lose); }
   .me-form .form-cell.d { color:var(--text-2); }
@@ -308,23 +310,34 @@
   .stage.split .banner > div:empty { display:none; }
   .stage.split .banner > div + div:not(:empty) { margin-top:8px; }
 
-  /* juice layer: loud typography, snappy pop-in (scale .8 -> 1.04 -> 1), float-fade out */
+  /* juice layer. Popups spawn INSIDE the opponent's camera tile (see popLayer) so they sit
+     exactly where the player is already looking; .fx on the stage is only a fallback. They
+     ride above the tile vignette (z4) and nameplate (z6) but under the intro plates (z7+). */
   .fx { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:5; }
+  .tile-fx { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:7; }
+  /* readable over live video: a dark scrim chip, tinted by kind, not bare glowing text */
   .pop { position:absolute; white-space:nowrap; transform:translate(-50%,-50%);
-    animation:popFloat .7s var(--ease) forwards; }
-  .pop.small { font-size:1.25rem; } .pop.big { font-size:2rem; } .pop.laugh { font-size:3rem; }
-  .pop.points { font-size:1.25rem; } .pop.points.laugh { font-size:1.75rem; }
+    max-width:94%; overflow:hidden; text-overflow:ellipsis;
+    padding:.3em .55em; background:var(--scrim-heavy);
+    border:1px solid var(--border); border-radius:var(--r-sm);
+    animation:popFloat 1.4s var(--ease) forwards; }
+  .pop.scold  { border-color:var(--lose-glow); }
+  .pop.reward, .pop.points { border-color:var(--gold-glow); }
+  .pop.small { font-size:1.125rem; } .pop.big { font-size:1.625rem; } .pop.laugh { font-size:2.25rem; }
+  .pop.points { font-size:1.125rem; } .pop.points.laugh { font-size:1.5rem; }
+  /* appear (snappy pop-in), hold readable, then melt to nothing */
   @keyframes popFloat {
-    0%   { opacity:0; transform:translate(-50%,-50%) scale(.8); }
-    18%  { opacity:1; transform:translate(-50%,-50%) scale(1.04); }
-    32%  { transform:translate(-50%,-52%) scale(1); }
-    100% { opacity:0; transform:translate(-50%,calc(-50% - 24px)) scale(1); }
+    0%   { opacity:0; transform:translate(-50%,-50%) scale(.85); }
+    9%   { opacity:1; transform:translate(-50%,-50%) scale(1.05); }
+    16%  { transform:translate(-50%,-50%) scale(1); }
+    62%  { opacity:1; transform:translate(-50%,-53%) scale(1); }
+    100% { opacity:0; transform:translate(-50%,-58%) scale(.97); }
   }
   /* reduced motion: opacity-only fade — still fires animationend so the node self-removes */
   @media (prefers-reduced-motion: reduce) {
-    .pop { animation:popFade .7s linear forwards; }
+    .pop { animation:popFade 1.4s linear forwards; }
   }
-  @keyframes popFade { 0% { opacity:1; } 100% { opacity:0; } }
+  @keyframes popFade { 0%, 55% { opacity:1; } 100% { opacity:0; } }
 
   .scorebar { display:none; gap:10px; margin-top:12px; align-items:stretch; }
   .scorebar.live { display:flex; }               /* only visible while actually in a match */
@@ -865,13 +878,24 @@ const REWARD = {
   laugh: ["you got 'em!", "they're losing it!", "destroyed", "comedy gold"],
 };
 const pick = a => a[Math.floor(Math.random() * a.length)];
+// Popups land on the OPPONENT's camera — the tile the player is already watching in either
+// role (the reactor watches the teller and vice versa) — so their eyes never leave the action.
+// Falls back to the whole-stage fx layer if no enemy tile exists yet.
+function popLayer() {
+  const enemies = [...remoteGrid.querySelectorAll('.remote-tile:not([data-team="ally"])')];
+  if (!enemies.length) return fx;
+  const tile = enemies[Math.floor(Math.random() * enemies.length)];
+  let layer = tile.querySelector(".tile-fx");
+  if (!layer) { layer = document.createElement("div"); layer.className = "tile-fx"; tile.appendChild(layer); }
+  return layer;
+}
 function spawnPop(text, kind, tier) {
   const el = document.createElement("div");
   el.className = `pop ${kind} ${tier}`;
   el.textContent = text;
   el.style.left = (30 + Math.random() * 40) + "%";
-  el.style.top  = (38 + Math.random() * 26) + "%";
-  fx.appendChild(el);
+  el.style.top  = (32 + Math.random() * 32) + "%";
+  popLayer().appendChild(el);
   el.addEventListener("animationend", () => el.remove());
 }
 function flashEdge(kind) { stageEl.classList.add("flash-" + kind); setTimeout(() => stageEl.classList.remove("flash-" + kind), 360); }
