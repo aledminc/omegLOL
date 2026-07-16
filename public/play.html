@@ -181,9 +181,19 @@
 
   /* nameplate: dark chip, bottom-left inside the tile */
   .cam-card { position:absolute; left:6px; bottom:6px; z-index:6; max-width:calc(100% - 12px);
-    display:flex; flex-direction:column; gap:2px; padding:5px 8px;
+    display:none; flex-direction:column; gap:2px; padding:5px 8px;
     background:var(--scrim); border:1px solid var(--border); border-radius:var(--r-sm);
     backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+  /* nameplates are match-only: hidden in the idle/searching lobby. Exception — in a duo
+     lobby your partner's plate (the remote tile) still shows; your own stays hidden. */
+  body[data-phase="matched"] .cam-card,
+  body[data-phase="intro"] .cam-card,
+  body[data-phase="countdown"] .cam-card,
+  body[data-phase="round1"] .cam-card,
+  body[data-phase="round2"] .cam-card,
+  body[data-phase="swap"] .cam-card,
+  body[data-phase="result"] .cam-card,
+  body.in-lobby .remote-tile .cam-card { display:flex; }
   .cam-card .cc-name { font-weight:500; font-size:12px; line-height:1.2; color:var(--text);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .cam-card .cc-rank { font-size:9px; font-weight:500; line-height:1.4;
