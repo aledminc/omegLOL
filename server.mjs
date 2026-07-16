@@ -227,6 +227,8 @@ export async function startServer({ db, pool = null, port = PORT }) {
     try { res.json(await db.topPlayers(10)); }
     catch { res.status(500).json({ error: "unavailable" }); }
   });
+  // Global presence: just the aggregate count of players online right now (no ids, no names).
+  app.get("/api/online", mkLimit(RATE.read), (_req, res) => res.json({ online: online.size }));
 
   // WebRTC ICE config (STUN always; TURN when configured). Credentials are short-lived, so we cache
   // one shared set server-side until just before expiry rather than minting per request. Cloudflare
