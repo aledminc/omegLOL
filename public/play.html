@@ -72,9 +72,12 @@
   .me-next { position:relative; overflow:hidden; padding:clamp(5px, 2cqw, 9px) clamp(6px, 2.7cqw, 10px);
     background:var(--gold-dim); border:1px solid var(--border);
     border-radius:var(--r-sm); color:var(--text-2); font-size:clamp(10px, 4cqw, 13px); font-weight:500; }
-  .me-next::before { content:""; position:absolute; inset:0 auto 0 0; width:var(--rank-progress, 0%);
+  /* progress fill: a real element (not a pseudo) so JS can set its width directly.
+     Full bar width = the points between the current tier's floor and the next tier's floor. */
+  .me-next-fill { position:absolute; top:0; bottom:0; left:0; width:0;
     background:linear-gradient(90deg, rgba(255,230,109,.36), rgba(255,230,109,.18));
-    border-right:1px solid rgba(255,230,109,.5); pointer-events:none; }
+    border-right:1px solid rgba(255,230,109,.5); pointer-events:none;
+    transition:width var(--t-slow) var(--ease); }
   .me-next span { position:relative; z-index:1; }
   .me-form-row, .me-friends-row { display:flex; align-items:center; justify-content:space-between; gap:clamp(7px, 3.3cqw, 14px);
     padding-top:clamp(7px, 3.3cqw, 14px); border-top:1px solid var(--border); }
@@ -303,6 +306,25 @@
   .intro-card .in-tier { font-family:var(--font-display); font-weight:500; font-size:clamp(15px,2vw,20px);
     color:var(--tc); letter-spacing:-.01em; }
   @keyframes introIn { from { opacity:0; transform:scale(1.08); } to { opacity:1; transform:scale(1); } }
+
+  /* round timer above the chat: the bar drains right-to-left, blending white -> red past
+     halfway (JS drives width + color); the :SS readout wiggles once it hits :05 */
+  .round-timer { display:flex; align-items:center; gap:8px; flex:none; }
+  .round-timer.hidden { display:none; }
+  .rt-track { flex:1; min-width:0; height:10px; background:var(--bg);
+    border:1px solid var(--border); border-radius:6px; overflow:hidden; }
+  .rt-fill { height:100%; width:100%; background:var(--text); border-radius:4px; }
+  .rt-count { flex:none; display:inline-block; min-width:2.4em; text-align:right;
+    font-family:var(--font-mono); font-weight:500; font-variant-numeric:tabular-nums;
+    font-size:1rem; color:var(--text); }
+  @media (prefers-reduced-motion: no-preference) {
+    .rt-count.urgent { animation:rtWiggle .35s ease-in-out infinite; }
+  }
+  @keyframes rtWiggle {
+    0%, 100% { transform:translateX(0) rotate(0); }
+    25% { transform:translateX(-1.5px) rotate(-4deg); }
+    75% { transform:translateX(1.5px) rotate(4deg); }
+  }
 
   /* countdown/swap: the role line below the count gets big + readable */
   body[data-phase="countdown"] .banner .sub,
@@ -687,6 +709,10 @@
       </div>
       <!-- in a match the cams split apart and this column sits between them -->
       <div class="match-mid" id="matchMid">
+        <div class="round-timer hidden" id="roundTimer" aria-hidden="true">
+          <div class="rt-track"><div class="rt-fill" id="rtFill"></div></div>
+          <span class="rt-count" id="rtCount">:30</span>
+        </div>
         <div class="pcard panel" id="chatCard">
           <span class="pc-tag">Chat</span>
           <div class="chat-log" id="chatLog">
@@ -762,7 +788,7 @@
           <div class="me-stat"><span>Record</span><b id="meRecord">0-0-0</b></div>
           <div class="me-stat"><span>Win rate</span><b id="meWinRate">--</b></div>
         </div>
-        <div class="me-next" id="meNext"><span>play a match to place</span></div>
+        <div class="me-next" id="meNext"><i class="me-next-fill" id="meNextFill" aria-hidden="true"></i><span>play a match to place</span></div>
         <div class="me-form-row">
           <span class="me-label">Last 5</span>
           <div class="me-form" id="meForm"></div>
@@ -1007,14 +1033,15 @@ function renderMeCard(p) {
   $("meRecord").textContent = `${wins}-${losses}-${draws}`;
   $("meWinRate").textContent = games ? Math.round((wins / games) * 100) + "%" : "--";
   const progressBox = $("meNext");
-  const rating = p.rating || 0;
+  const rating = Number(p.rating) || 0;
+  // bar range = current tier floor -> next tier floor; fill = where the rating sits in it
   if (next) {
     const span = Math.max(1, next.min - t.min);
     const progress = Math.max(0, Math.min(100, ((rating - t.min) / span) * 100));
-    progressBox.style.setProperty("--rank-progress", progress + "%");
+    $("meNextFill").style.width = progress + "%";
     progressBox.querySelector("span").textContent = `${Math.max(0, next.min - rating)} points to ${next.name}`;
   } else {
-    progressBox.style.setProperty("--rank-progress", "100%");
+    $("meNextFill").style.width = "100%";
     progressBox.querySelector("span").textContent = "top tier";
   }
   renderForm($("meForm"), p.form);
@@ -1482,6 +1509,7 @@ function setScores(s) {
 }
 function resetMatchUi() {
   endIntro();                    // clear any VS screen / intro cards from an aborted opener
+  stopRoundTimer();
   stageEl.classList.remove("split");   // cams rejoin into the single lobby stage
   document.querySelector(".scorebar").classList.remove("live");   // scoreboard is match-only
   isSearching = false;
@@ -1495,6 +1523,36 @@ function resetMatchUi() {
   setChatEnabled(false);
   setScores({ you: 0, them: 0 });
 }
+// ---------- round timer: draining bar + :SS readout above the chat ----------
+// Driven off the server's phase seconds; pure presentation (rAF, no game logic).
+let roundTimerRaf = null;
+function stopRoundTimer() {
+  if (roundTimerRaf) { cancelAnimationFrame(roundTimerRaf); roundTimerRaf = null; }
+  $("roundTimer").classList.add("hidden");
+  $("rtCount").classList.remove("urgent");
+}
+function startRoundTimer(seconds) {
+  stopRoundTimer();
+  const total = Math.max(1, seconds || 30);
+  const end = performance.now() + total * 1000;
+  const fill = $("rtFill"), count = $("rtCount");
+  $("roundTimer").classList.remove("hidden");
+  const tick = now => {
+    const remainMs = Math.max(0, end - now);
+    const frac = remainMs / (total * 1000);
+    fill.style.width = (frac * 100) + "%";
+    // white for the first half, then blend toward danger red (#F0524D) as it empties
+    const t = frac >= 0.5 ? 0 : 1 - frac / 0.5;
+    fill.style.background = `rgb(${Math.round(255 - t * 15)},${Math.round(255 - t * 173)},${Math.round(255 - t * 178)})`;
+    const s = Math.ceil(remainMs / 1000);
+    count.textContent = ":" + String(s).padStart(2, "0");
+    count.classList.toggle("urgent", s <= 5 && remainMs > 0);
+    if (remainMs > 0) roundTimerRaf = requestAnimationFrame(tick);
+    else roundTimerRaf = null;
+  };
+  roundTimerRaf = requestAnimationFrame(tick);
+}
+
 let countdownTimer = null;
 function localCountdown(from, label, sub) {
   clearInterval(countdownTimer);
@@ -1518,16 +1576,19 @@ function applyGameState(msg) {
     case "round1": case "round2":
       clearInterval(countdownTimer);
       stageEl.classList.remove("introing");         // full brightness — the round is live
+      startRoundTimer(msg.seconds);
       showBanner("", "GO!", "");
       setTimeout(hideBanner, 700); break;
     // during swap msg.role is still the ROUND-1 role, so the hint announces its flip
     case "swap":
+      stopRoundTimer();
       stageEl.classList.add("introing");
       localCountdown(msg.seconds, "Swap!", msg.role === "performer"
         ? "now you react — don't laugh"
         : "now you tell the jokes"); break;
     case "result": {
       clearInterval(countdownTimer);
+      stopRoundTimer();
       stageEl.classList.add("introing");            // dim the cams behind the result plates
       const word = msg.outcome === "win" ? "You win" : msg.outcome === "lose" ? "You lose" : "Draw";
       showBanner(word, "", `${Math.round(msg.scores.you)} – ${Math.round(msg.scores.them)}`);
