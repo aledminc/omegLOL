@@ -500,8 +500,10 @@
   .fd-close:hover { color:var(--text); }
   /* Friends | Requests slider (same .toggle/.seg vocabulary as the mode bar) */
   .fd-tabs { display:flex; padding:3px; border-radius:var(--r-sm); }
-  .fd-tabs .seg { flex:1; padding:8px 0; border:0; background:transparent; font:inherit; font-weight:500;
+  .fd-tabs .seg { position:relative; flex:1; padding:8px 0; border:0; background:transparent; font:inherit; font-weight:500;
     border-radius:6px; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+  .fd-tabs .seg.active::after { content:""; position:absolute; left:18%; right:18%; bottom:4px; height:2px;
+    background:var(--gold); border-radius:2px; box-shadow:0 0 10px rgba(255,209,102,.3); }
   .tab-count { min-width:17px; height:17px; padding:0 4px; display:grid; place-items:center;
     background:var(--lose); color:var(--text); font-size:10px; font-weight:600; line-height:1;
     border-radius:8px; }
@@ -1034,10 +1036,13 @@ function renderMeCard(p) {
   $("meWinRate").textContent = games ? Math.round((wins / games) * 100) + "%" : "--";
   const progressBox = $("meNext");
   const rating = Number(p.rating) || 0;
-  // bar range = current tier floor -> next tier floor; fill = where the rating sits in it
+  // bar range = current tier floor -> next tier floor; fill = where the rating sits in it.
+  // Silver (tier 0) uses 1000 as its effective floor — the starting Elo — so the bar reads
+  // 1000->1100; ratings below 1000 just clamp to an empty bar.
   if (next) {
-    const span = Math.max(1, next.min - t.min);
-    const progress = Math.max(0, Math.min(100, ((rating - t.min) / span) * 100));
+    const floor = tierIndex === 0 ? 1000 : t.min;
+    const span = Math.max(1, next.min - floor);
+    const progress = Math.max(0, Math.min(100, ((rating - floor) / span) * 100));
     $("meNextFill").style.width = progress + "%";
     progressBox.querySelector("span").textContent = `${Math.max(0, next.min - rating)} points to ${next.name}`;
   } else {
