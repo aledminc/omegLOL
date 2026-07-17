@@ -69,8 +69,13 @@
     text-transform:uppercase; letter-spacing:.06em; }
   .me-stat b { display:block; margin-top:3px; font-family:var(--font-mono); font-weight:500; font-variant-numeric:tabular-nums;
     font-size:clamp(14px, 6cqw, 22px); line-height:1; color:var(--text); }
-  .me-next { padding:clamp(5px, 2cqw, 9px) clamp(6px, 2.7cqw, 10px); background:var(--gold-dim); border:1px solid var(--border);
+  .me-next { position:relative; overflow:hidden; padding:clamp(5px, 2cqw, 9px) clamp(6px, 2.7cqw, 10px);
+    background:var(--gold-dim); border:1px solid var(--border);
     border-radius:var(--r-sm); color:var(--text-2); font-size:clamp(10px, 4cqw, 13px); font-weight:500; }
+  .me-next::before { content:""; position:absolute; inset:0 auto 0 0; width:var(--rank-progress, 0%);
+    background:linear-gradient(90deg, rgba(255,230,109,.36), rgba(255,230,109,.18));
+    border-right:1px solid rgba(255,230,109,.5); pointer-events:none; }
+  .me-next span { position:relative; z-index:1; }
   .me-form-row, .me-friends-row { display:flex; align-items:center; justify-content:space-between; gap:clamp(7px, 3.3cqw, 14px);
     padding-top:clamp(7px, 3.3cqw, 14px); border-top:1px solid var(--border); }
   /* the Last 5 row reads at a glance: bigger label + chunky W/L/D cells that fill the row */
@@ -404,8 +409,10 @@
      narrow one. */
   .modebar { display:flex; flex-direction:column; gap:clamp(7px, 3cqw, 12px); margin:0; padding:clamp(9px, 4cqw, 16px); }
   .modebar .toggle { display:flex; width:100%; padding:3px; border-radius:var(--r-sm); }
-  .modebar .seg { flex:1; padding:clamp(8px, 3.3cqw, 14px) clamp(3px, 1.3cqw, 6px); border:0; background:transparent; font:inherit;
+  .modebar .seg { position:relative; flex:1; padding:clamp(8px, 3.3cqw, 14px) clamp(3px, 1.3cqw, 6px); border:0; background:transparent; font:inherit;
     font-weight:500; font-size:clamp(11px, 4.5cqw, 15px); border-radius:6px; cursor:pointer; white-space:nowrap; }
+  .modebar .seg.active::after { content:""; position:absolute; left:18%; right:18%; bottom:4px; height:2px;
+    background:var(--gold); border-radius:2px; box-shadow:0 0 10px rgba(255,209,102,.3); }
 
   /* the Find CTA: THE one gold element on the idle play page. Solid fill, no glow, no shine —
      cqw-scaled so it stays a dominant, well-filled CTA at any rail width. */
@@ -484,9 +491,21 @@
     padding:8px 10px; background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm);
     color:var(--text-2); font-size:11px; font-weight:500;
     text-transform:uppercase; letter-spacing:.06em; }
-  .fr-code b { padding:2px 8px; background:var(--surface); color:var(--text); border:1px solid var(--border-2);
+  .fr-code b { position:relative; min-width:78px; padding:2px 8px; background:var(--surface);
+    color:transparent; text-shadow:0 0 8px var(--text); border:1px solid var(--border-2);
     border-radius:6px; font-family:var(--font-mono); font-weight:500; font-size:15px;
-    line-height:1.4; letter-spacing:.04em; text-transform:none; font-variant-numeric:tabular-nums; }
+    line-height:1.4; letter-spacing:.04em; text-align:center; text-transform:none;
+    font-variant-numeric:tabular-nums; cursor:default; user-select:none;
+    transition:color var(--t-fast) var(--ease), text-shadow var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
+  .fr-code b::before { content:""; position:absolute; left:50%; top:50%; width:20px; height:12px;
+    transform:translate(-50%, -50%); border:1.5px solid var(--text-2); border-radius:50%;
+    background:rgba(0,0,0,.18); pointer-events:none; transition:opacity var(--t-fast) var(--ease); }
+  .fr-code b::after { content:""; position:absolute; left:50%; top:50%; width:5px; height:5px;
+    transform:translate(-50%, -50%); background:var(--gold); border:1px solid var(--text);
+    border-radius:50%; pointer-events:none; transition:opacity var(--t-fast) var(--ease); }
+  .fr-code b:hover, .fr-code b:focus { color:var(--text); text-shadow:none; border-color:var(--gold); outline:none; }
+  .fr-code b:hover::before, .fr-code b:hover::after,
+  .fr-code b:focus::before, .fr-code b:focus::after { opacity:0; }
   .fr-add { display:flex; gap:6px; padding-bottom:10px; border-bottom:1px solid var(--border); }
   .fr-add input { flex:1; min-width:0; margin-top:0; padding:7px 9px; font:inherit;
     font-family:var(--font-mono); color:var(--text); background:var(--bg);
@@ -631,7 +650,7 @@
     <span class="pc-tag">Friends</span>
     <button class="fd-close" id="friendsClose" aria-label="close friends">×</button>
   </div>
-  <div class="fr-code">your code: <b id="myCode">—</b></div>
+  <div class="fr-code">your code: <b id="myCode" tabindex="0" title="hover to reveal">—</b></div>
   <div class="fr-add">
     <input id="codeInput" placeholder="friend code" maxlength="9" />
     <button class="btn ghost" id="addFriendBtn">Add</button>
@@ -743,7 +762,7 @@
           <div class="me-stat"><span>Record</span><b id="meRecord">0-0-0</b></div>
           <div class="me-stat"><span>Win rate</span><b id="meWinRate">--</b></div>
         </div>
-        <div class="me-next" id="meNext">play a match to place</div>
+        <div class="me-next" id="meNext"><span>play a match to place</span></div>
         <div class="me-form-row">
           <span class="me-label">Last 5</span>
           <div class="me-form" id="meForm"></div>
@@ -987,7 +1006,17 @@ function renderMeCard(p) {
   const wins = p.wins || 0, losses = p.losses || 0, draws = p.draws || 0, games = p.games || 0;
   $("meRecord").textContent = `${wins}-${losses}-${draws}`;
   $("meWinRate").textContent = games ? Math.round((wins / games) * 100) + "%" : "--";
-  $("meNext").textContent = next ? `${Math.max(0, next.min - (p.rating || 0))} points to ${next.name}` : "top tier";
+  const progressBox = $("meNext");
+  const rating = p.rating || 0;
+  if (next) {
+    const span = Math.max(1, next.min - t.min);
+    const progress = Math.max(0, Math.min(100, ((rating - t.min) / span) * 100));
+    progressBox.style.setProperty("--rank-progress", progress + "%");
+    progressBox.querySelector("span").textContent = `${Math.max(0, next.min - rating)} points to ${next.name}`;
+  } else {
+    progressBox.style.setProperty("--rank-progress", "100%");
+    progressBox.querySelector("span").textContent = "top tier";
+  }
   renderForm($("meForm"), p.form);
   const badge = $("meBadge");
   badge.textContent = ROMAN[tierIndex] || "VI";
