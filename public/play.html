@@ -109,6 +109,29 @@
     font-size:0.875rem; line-height:1.5; color:var(--text-2); }
   .rules-list b { color:var(--text); font-weight:600; }
   .stage .friends-fab { position:absolute; top:8px; left:8px; z-index:8; width:42px; height:38px; }
+  .stage .settings-fab { left:58px; }   /* sits right beside the friends button */
+
+  /* settings drawer: one row per setting, gold switch on the right */
+  .sd-list { display:flex; flex-direction:column; gap:8px; }
+  .sd-row { display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:10px 12px; background:var(--surface); border:1px solid var(--border);
+    border-radius:var(--r-sm); cursor:pointer;
+    transition:border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
+  .sd-row:hover { border-color:var(--border-2); }
+  .sd-info { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .sd-info b { font-size:14px; font-weight:500; color:var(--text); }
+  .sd-info small { font-size:12px; color:var(--text-3); }
+  .sd-switch { position:relative; flex:none; width:38px; height:22px; }
+  .sd-switch input { position:absolute; inset:0; margin:0; opacity:0; cursor:pointer; }
+  .sd-switch .knob { position:absolute; inset:0; pointer-events:none;
+    background:var(--surface-2); border:1px solid var(--border-2); border-radius:999px;
+    transition:background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
+  .sd-switch .knob::after { content:""; position:absolute; top:2px; left:2px; width:16px; height:16px;
+    border-radius:50%; background:var(--text-2);
+    transition:transform var(--t-mid) var(--ease), background var(--t-fast) var(--ease); }
+  .sd-switch input:checked + .knob { background:var(--gold-dim); border-color:var(--gold); }
+  .sd-switch input:checked + .knob::after { transform:translateX(16px); background:var(--gold); }
+  .sd-switch input:focus-visible + .knob { outline:2px solid var(--gold); outline-offset:2px; }
 
   /* friends + lobby cards keep their panel look */
   .arena { display:flex; gap:12px; align-items:stretch; justify-content:center; }
@@ -686,6 +709,25 @@
   <div class="fr-list" id="friendList"></div>
 </aside>
 
+<!-- Settings drawer: same left-edge slide-out as friends. Empty for now — settings land
+     here one by one. -->
+<aside class="friends-drawer settings-drawer" id="settingsDrawer" aria-hidden="true" aria-label="settings">
+  <div class="fd-head">
+    <span class="pc-tag">Settings</span>
+    <button class="fd-close" id="settingsClose" aria-label="close settings">×</button>
+  </div>
+  <div class="sd-list">
+    <label class="sd-row">
+      <span class="sd-info"><b>Text chat</b><small>match chat on your screen</small></span>
+      <span class="sd-switch"><input type="checkbox" id="setChat" checked /><span class="knob" aria-hidden="true"></span></span>
+    </label>
+    <label class="sd-row">
+      <span class="sd-info"><b>Friend requests</b><small>allow incoming requests by code</small></span>
+      <span class="sd-switch"><input type="checkbox" id="setFriendReq" checked /><span class="knob" aria-hidden="true"></span></span>
+    </label>
+  </div>
+</aside>
+
 <div class="app">
   <!-- Not shown top-left anymore, but many flows still write feedback here (camera errors, queue
        state, bans...) via setStatus() — kept off-screen instead of ripped out call-site by call-site. -->
@@ -699,6 +741,9 @@
       <button class="friends-fab" id="friendsFab" type="button" aria-label="open friends" aria-expanded="false" title="friends">
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M9 11.5a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5zm7.5.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM1.5 20.5v-1.6c0-3.2 3.2-5.4 7.5-5.4s7.5 2.2 7.5 5.4v1.6H1.5zm16.7 0v-1.6c0-1.7-.6-3.2-1.7-4.3.6-.1 1.3-.2 2-.2 3.2 0 5.5 1.9 5.5 4.5v1.6h-5.8z"/></svg>
         <span class="fab-badge hidden" id="reqBadge">0</span>
+      </button>
+      <button class="friends-fab settings-fab" id="settingsFab" type="button" aria-label="open settings" aria-expanded="false" title="settings">
+        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13c.04-.32.06-.66.06-1s-.02-.68-.06-1l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96c-.5-.38-1.04-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.56-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.91 8.78a.5.5 0 0 0 .12.64L5.06 11c-.04.32-.06.66-.06 1s.02.68.06 1l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.61.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.24 1.12-.56 1.62-.94l2.39.96c.21.1.48.01.61-.22l1.92-3.32a.5.5 0 0 0-.12-.64L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
       </button>
       <div class="remote-grid" id="remoteGrid" data-count="0"></div>
       <div class="local-tile" id="localTile">
@@ -1044,7 +1089,7 @@ function renderMeCard(p) {
     const span = Math.max(1, next.min - floor);
     const progress = Math.max(0, Math.min(100, ((rating - floor) / span) * 100));
     $("meNextFill").style.width = progress + "%";
-    progressBox.querySelector("span").textContent = `${Math.max(0, next.min - rating)} points to ${next.name}`;
+    progressBox.querySelector("span").textContent = `${Math.max(0, next.min - rating)} ${next.name}`;
   } else {
     $("meNextFill").style.width = "100%";
     progressBox.querySelector("span").textContent = "top tier";
@@ -1135,10 +1180,36 @@ function setDrawer(open) {
   drawer.classList.toggle("open", open);
   drawer.setAttribute("aria-hidden", String(!open));
   friendsFab.setAttribute("aria-expanded", String(open));
+  if (open) setSettingsDrawer(false);            // the two drawers share the left edge
 }
 friendsFab.addEventListener("click", () => setDrawer(!drawer.classList.contains("open")));
 $("friendsClose").addEventListener("click", () => setDrawer(false));
-document.addEventListener("keydown", e => { if (e.key === "Escape") setDrawer(false); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { setDrawer(false); setSettingsDrawer(false); } });
+
+// ---- settings drawer (same slide-out; content arrives setting by setting) ----
+const settingsDrawer = $("settingsDrawer"), settingsFab = $("settingsFab");
+function setSettingsDrawer(open) {
+  settingsDrawer.classList.toggle("open", open);
+  settingsDrawer.setAttribute("aria-hidden", String(!open));
+  settingsFab.setAttribute("aria-expanded", String(open));
+  if (open) setDrawer(false);
+}
+settingsFab.addEventListener("click", () => setSettingsDrawer(!settingsDrawer.classList.contains("open")));
+$("settingsClose").addEventListener("click", () => setSettingsDrawer(false));
+
+// ---- settings state: persisted locally; switches show feature state (checked = on) ----
+const SETTINGS_KEY = "omeglol_settings";
+let settings = { chatOff: false, reqOff: false };
+try { settings = { ...settings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") }; } catch { /* defaults */ }
+function saveSettings() { try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch { /* storage blocked */ } }
+$("setChat").checked = !settings.chatOff;
+$("setFriendReq").checked = !settings.reqOff;
+$("setChat").addEventListener("change", () => {
+  settings.chatOff = !$("setChat").checked; saveSettings(); applyChatUi();
+});
+$("setFriendReq").addEventListener("change", () => {
+  settings.reqOff = !$("setFriendReq").checked; saveSettings(); applyRequestsPref(); renderFriends();
+});
 $("frTabs").addEventListener("click", e => { const b = e.target.closest("[data-tab]"); if (b) { frTab = b.dataset.tab; renderFriends(); } });
 
 // Dispatcher: every existing call site keeps working — it redraws whichever tab is active
@@ -1152,6 +1223,14 @@ function renderFriends() {
 function renderReqBadge() {
   const n = requests.length;
   for (const el of [$("reqBadge"), $("tabReqCount")]) { el.textContent = n; el.classList.toggle("hidden", !n); }
+}
+// "friend requests off": anything pending (or newly arriving) is auto-declined, so the
+// sender's request simply clears and nothing ever surfaces here — works for requests
+// received while offline too, since the server pushes the pending list on auth.
+function applyRequestsPref() {
+  if (!settings.reqOff || !requests.length) return;
+  for (const r of requests) signal({ type: "declineFriend", fromId: r.id });
+  requests = [];
 }
 // "N friends online" line in the Your Standing card's second rail.
 function renderOnlineCount() {
@@ -1255,14 +1334,24 @@ $("inviteDecline").addEventListener("click", () => { if (pendingInvite) signal({
 const chatLog = $("chatLog"), chatInput = $("chatInput"), chatForm = $("chatForm");
 let chatActive = false;
 function clearChat() { chatLog.innerHTML = `<div class="chat-empty">no messages yet</div>`; }
-function setChatEnabled(on) {
-  if (on && !chatActive) clearChat();                 // fresh log each time a new chat opens
-  chatActive = on;
-  chatInput.disabled = !on; $("chatSend").disabled = !on;
-  chatInput.placeholder = on ? "message…" : "join a match to chat";
-  if (!on) chatInput.value = "";
+// One place decides what the chat box shows: the "chat off" setting wins over everything,
+// otherwise it's the usual join-a-match / message… behavior. The box itself always stays.
+function applyChatUi() {
+  const usable = chatActive && !settings.chatOff;
+  chatInput.disabled = !usable; $("chatSend").disabled = !usable;
+  chatInput.placeholder = settings.chatOff ? "chat is off" : (chatActive ? "message…" : "join a match to chat");
+  if (!usable) chatInput.value = "";
+  if (settings.chatOff) chatLog.innerHTML = `<div class="chat-empty off">Chat Off</div>`;
+  else if (chatLog.querySelector(".chat-empty.off")) clearChat();
 }
+function setChatEnabled(on) {
+  if (on && !chatActive && !settings.chatOff) clearChat();   // fresh log each time a new chat opens
+  chatActive = on;
+  applyChatUi();
+}
+applyChatUi();                                        // reflect the persisted setting on load
 function addChat(name, text, self) {
+  if (settings.chatOff) return;                       // chat is off: incoming messages stay hidden
   const empty = chatLog.querySelector(".chat-empty"); if (empty) empty.remove();
   const row = document.createElement("div");
   row.className = "chat-msg" + (self ? " self" : "");
@@ -1274,6 +1363,7 @@ function addChat(name, text, self) {
 }
 // A muted, sender-only system note in the chat log (moderation feedback). Plain text only.
 function addSystemChat(text) {
+  if (settings.chatOff) return;
   const empty = chatLog.querySelector(".chat-empty"); if (empty) empty.remove();
   const row = document.createElement("div");
   row.className = "chat-msg sys";
@@ -1288,7 +1378,7 @@ const CHAT_BLOCK = {
 chatForm.addEventListener("submit", e => {
   e.preventDefault();
   const text = chatInput.value.trim();
-  if (!text || !chatActive) return;
+  if (!text || !chatActive || settings.chatOff) return;
   signal({ type: "chat", text });
   chatInput.value = "";
 });
@@ -1664,7 +1754,7 @@ ws.addEventListener("message", async (e) => {
       if (selfProfile) { selfProfile.rating = msg.rating; renderCard("self", selfProfile); renderMeCard(selfProfile); }
       break;
     case "friends": friends = msg.list; renderFriends(); break;
-    case "friendRequests": requests = msg.list || []; renderFriends(); break;
+    case "friendRequests": requests = msg.list || []; applyRequestsPref(); renderFriends(); break;
     case "friendRequestSent": setStatus(msg.accepted ? "you're now friends with " + msg.to : "friend request sent to " + msg.to); break;
     case "friendError": setStatus(friendReason[msg.reason] || msg.reason); break;
     case "invited": showInvite(msg.from); break;
