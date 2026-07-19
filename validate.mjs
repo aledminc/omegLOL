@@ -71,6 +71,7 @@ const SCHEMA = {
   friendRequests: () => true,
   acceptFriend:  m => isId(m.fromId),
   declineFriend: m => isId(m.fromId),
+  removeFriend:  m => isId(m.friendId),
   invite:        m => isId(m.friendId),
   acceptInvite:  m => isId(m.fromId),
   declineInvite: m => isId(m.fromId),

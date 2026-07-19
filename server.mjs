@@ -213,8 +213,15 @@ export async function startServer({ db, pool = null, port = PORT }) {
   // malformed JSON bodies are rejected here (413) rather than buffered. Our own routes are GET-only.
   app.use(express.json({ limit: "16kb" }));
 
-  app.use(express.static(PUBLIC));                         // landing, css, js, *.html
-  const page = f => (_req, res) => res.sendFile(path.join(PUBLIC, f));
+  // no-cache = "revalidate every time", NOT "don't cache": unchanged files still answer 304.
+  // Without an explicit Cache-Control, browsers heuristically cache css/js/html off Last-Modified
+  // and can serve stale assets for hours after a deploy (fresh profiles get new files, returning
+  // ones keep old — which looks like a per-user bug, e.g. a theme toggle with no CSS behind it).
+  app.use(express.static(PUBLIC, {                         // landing, css, js, *.html
+    setHeaders: res => res.setHeader("Cache-Control", "no-cache"),
+  }));
+  const page = f => (_req, res) =>
+    res.sendFile(path.join(PUBLIC, f), { headers: { "Cache-Control": "no-cache" } });
   app.get("/login",  page("login.html"));
   app.get("/play",   page("play.html"));
   app.get("/ranked", page("ranked.html"));
@@ -1024,6 +1031,10 @@ export async function startServer({ db, pool = null, port = PORT }) {
       } else if (msg.type === "declineFriend" && c.userId) {
         await db.declineFriendRequest(c.userId, msg.fromId);
         sendFriendRequests(c.userId);
+      } else if (msg.type === "removeFriend" && c.userId) {
+        await db.removeFriend(c.userId, msg.friendId);
+        sendFriends(c.userId);
+        sendFriends(msg.friendId);                             // no-op if they're offline; live update if not
       } else if (msg.type === "friendRequests" && c.userId) {
         sendFriendRequests(c.userId);
       } else if (msg.type === "friends" && c.userId) {

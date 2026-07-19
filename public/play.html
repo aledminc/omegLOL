@@ -593,6 +593,18 @@
     .fr-dot.on { animation:presencePulse 2s ease-in-out infinite; }
   }
   .fr-invite { padding:5px 9px !important; font-size:12px !important; min-height:0 !important; }
+  .fr-row.removable { cursor:pointer; }
+  /* click-a-friend "Remove" popover: a single red chip floated at the click point */
+  .fr-remove-pop { position:fixed; z-index:60; padding:7px 16px; font:inherit; font-size:12px;
+    font-weight:600; letter-spacing:.04em; color:var(--lose); background:var(--surface);
+    border:1px solid var(--lose); border-radius:var(--r-sm); cursor:pointer;
+    box-shadow:var(--shadow-float);
+    transition:background var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+  .fr-remove-pop:hover { background:var(--lose); color:var(--on-video); }
+  @media (prefers-reduced-motion: no-preference) {
+    .fr-remove-pop { animation:frPopIn .14s var(--ease); }
+    @keyframes frPopIn { from { opacity:0; transform:scale(.9); } to { opacity:1; transform:scale(1); } }
+  }
   .fr-empty { flex:1; min-height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;
     gap:10px; padding:18px 10px; text-align:center; color:var(--text-3); font-size:14px; }
 
@@ -741,11 +753,11 @@
       <span class="sd-switch"><input type="checkbox" id="setFriendReq" checked /><span class="knob" aria-hidden="true"></span></span>
     </label>
     <div class="sd-row">
-      <span class="sd-info"><b>Skip keybind</b><small>instantly skips to the next match — no mouse needed</small></span>
+      <span class="sd-info"><b>Skip keybind</b><small>instantly skips current user</small></span>
       <button class="sd-key unset" id="setSkipKey" type="button" title="click, then press a key (Backspace clears)">Not set</button>
     </div>
     <label class="sd-row">
-      <span class="sd-info"><b>Brightness</b><small>dark or light — the golds stay gold</small></span>
+      <span class="sd-info"><b>Brightness</b><small>dark or light mode</small></span>
       <span class="sd-theme">
         <svg class="th-ico th-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
         <span class="sd-switch"><input type="checkbox" id="setLight" /><span class="knob" aria-hidden="true"></span></span>
@@ -1208,6 +1220,7 @@ function setDrawer(open) {
   drawer.setAttribute("aria-hidden", String(!open));
   friendsFab.setAttribute("aria-expanded", String(open));
   if (open) setSettingsDrawer(false);            // the two drawers share the left edge
+  if (!open) closeRemovePop();                   // the chip belongs to a row that just slid away
 }
 friendsFab.addEventListener("click", () => setDrawer(!drawer.classList.contains("open")));
 $("friendsClose").addEventListener("click", () => setDrawer(false));
@@ -1332,17 +1345,45 @@ setInterval(refreshGlobalOnline, 60000);
 $("rulesBtn").addEventListener("click", () => $("rulesModal").classList.remove("hidden"));
 $("rulesClose").addEventListener("click", () => $("rulesModal").classList.add("hidden"));
 $("rulesModal").addEventListener("click", e => { if (e.target === $("rulesModal")) $("rulesModal").classList.add("hidden"); });
+// Clicking a friend's card (anywhere but the invite button) floats a red "Remove" chip at the
+// click point; clicking it unfriends. The fresh "friends" push from the server redraws the list.
+let removePop = null;
+function closeRemovePop() { if (removePop) { removePop.remove(); removePop = null; } }
+function showRemovePop(e, f) {
+  closeRemovePop();
+  const b = document.createElement("button");
+  b.className = "fr-remove-pop"; b.type = "button"; b.textContent = "Remove";
+  b.onclick = ev => {
+    ev.stopPropagation();
+    signal({ type: "removeFriend", friendId: f.id });
+    setStatus("removed " + f.name);
+    closeRemovePop();
+  };
+  document.body.appendChild(b);
+  // anchor to the click, nudged below the cursor and clamped on-screen
+  const r = b.getBoundingClientRect();
+  b.style.left = Math.min(Math.max(6, e.clientX - r.width / 2), innerWidth - r.width - 6) + "px";
+  b.style.top = Math.min(Math.max(6, e.clientY + 10), innerHeight - r.height - 6) + "px";
+  removePop = b;
+}
+// dismiss on any click that isn't the chip or a friend card (the opening click lands on a card)
+document.addEventListener("click", e => {
+  if (removePop && e.target !== removePop && !e.target.closest(".fr-row")) closeRemovePop();
+});
+$("friendList").addEventListener("scroll", closeRemovePop);   // don't let it drift off its row
 function renderFriendRows() {
   const wrap = $("friendList"); wrap.innerHTML = "";
+  closeRemovePop();                                           // its row may be gone after a redraw
   if (!friends.length) { wrap.innerHTML = `<div class="fr-empty">add a friend by code</div>`; return; }
   for (const f of friends) {
-    const row = document.createElement("div"); row.className = "fr-row";
+    const row = document.createElement("div"); row.className = "fr-row removable";
     const dot = document.createElement("span"); dot.className = "fr-dot" + (f.online ? " on" : "");
     const nm = document.createElement("span"); nm.className = "fr-name"; nm.textContent = f.name;
     const btn = document.createElement("button"); btn.className = "btn ghost fr-invite";
     btn.textContent = f.online ? "Invite" : "offline";
     btn.disabled = !(f.online && mode === "duos" && !lobby && $("next").disabled);     // invite only makes sense in duos, pre-lobby
-    btn.onclick = () => { signal({ type: "invite", friendId: f.id }); setStatus("invited " + f.name + "…"); };
+    btn.onclick = ev => { ev.stopPropagation(); signal({ type: "invite", friendId: f.id }); setStatus("invited " + f.name + "…"); };
+    row.onclick = e => { if (e.target.closest(".fr-invite")) return; showRemovePop(e, f); };
     row.append(dot, nm, btn); wrap.appendChild(row);
   }
 }

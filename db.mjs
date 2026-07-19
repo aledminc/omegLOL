@@ -595,6 +595,14 @@ export function makeDb(pool) {
     return { ok: true };
   }
 
+  // Unfriending is mutual, same as friending: either side can sever it, and both directed rows go.
+  async function removeFriend(userId, friendId) {
+    await pool.query(
+      "DELETE FROM friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)",
+      [userId, friendId]);
+    return { ok: true };
+  }
+
   async function listFriends(userId) {
     const { rows } = await pool.query(
       `SELECT u.id, u.name, u.rating, u.friend_code
@@ -607,7 +615,7 @@ export function makeDb(pool) {
   }
 
   return { initSchema, getOrCreateUser, getUserByAuthId, createAuthedUser, createGuestUser, isNameTaken, logModeration, setConsent, recordMatch, recordDuosRatings, topPlayers, getUserByToken, recentMatches, getUserById,
-    requestFriend, listFriendRequests, acceptFriendRequest, declineFriendRequest, listFriends,
+    requestFriend, listFriendRequests, acceptFriendRequest, declineFriendRequest, removeFriend, listFriends,
     insertReport, getReportCluster, getActiveBan, countPriorBans, issueBan, adjustTrust, getTrust, recentReportsBy, gamesPlayed, agingUncorroboratedReports, markStaleChecked,
     listReports, listModEvents, listActiveBans, listBans, reportsAgainst, reportsBy, clearReport, clearActiveBans };
 }
