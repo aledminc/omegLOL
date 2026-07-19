@@ -67,6 +67,7 @@ const SCHEMA = {
                       (m.tier  === undefined || REACTION_TIERS.includes(m.tier)),
   chat:          m => strOk(m.text ?? "", CHAT_MAX * 4),   // generous pre-clean cap; cleanText trims to CHAT_MAX
   rtcStat:       m => typeof m.ok === "boolean",           // peer-connection outcome (observability counter)
+  sound:         m => strOk(m.id ?? "", 64),               // soundboard trigger: catalog id only, no audio
   addFriend:     m => strOk(m.code ?? "", CODE_MAX * 2),   // sends a friend REQUEST (accepted via acceptFriend)
   friendRequests: () => true,
   acceptFriend:  m => isId(m.fromId),

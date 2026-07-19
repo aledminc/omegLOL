@@ -244,12 +244,13 @@ export async function startServer({ db, pool = null, port = PORT }) {
   const SOUNDS_DIR = path.join(__dirname, "sounds");
   const SOUND_EXTS = new Set([".mp3", ".ogg", ".wav", ".m4a", ".webm"]);
   let soundCache = null;   // { list, at } — re-listed at most once a minute
-  app.get("/api/sounds", mkLimit(RATE.read), async (_req, res) => {
-    try {
-      if (!soundCache || Date.now() - soundCache.at > 60_000) {
+  async function getSoundCatalog() {
+    if (!soundCache || Date.now() - soundCache.at > 60_000) {
+      let list = [];
+      try {
         const files = (await fs.readdir(SOUNDS_DIR))
           .filter(f => SOUND_EXTS.has(path.extname(f).toLowerCase())).sort();
-        const list = files.map(f => {
+        list = files.map(f => {
           const base = f.replace(/\.[^.]+$/, "");
           return {
             id: base.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
@@ -257,11 +258,13 @@ export async function startServer({ db, pool = null, port = PORT }) {
             url: "/sounds/" + encodeURIComponent(f),
           };
         });
-        soundCache = { list, at: Date.now() };
-      }
-      res.json({ sounds: soundCache.list });
-    } catch { res.json({ sounds: [] }); }   // no sounds dir -> empty board, not an error
-  });
+      } catch { /* no sounds dir -> empty board, not an error */ }
+      soundCache = { list, at: Date.now() };
+    }
+    return soundCache.list;
+  }
+  app.get("/api/sounds", mkLimit(RATE.read), async (_req, res) =>
+    res.json({ sounds: await getSoundCatalog() }));
   app.use("/sounds", express.static(SOUNDS_DIR, {          // audio blobs change rarely: cache an hour
     setHeaders: res => res.setHeader("Cache-Control", "public, max-age=3600"),
   }));
@@ -1041,6 +1044,15 @@ export async function startServer({ db, pool = null, port = PORT }) {
         if (c.lastChat === text && (now - (c.lastChatAt || 0)) < CHAT_DUP_WINDOW) { send(id, { type: "chatBlocked", reason: "dup" }); return; }
         c.lastChat = text; c.lastChatAt = now;
         for (const pid of chatPeers(id)) send(pid, { type: "chat", from: c.name, fromId: id, text, self: pid === id });
+      } else if (msg.type === "sound" && c.userId) {
+        // Soundboard relay: no audio crosses the wire — only a catalog id. Every client holds
+        // the same catalog (from /api/sounds), so each end just triggers local playback.
+        const now = Date.now();
+        if (now - (c.lastSoundAt || 0) < 1500) return;           // spam guard: one trigger / 1.5s
+        const catalog = await getSoundCatalog();
+        if (!catalog.some(s => s.id === msg.id)) return;         // only real catalog ids relay
+        c.lastSoundAt = now;
+        for (const pid of chatPeers(id)) send(pid, { type: "sound", id: msg.id, from: c.name, self: pid === id });
       } else if (msg.type === "addFriend" && c.userId) {
         // Sends a friend REQUEST; the friendship only forms when the other side accepts.
         // (Crossed requests auto-accept in db.requestFriend — both sides already said yes.)

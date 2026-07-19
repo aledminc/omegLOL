@@ -1807,13 +1807,22 @@ function saveSoundFavs() { try { localStorage.setItem(SOUND_FAVS_KEY, JSON.strin
 const soundPop = $("soundPop"), sndAudio = new Audio();
 let playingSnd = null;
 sndAudio.addEventListener("ended", () => { playingSnd = null; renderSounds(); });
-function playSound(s) {
-  if (playingSnd === s.id) {                       // tap again to stop
-    sndAudio.pause(); sndAudio.currentTime = 0; playingSnd = null; renderSounds(); return;
-  }
-  playingSnd = s.id; sndAudio.src = s.url;
+// The actual local playback: always retriggers from the top (soundboard semantics).
+function triggerSound(s) {
+  playingSnd = s.id; sndAudio.src = s.url; sndAudio.currentTime = 0;
   sndAudio.play().catch(() => { playingSnd = null; renderSounds(); });
   renderSounds();
+}
+// A press with peers (match, or duo lobby) doesn't play directly — it sends the catalog id
+// over signaling and the server relays it to EVERYONE in the room, us included, so every
+// end triggers the same local audio off the same event. Alone in the lobby it's a preview:
+// plays immediately, press again to stop.
+function playSound(s) {
+  if (stageEl.classList.contains("split") || lobby) { signal({ type: "sound", id: s.id }); return; }
+  if (playingSnd === s.id) {                       // preview mode: tap again to stop
+    sndAudio.pause(); sndAudio.currentTime = 0; playingSnd = null; renderSounds(); return;
+  }
+  triggerSound(s);
 }
 
 const SND_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M3.4 9h3.3l5.2-4.2c.65-.52 1.6-.06 1.6.77v12.86c0 .83-.95 1.3-1.6.77L6.7 15H3.4c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M16.2 9.4a4 4 0 0 1 0 5.2M18.8 7.2a7.4 7.4 0 0 1 0 9.6"/></svg>';
@@ -2260,6 +2269,11 @@ ws.addEventListener("message", async (e) => {
     case "lobbyClosed": lobby = null; duosQueued = false; renderLobby(); updateModeUI(); stopLobbyPreview(); setChatEnabled(false); setStatus("lobby closed"); showSearching(false); break;
     case "chat": addChat(msg.from, msg.text, msg.self); break;
     case "chatBlocked": { const t = CHAT_BLOCK[msg.reason] ?? "message blocked"; if (t) addSystemChat(t); break; }
+    case "sound": {   // soundboard trigger relayed to the whole room — play it locally
+      const s = sounds.find(x => x.id === msg.id);
+      if (s) { triggerSound(s); addSystemChat((msg.self ? "you" : msg.from || "someone") + " played “" + s.name + "”"); }
+      break;
+    }
     case "inviteDeclined": setStatus((msg.by || "they") + " declined the invite"); break;
     case "duosWaiting": duosQueued = true; updateModeUI(); setStatus("searching for another duo…"); showSearching(true, "Finding a duo"); break;
     case "duosCanceled": duosQueued = false; updateModeUI(); setStatus("duo queue canceled — still in lobby"); showSearching(false); break;
