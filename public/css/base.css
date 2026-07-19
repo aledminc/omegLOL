@@ -26,6 +26,7 @@
   /* ---- color: spotlight (the ONE accent) ---- */
   --gold:          #F2B01E;
   --gold-2:        #FFC53D;   /* hover/active */
+  --gold-ink:      #0D0C0A;   /* text ON gold fills — constant across themes */
   --gold-dim:      rgba(242, 176, 30, 0.12);
   --gold-glow:     rgba(242, 176, 30, 0.22);
   --gold-faint:    rgba(242, 176, 30, 0.05);  /* the signature spotlight glow */
@@ -44,6 +45,8 @@
   --scrim:         rgba(13, 12, 10, 0.72);     /* nameplate chips */
   --scrim-heavy:   rgba(13, 12, 10, 0.88);     /* banner plates over video */
   --nav-bg:        rgba(13, 12, 10, 0.82);
+  --on-video:      #F5F2EC;                    /* text over video/scrims — constant across themes */
+  --on-video-dim:  #A39B8B;
 
   /* ---- type ---- */
   --font-display:  "Space Grotesk", "Inter", sans-serif;
@@ -93,6 +96,23 @@
   --shadow-panel: 0 0 0 0 transparent;
   --scanlines:  none;
   --noise:      none;
+}
+
+/* ---- light theme: darks invert, golds and semantics stay put ----
+   Applied via <html data-theme="light">, set pre-paint by a tiny head snippet on every
+   page reading localStorage "omeglol_theme" (toggled from the play page's settings).
+   Video-adjacent tokens (--cam, --scrim*, --on-video*) intentionally do NOT flip. */
+:root[data-theme="light"] {
+  --bg:            #F2EEE6;
+  --surface:       #FBF8F2;
+  --surface-2:     #EFEADF;
+  --border:        #DFD8C8;
+  --border-2:      #C4BAA4;
+  --text:          #1E1B17;
+  --text-2:        #6B655A;
+  --text-3:        #9A917F;
+  --nav-bg:        rgba(251, 248, 242, 0.85);
+  --shadow-float:  0 16px 48px rgba(30, 27, 23, 0.16);
 }
 
 * { box-sizing: border-box; }
@@ -271,10 +291,10 @@ a:hover { color: var(--gold-2); }
 .btn.gold {
   background: var(--gold);
   border-color: transparent;
-  color: var(--bg);
+  color: var(--gold-ink);
   font-weight: 500;
 }
-.btn.gold:hover { background: var(--gold-2); color: var(--bg); }
+.btn.gold:hover { background: var(--gold-2); color: var(--gold-ink); }
 .btn.xl { min-height: 48px; padding: 10px var(--s5); font-size: 1.0625rem; }
 .btn.disabled, .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
@@ -506,7 +526,7 @@ a:hover { color: var(--gold-2); }
 .banner .big {
   font-family: var(--font-display); font-weight: 700;
   font-size: 2rem; letter-spacing: -0.02em; text-transform: uppercase;
-  color: var(--text);
+  color: var(--on-video);
 }
 .banner .count {
   font-family: var(--font-mono); font-weight: 500;
@@ -514,7 +534,7 @@ a:hover { color: var(--gold-2); }
   font-size: 4rem;
   color: var(--gold);
 }
-.banner .sub { color: var(--text-2); font-size: 1rem; font-weight: 500; }
+.banner .sub { color: var(--on-video-dim); font-size: 1rem; font-weight: 500; }
 .banner .delta {
   font-family: var(--font-mono); font-weight: 500;
   font-variant-numeric: tabular-nums;
@@ -638,7 +658,7 @@ a:hover { color: var(--gold-2); }
 .gate input:focus { border-color: var(--gold); }
 .gate button {
   background: var(--gold);
-  color: var(--bg);
+  color: var(--gold-ink);
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   font-weight: 500;
