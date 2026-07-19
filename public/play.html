@@ -628,6 +628,81 @@
   .chat-form .btn { padding:7px 10px; min-height:0; }
   .chat-form .btn:disabled { opacity:.55; cursor:not-allowed; }
 
+  /* ---- joke bank: your prepared material. Faded-gold fab lives on YOUR cam —
+     top-right in the lobby, bottom-right during a match (nameplate owns bottom-left). ---- */
+  .bank-fab { position:absolute; top:8px; right:8px; z-index:7; width:42px; height:38px;
+    display:grid; place-items:center; padding:0; cursor:pointer; color:var(--gold); opacity:.72;
+    background:rgba(242,176,30,.14); border:1px solid rgba(242,176,30,.38); border-radius:var(--r-sm);
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    transition:opacity var(--t-fast) var(--ease), background var(--t-fast) var(--ease),
+      transform var(--t-fast) var(--ease); }
+  .bank-fab:hover { opacity:1; background:rgba(242,176,30,.24); transform:translateY(-1px); }
+  .bank-fab:active { transform:translateY(0); }
+  .stage.split .local-tile .bank-fab { top:auto; bottom:8px; }
+
+  /* lobby editor popup: draggable by its header, resizable from the corner */
+  .bank-pop { position:fixed; z-index:30; top:calc(var(--navH, 56px) + 18px); right:18px;
+    width:340px; height:440px; min-width:280px; min-height:250px; max-width:92vw; max-height:82vh;
+    display:flex; flex-direction:column; gap:8px; padding:10px;
+    background:var(--surface); border:1px solid var(--border-2); border-radius:var(--r-lg);
+    box-shadow:var(--shadow-float); resize:both; overflow:hidden; }
+  .bank-pop.hidden { display:none; }
+  .bank-head { display:flex; align-items:center; gap:8px; padding-bottom:8px;
+    border-bottom:1px solid var(--border); cursor:grab; user-select:none; touch-action:none; }
+  .bank-head:active { cursor:grabbing; }
+  .bank-head .pc-tag { align-self:center; padding:0; }
+  .bank-count { margin-left:auto; font-family:var(--font-mono); font-size:11px; color:var(--text-3); }
+  .bank-add-btn { align-self:flex-start; padding:7px 12px !important; min-height:0 !important; font-size:12px !important; }
+  .bank-add-btn.hidden { display:none; }
+  .bank-form { display:flex; flex-direction:column; gap:6px; }
+  .bank-form.hidden { display:none; }
+  .bank-form input, .bank-form textarea { width:100%; margin:0; padding:7px 9px; font:inherit;
+    font-size:13px; color:var(--text); background:var(--bg); border:1px solid var(--border);
+    border-radius:var(--r-sm); outline:none; transition:border-color var(--t-fast) var(--ease); }
+  .bank-form input:focus, .bank-form textarea:focus { border-color:var(--gold); }
+  .bank-form input::placeholder, .bank-form textarea::placeholder { color:var(--text-3); }
+  .bank-form textarea { height:86px; resize:none; }
+  .bank-form-row { display:flex; align-items:center; gap:6px; }
+  .bank-chars { margin-right:auto; font-family:var(--font-mono); font-size:11px; color:var(--text-3); }
+  .bank-form-row .btn { padding:6px 10px; min-height:0; font-size:12px; }
+
+  /* the shelf of jokes (shared by the popup and the read-only match tab) */
+  .bank-list { flex:1; min-height:0; display:flex; flex-direction:column; gap:6px; overflow-y:auto;
+    padding:8px; background:var(--bg); border:1px solid var(--border); border-radius:var(--r-sm); }
+  .bank-joke { position:relative; flex:none; padding:8px 10px; background:var(--surface);
+    border:1px solid var(--border); border-radius:var(--r-sm);
+    transition:border-color var(--t-fast) var(--ease); }
+  .bank-joke:hover { border-color:var(--border-2); }
+  .bj-title { margin:0 24px 3px 0; font-weight:600; font-size:13px; color:var(--gold); overflow-wrap:anywhere; }
+  .bj-text { font-size:13px; line-height:1.45; color:var(--text); white-space:pre-wrap; overflow-wrap:anywhere; }
+  .bj-del { position:absolute; top:6px; right:6px; display:grid; place-items:center; width:24px; height:24px;
+    padding:0; color:var(--text-3); background:transparent; border:0; border-radius:6px; cursor:pointer;
+    opacity:0; transition:opacity var(--t-fast) var(--ease), color var(--t-fast) var(--ease); }
+  .bank-joke:hover .bj-del, .bj-del:focus-visible { opacity:1; }
+  .bj-del:hover { color:var(--lose); background:var(--lose-dim); }
+  .bank-empty { margin:auto; padding:14px; text-align:center; color:var(--text-3); font-size:13px; line-height:1.5; }
+
+  /* ---- chat card as a browser: tab strip across the top. "Chat" is permanent;
+     "Joke Bank" appears when opened from the fab and carries its own ×. ---- */
+  .chat-tabs { display:flex; align-items:flex-end; gap:3px; margin:-10px -10px 2px; padding:6px 8px 0;
+    background:var(--bg); border-bottom:1px solid var(--border);
+    border-radius:inherit; border-bottom-left-radius:0; border-bottom-right-radius:0; }
+  .chat-tab { display:flex; align-items:center; gap:7px; padding:6px 11px 7px; font:inherit;
+    font-size:11px; font-weight:500; letter-spacing:.07em; text-transform:uppercase;
+    color:var(--text-2); background:transparent; border:1px solid transparent; border-bottom:0;
+    border-radius:9px 9px 0 0; cursor:pointer;
+    transition:color var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
+  .chat-tab:hover { color:var(--text); }
+  .chat-tab.active { margin-bottom:-1px; padding-bottom:8px; background:var(--surface);
+    border-color:var(--border); color:var(--text); }
+  .chat-tab.hidden { display:none; }
+  .chat-tab .ct-x { display:grid; place-items:center; width:14px; height:14px;
+    font-size:12px; line-height:1; color:var(--text-3); border-radius:4px; }
+  .chat-tab .ct-x:hover { color:var(--lose); background:var(--lose-dim); }
+  #chatCard .bank-view { display:none; }
+  #chatCard.show-bank .bank-view { display:flex; }
+  #chatCard.show-bank .chat-log, #chatCard.show-bank .chat-form { display:none; }
+
   /* duo lobby: a compact chip sitting directly above the camera, far right (in the status-row
      band). It's absolutely positioned and lifted fully above the stage, so it never pushes the
      camera down — the camera top always stays in line with the mode-filter top, with no overlap. */
@@ -767,6 +842,27 @@
   </div>
 </aside>
 
+<!-- Joke Bank editor (lobby): draggable by its header, resizable from the corner.
+     Jokes live in localStorage on this browser only — in a match they're view-only via the chat tab. -->
+<div class="bank-pop hidden" id="bankPop" role="dialog" aria-label="joke bank">
+  <div class="bank-head" id="bankHead">
+    <span class="pc-tag">Joke Bank</span>
+    <span class="bank-count" id="bankCount">0/10</span>
+    <button class="fd-close" id="bankClose" type="button" aria-label="close joke bank">×</button>
+  </div>
+  <button class="btn gold bank-add-btn" id="bankAddBtn" type="button">Add +</button>
+  <form class="bank-form hidden" id="bankForm">
+    <input id="bankTitle" maxlength="30" placeholder="title" autocomplete="off" />
+    <textarea id="bankText" maxlength="350" placeholder="the joke…"></textarea>
+    <div class="bank-form-row">
+      <span class="bank-chars" id="bankChars">0/350</span>
+      <button class="btn ghost" id="bankCancel" type="button">Cancel</button>
+      <button class="btn gold" id="bankSave" type="submit">Save</button>
+    </div>
+  </form>
+  <div class="bank-list" id="bankList"></div>
+</div>
+
 <div class="app">
   <!-- Not shown top-left anymore, but many flows still write feedback here (camera errors, queue
        state, bans...) via setStatus() — kept off-screen instead of ripped out call-site by call-site. -->
@@ -792,6 +888,9 @@
           <span class="cc-rank" id="selfRank">—</span>
           <div class="cc-form" id="selfForm"></div>
         </div>
+        <button class="bank-fab" id="bankFab" type="button" aria-label="open joke bank" title="joke bank">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M11.4 2.6a1.3 1.3 0 0 1 1.2 0l8.9 5.2c1 .6.6 2.1-.6 2.1H3.1c-1.2 0-1.6-1.5-.6-2.1l8.9-5.2zM4.6 11.4h2.7v6.2H4.6v-6.2zm6.05 0h2.7v6.2h-2.7v-6.2zm6.05 0h2.7v6.2h-2.7v-6.2zM3.6 19.1h16.8c.7 0 1.25.55 1.25 1.25S21.1 21.6 20.4 21.6H3.6c-.7 0-1.25-.55-1.25-1.25S2.9 19.1 3.6 19.1z"/></svg>
+        </button>
       </div>
       <!-- in a match the cams split apart and this column sits between them -->
       <div class="match-mid" id="matchMid">
@@ -800,10 +899,14 @@
           <span class="rt-count" id="rtCount">:30</span>
         </div>
         <div class="pcard panel" id="chatCard">
-          <span class="pc-tag">Chat</span>
+          <div class="chat-tabs">
+            <button type="button" class="chat-tab active" id="tabChat">Chat</button>
+            <button type="button" class="chat-tab hidden" id="tabBank">Joke Bank<span class="ct-x" id="tabBankX" aria-label="close joke bank">×</span></button>
+          </div>
           <div class="chat-log" id="chatLog">
             <div class="chat-empty" id="chatEmpty">no messages yet</div>
           </div>
+          <div class="bank-list bank-view" id="bankView"></div>
           <form class="chat-form" id="chatForm">
             <input id="chatInput" placeholder="join a match to chat" maxlength="200" autocomplete="off" disabled />
             <button class="btn" type="submit" id="chatSend" disabled>Send</button>
@@ -1224,7 +1327,7 @@ function setDrawer(open) {
 }
 friendsFab.addEventListener("click", () => setDrawer(!drawer.classList.contains("open")));
 $("friendsClose").addEventListener("click", () => setDrawer(false));
-document.addEventListener("keydown", e => { if (e.key === "Escape") { setDrawer(false); setSettingsDrawer(false); } });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { setDrawer(false); setSettingsDrawer(false); $("bankPop").classList.add("hidden"); } });
 
 // ---- settings drawer (same slide-out; content arrives setting by setting) ----
 const settingsDrawer = $("settingsDrawer"), settingsFab = $("settingsFab");
@@ -1360,10 +1463,10 @@ function showRemovePop(e, f) {
     closeRemovePop();
   };
   document.body.appendChild(b);
-  // anchor to the click, nudged below the cursor and clamped on-screen
+  // centered on the click point, clamped on-screen
   const r = b.getBoundingClientRect();
   b.style.left = Math.min(Math.max(6, e.clientX - r.width / 2), innerWidth - r.width - 6) + "px";
-  b.style.top = Math.min(Math.max(6, e.clientY + 10), innerHeight - r.height - 6) + "px";
+  b.style.top = Math.min(Math.max(6, e.clientY - r.height / 2), innerHeight - r.height - 6) + "px";
   removePop = b;
 }
 // dismiss on any click that isn't the chip or a friend card (the opening click lands on a card)
@@ -1503,6 +1606,107 @@ chatForm.addEventListener("submit", e => {
   signal({ type: "chat", text });
   chatInput.value = "";
 });
+
+// ---------- joke bank: prepared material, saved locally on this browser ----------
+// Lobby: the faded-gold fab on your cam opens a draggable/resizable editor popup.
+// Match: the same fab (now bottom-right) opens a read-only "Joke Bank" tab on the chat card.
+const JOKES_KEY = "omeglol_jokes", JOKES_MAX = 10, JOKE_TITLE_MAX = 30, JOKE_TEXT_MAX = 350;
+let jokes = [];
+try {
+  const j = JSON.parse(localStorage.getItem(JOKES_KEY) || "[]");
+  if (Array.isArray(j)) jokes = j.slice(0, JOKES_MAX).map(o => ({
+    title: String(o?.title ?? "").slice(0, JOKE_TITLE_MAX),
+    text: String(o?.text ?? "").slice(0, JOKE_TEXT_MAX),
+  })).filter(o => o.text);
+} catch {}
+function saveJokes() { try { localStorage.setItem(JOKES_KEY, JSON.stringify(jokes)); } catch {} }
+
+const bankPop = $("bankPop"), bankForm = $("bankForm"), bankTitle = $("bankTitle"), bankText = $("bankText");
+const TRASH_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M9.2 3h5.6l.9 1.8H20v2H4v-2h4.3L9.2 3zM5.8 8.6h12.4l-.8 11.5A2 2 0 0 1 15.4 22H8.6a2 2 0 0 1-2-1.9L5.8 8.6zm4 2.4v8h1.6v-8H9.8zm3 0v8h1.6v-8h-1.6z"/></svg>';
+function renderJokes() {
+  $("bankCount").textContent = jokes.length + "/" + JOKES_MAX;
+  const full = jokes.length >= JOKES_MAX;
+  $("bankAddBtn").disabled = full;
+  $("bankAddBtn").textContent = full ? "Bank Full" : "Add +";
+  for (const [wrap, editable] of [[$("bankList"), true], [$("bankView"), false]]) {
+    wrap.innerHTML = "";
+    if (!jokes.length) {
+      const d = document.createElement("div"); d.className = "bank-empty";
+      d.textContent = editable ? "no jokes banked yet — save your best material" : "your joke bank is empty — write some in the lobby";
+      wrap.appendChild(d); continue;
+    }
+    jokes.forEach((j, i) => {
+      const card = document.createElement("div"); card.className = "bank-joke";
+      const t = document.createElement("div"); t.className = "bj-title"; t.textContent = j.title || "untitled";
+      const x = document.createElement("div"); x.className = "bj-text"; x.textContent = j.text;
+      card.append(t, x);
+      if (editable) {
+        const del = document.createElement("button");
+        del.type = "button"; del.className = "bj-del"; del.title = "delete"; del.innerHTML = TRASH_SVG;
+        del.onclick = () => { jokes.splice(i, 1); saveJokes(); renderJokes(); };
+        card.appendChild(del);
+      }
+      wrap.appendChild(card);
+    });
+  }
+}
+function closeBankForm() {
+  bankForm.classList.add("hidden"); $("bankAddBtn").classList.remove("hidden");
+  bankForm.reset(); $("bankChars").textContent = "0/" + JOKE_TEXT_MAX;
+}
+$("bankAddBtn").addEventListener("click", () => {
+  bankForm.classList.remove("hidden"); $("bankAddBtn").classList.add("hidden"); bankTitle.focus();
+});
+$("bankCancel").addEventListener("click", closeBankForm);
+bankText.addEventListener("input", () => { $("bankChars").textContent = bankText.value.length + "/" + JOKE_TEXT_MAX; });
+bankForm.addEventListener("submit", e => {
+  e.preventDefault();
+  const title = bankTitle.value.trim().slice(0, JOKE_TITLE_MAX);
+  const text = bankText.value.trim().slice(0, JOKE_TEXT_MAX);
+  if (!text || jokes.length >= JOKES_MAX) return;
+  jokes.push({ title, text }); saveJokes(); renderJokes(); closeBankForm();
+});
+$("bankClose").addEventListener("click", () => bankPop.classList.add("hidden"));
+
+// drag by the header (buttons excluded); first grab converts the right-anchor to left/top
+(() => {
+  const head = $("bankHead");
+  let dragging = false, sx = 0, sy = 0, ox = 0, oy = 0;
+  head.addEventListener("pointerdown", e => {
+    if (e.target.closest("button")) return;
+    const r = bankPop.getBoundingClientRect();
+    bankPop.style.left = r.left + "px"; bankPop.style.top = r.top + "px"; bankPop.style.right = "auto";
+    dragging = true; sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
+    head.setPointerCapture(e.pointerId);
+  });
+  head.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    bankPop.style.left = Math.min(Math.max(0, ox + e.clientX - sx), innerWidth - 80) + "px";
+    bankPop.style.top = Math.min(Math.max(0, oy + e.clientY - sy), innerHeight - 40) + "px";
+  });
+  head.addEventListener("pointerup", () => { dragging = false; });
+  head.addEventListener("pointercancel", () => { dragging = false; });
+})();
+
+// in-match "browser" tabs on the chat card
+const tabBank = $("tabBank");
+function setChatTab(bank) {
+  $("chatCard").classList.toggle("show-bank", bank);
+  $("tabChat").classList.toggle("active", !bank);
+  tabBank.classList.toggle("active", bank);
+}
+function openBankTab() { renderJokes(); tabBank.classList.remove("hidden"); setChatTab(true); }
+function closeBankTab() { tabBank.classList.add("hidden"); setChatTab(false); }
+$("tabChat").addEventListener("click", () => setChatTab(false));
+tabBank.addEventListener("click", e => {
+  if (e.target.closest(".ct-x")) closeBankTab(); else setChatTab(true);
+});
+
+$("bankFab").addEventListener("click", () => {
+  if (stageEl.classList.contains("split")) openBankTab();       // in a match -> chat tab
+  else { renderJokes(); bankPop.classList.toggle("hidden"); }   // in the lobby -> editor popup
+});
+renderJokes();
 
 // ---------- media + WebRTC ----------
 // Concurrency-safe: when the lobby cam opens, startMesh and a racing inbound acceptOffer can
@@ -1737,6 +1941,7 @@ function resetMatchUi() {
   $("themLabel").textContent = "them";
   clearOpponent();
   setChatEnabled(false);
+  closeBankTab();                // next match starts on the Chat tab
   setScores({ you: 0, them: 0 });
 }
 // ---------- round timer: draining bar + :SS readout above the chat ----------
@@ -1854,6 +2059,7 @@ ws.addEventListener("message", async (e) => {
       renderMatchCards(msg);
       matchPeers = (msg.peers || []).map(p => ({ id: p.id, name: p.name, team: p.team }));   // report dropdown roster
       stageEl.classList.add("split");   // cams pull apart; chat/next/report take the middle
+      $("bankPop").classList.add("hidden");   // the lobby joke editor doesn't follow you into a match
       document.querySelector(".scorebar").classList.add("live");
       try { await startMesh(msg.peers || []); } catch (err) { setStatus("camera error: " + err.message); }
       ensureDetector();
