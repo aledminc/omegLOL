@@ -1,6 +1,7 @@
 import express from "express";
 import http from "node:http";
 import path from "node:path";
+import fs from "node:fs/promises";
 import crypto from "node:crypto";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { WebSocketServer } from "ws";
@@ -236,6 +237,34 @@ export async function startServer({ db, pool = null, port = PORT }) {
   });
   // Global presence: just the aggregate count of players online right now (no ids, no names).
   app.get("/api/online", mkLimit(RATE.read), (_req, res) => res.json({ online: online.size }));
+
+  // Soundboard catalog. Clients never reference audio files directly — they consume this
+  // manifest of { id, name, url }, so moving the blobs to external object storage later only
+  // changes this endpoint (mint external URLs here), with zero client changes.
+  const SOUNDS_DIR = path.join(__dirname, "sounds");
+  const SOUND_EXTS = new Set([".mp3", ".ogg", ".wav", ".m4a", ".webm"]);
+  let soundCache = null;   // { list, at } — re-listed at most once a minute
+  app.get("/api/sounds", mkLimit(RATE.read), async (_req, res) => {
+    try {
+      if (!soundCache || Date.now() - soundCache.at > 60_000) {
+        const files = (await fs.readdir(SOUNDS_DIR))
+          .filter(f => SOUND_EXTS.has(path.extname(f).toLowerCase())).sort();
+        const list = files.map(f => {
+          const base = f.replace(/\.[^.]+$/, "");
+          return {
+            id: base.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+            name: base,
+            url: "/sounds/" + encodeURIComponent(f),
+          };
+        });
+        soundCache = { list, at: Date.now() };
+      }
+      res.json({ sounds: soundCache.list });
+    } catch { res.json({ sounds: [] }); }   // no sounds dir -> empty board, not an error
+  });
+  app.use("/sounds", express.static(SOUNDS_DIR, {          // audio blobs change rarely: cache an hour
+    setHeaders: res => res.setHeader("Cache-Control", "public, max-age=3600"),
+  }));
 
   // WebRTC ICE config (STUN always; TURN when configured). Credentials are short-lived, so we cache
   // one shared set server-side until just before expiry rather than minting per request. Cloudflare

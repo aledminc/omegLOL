@@ -666,6 +666,9 @@
   .bank-fab:hover { opacity:1; background:rgba(242,176,30,.24); transform:translateY(-1px); }
   .bank-fab:active { transform:translateY(0); }
   .stage.split .local-tile .bank-fab { left:8px; right:auto; }   /* match: top-LEFT of your cam */
+  /* soundboard fab rides beside the bank in both layouts */
+  .sound-fab { right:58px; }
+  .stage.split .local-tile .sound-fab { left:58px; }
 
   /* lobby editor popup: draggable by its header, resizable from the corner */
   .bank-pop { position:fixed; z-index:30; top:calc(var(--navH, 56px) + 18px); right:18px;
@@ -709,6 +712,25 @@
   .bj-del:hover { color:var(--lose); background:var(--lose-dim); }
   .bank-empty { margin:auto; padding:14px; text-align:center; color:var(--text-3); font-size:13px; line-height:1.5; }
 
+  /* ---- soundboard: same popup shell as the joke bank, offset so they can coexist ---- */
+  .sound-pop { right:46px; top:calc(var(--navH, 56px) + 46px); height:400px; }
+  .snd-row { display:flex; align-items:center; gap:9px; flex:none; padding:8px 10px;
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--r-sm);
+    cursor:pointer; user-select:none;
+    transition:border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
+  .snd-row:hover { border-color:var(--border-2); background:var(--surface-2); }
+  .snd-row.playing { border-color:var(--gold); }
+  .snd-ico { flex:none; display:grid; place-items:center; color:var(--text-3); }
+  .snd-row.playing .snd-ico { color:var(--gold); }
+  .snd-name { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-size:13px; font-weight:500; color:var(--text); text-transform:capitalize; }
+  .snd-fav { flex:none; width:26px; height:26px; display:grid; place-items:center; padding:0;
+    font-size:15px; line-height:1; color:var(--text-3); background:transparent; border:0;
+    border-radius:6px; cursor:pointer; transition:color var(--t-fast) var(--ease); }
+  .snd-fav:hover { color:var(--gold); background:var(--bg); }
+  .snd-fav.on { color:var(--gold); }
+  span.snd-fav { cursor:default; }   /* read-only star in the match tab */
+
   /* ---- chat card as a browser: tab strip across the top. "Chat" is permanent;
      "Joke Bank" appears when opened from the fab and carries its own ×. ---- */
   .chat-tabs { display:flex; align-items:flex-end; gap:3px; margin:-10px -10px 2px; padding:6px 8px 0;
@@ -730,9 +752,11 @@
     opacity:0; transition:opacity var(--t-fast) var(--ease); }
   .chat-tab:hover .ct-x, .chat-tab:focus-visible .ct-x { opacity:1; }
   .chat-tab .ct-x:hover { color:var(--lose); background:var(--lose-dim); }
-  #chatCard .bank-view { display:none; }
+  #chatCard .bank-view, #chatCard .snd-view { display:none; }
   #chatCard.show-bank .bank-view { display:flex; }
-  #chatCard.show-bank .chat-log, #chatCard.show-bank .chat-form { display:none; }
+  #chatCard.show-snd .snd-view { display:flex; }
+  #chatCard.show-bank .chat-log, #chatCard.show-bank .chat-form,
+  #chatCard.show-snd .chat-log, #chatCard.show-snd .chat-form { display:none; }
 
   /* duo lobby: a compact chip sitting directly above the camera, far right (in the status-row
      band). It's absolutely positioned and lifted fully above the stage, so it never pushes the
@@ -894,6 +918,18 @@
   <div class="bank-list" id="bankList"></div>
 </div>
 
+<!-- Soundboard (lobby): same draggable/resizable shell as the joke bank. The sound catalog
+     comes from /api/sounds (id/name/url manifest) — the client never references audio files
+     directly, so the blobs can move to external storage without touching this page. -->
+<div class="bank-pop sound-pop hidden" id="soundPop" role="dialog" aria-label="soundboard">
+  <div class="bank-head" id="soundHead">
+    <span class="pc-tag">Soundboard</span>
+    <span class="bank-count" id="soundCount"></span>
+    <button class="fd-close" id="soundClose" type="button" aria-label="close soundboard">×</button>
+  </div>
+  <div class="bank-list" id="soundList"></div>
+</div>
+
 <div class="app">
   <!-- Not shown top-left anymore, but many flows still write feedback here (camera errors, queue
        state, bans...) via setStatus() — kept off-screen instead of ripped out call-site by call-site. -->
@@ -922,6 +958,9 @@
         <button class="bank-fab" id="bankFab" type="button" aria-label="open joke bank" title="joke bank">
           <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M11.4 2.6a1.3 1.3 0 0 1 1.2 0l8.9 5.2c1 .6.6 2.1-.6 2.1H3.1c-1.2 0-1.6-1.5-.6-2.1l8.9-5.2zM4.6 11.4h2.7v6.2H4.6v-6.2zm6.05 0h2.7v6.2h-2.7v-6.2zm6.05 0h2.7v6.2h-2.7v-6.2zM3.6 19.1h16.8c.7 0 1.25.55 1.25 1.25S21.1 21.6 20.4 21.6H3.6c-.7 0-1.25-.55-1.25-1.25S2.9 19.1 3.6 19.1z"/></svg>
         </button>
+        <button class="bank-fab sound-fab" id="soundFab" type="button" aria-label="open soundboard" title="soundboard">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 9h3.3l5.2-4.2c.65-.52 1.6-.06 1.6.77v12.86c0 .83-.95 1.3-1.6.77L6.7 15H3.4c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M16.2 9.4a4 4 0 0 1 0 5.2M18.8 7.2a7.4 7.4 0 0 1 0 9.6M21.3 5.1a10.8 10.8 0 0 1 0 13.8"/></svg>
+        </button>
       </div>
       <!-- in a match the cams split apart and this column sits between them -->
       <div class="match-mid" id="matchMid">
@@ -933,11 +972,13 @@
           <div class="chat-tabs">
             <button type="button" class="chat-tab active" id="tabChat">Chat</button>
             <button type="button" class="chat-tab hidden" id="tabBank">Joke Bank<span class="ct-x" id="tabBankX" aria-label="close joke bank">×</span></button>
+            <button type="button" class="chat-tab hidden" id="tabSnd">Sounds<span class="ct-x" id="tabSndX" aria-label="close soundboard">×</span></button>
           </div>
           <div class="chat-log" id="chatLog">
             <div class="chat-empty" id="chatEmpty">no messages yet</div>
           </div>
           <div class="bank-list bank-view" id="bankView"></div>
+          <div class="bank-list snd-view" id="soundView"></div>
           <form class="chat-form" id="chatForm">
             <input id="chatInput" placeholder="join a match to chat" maxlength="200" autocomplete="off" disabled />
             <button class="btn" type="submit" id="chatSend" disabled>Send</button>
@@ -1359,7 +1400,7 @@ function setDrawer(open) {
 }
 friendsFab.addEventListener("click", () => setDrawer(!drawer.classList.contains("open")));
 $("friendsClose").addEventListener("click", () => setDrawer(false));
-document.addEventListener("keydown", e => { if (e.key === "Escape") { setDrawer(false); setSettingsDrawer(false); $("bankPop").classList.add("hidden"); } });
+document.addEventListener("keydown", e => { if (e.key === "Escape") { setDrawer(false); setSettingsDrawer(false); $("bankPop").classList.add("hidden"); $("soundPop").classList.add("hidden"); } });
 
 // ---- settings drawer (same slide-out; content arrives setting by setting) ----
 const settingsDrawer = $("settingsDrawer"), settingsFab = $("settingsFab");
@@ -1700,38 +1741,50 @@ bankForm.addEventListener("submit", e => {
 });
 $("bankClose").addEventListener("click", () => bankPop.classList.add("hidden"));
 
-// drag by the header (buttons excluded); first grab converts the right-anchor to left/top
-(() => {
-  const head = $("bankHead");
+// drag a popup by its header (buttons excluded); first grab converts the right-anchor to left/top
+function makeDraggable(pop, head) {
   let dragging = false, sx = 0, sy = 0, ox = 0, oy = 0;
   head.addEventListener("pointerdown", e => {
     if (e.target.closest("button")) return;
-    const r = bankPop.getBoundingClientRect();
-    bankPop.style.left = r.left + "px"; bankPop.style.top = r.top + "px"; bankPop.style.right = "auto";
+    const r = pop.getBoundingClientRect();
+    pop.style.left = r.left + "px"; pop.style.top = r.top + "px"; pop.style.right = "auto";
     dragging = true; sx = e.clientX; sy = e.clientY; ox = r.left; oy = r.top;
     head.setPointerCapture(e.pointerId);
   });
   head.addEventListener("pointermove", e => {
     if (!dragging) return;
-    bankPop.style.left = Math.min(Math.max(0, ox + e.clientX - sx), innerWidth - 80) + "px";
-    bankPop.style.top = Math.min(Math.max(0, oy + e.clientY - sy), innerHeight - 40) + "px";
+    pop.style.left = Math.min(Math.max(0, ox + e.clientX - sx), innerWidth - 80) + "px";
+    pop.style.top = Math.min(Math.max(0, oy + e.clientY - sy), innerHeight - 40) + "px";
   });
   head.addEventListener("pointerup", () => { dragging = false; });
   head.addEventListener("pointercancel", () => { dragging = false; });
-})();
-
-// in-match "browser" tabs on the chat card
-const tabBank = $("tabBank");
-function setChatTab(bank) {
-  $("chatCard").classList.toggle("show-bank", bank);
-  $("tabChat").classList.toggle("active", !bank);
-  tabBank.classList.toggle("active", bank);
 }
-function openBankTab() { renderJokes(); tabBank.classList.remove("hidden"); setChatTab(true); }
-function closeBankTab() { tabBank.classList.add("hidden"); setChatTab(false); }
-$("tabChat").addEventListener("click", () => setChatTab(false));
+makeDraggable(bankPop, $("bankHead"));
+
+// in-match "browser" tabs on the chat card: Chat is permanent; Joke Bank and Sounds
+// are opened from their fabs and each closes via its own ×
+const tabBank = $("tabBank"), tabSnd = $("tabSnd");
+function setChatTab(which) {
+  $("chatCard").classList.toggle("show-bank", which === "bank");
+  $("chatCard").classList.toggle("show-snd", which === "snd");
+  $("tabChat").classList.toggle("active", which === "chat");
+  tabBank.classList.toggle("active", which === "bank");
+  tabSnd.classList.toggle("active", which === "snd");
+}
+function activeChatTab() {
+  const c = $("chatCard").classList;
+  return c.contains("show-bank") ? "bank" : c.contains("show-snd") ? "snd" : "chat";
+}
+function openBankTab() { renderJokes(); tabBank.classList.remove("hidden"); setChatTab("bank"); }
+function closeBankTab() { tabBank.classList.add("hidden"); if (activeChatTab() === "bank") setChatTab("chat"); }
+function openSndTab() { renderSounds(); tabSnd.classList.remove("hidden"); setChatTab("snd"); }
+function closeSndTab() { tabSnd.classList.add("hidden"); if (activeChatTab() === "snd") setChatTab("chat"); }
+$("tabChat").addEventListener("click", () => setChatTab("chat"));
 tabBank.addEventListener("click", e => {
-  if (e.target.closest(".ct-x")) closeBankTab(); else setChatTab(true);
+  if (e.target.closest(".ct-x")) closeBankTab(); else setChatTab("bank");
+});
+tabSnd.addEventListener("click", e => {
+  if (e.target.closest(".ct-x")) closeSndTab(); else setChatTab("snd");
 });
 
 $("bankFab").addEventListener("click", () => {
@@ -1739,6 +1792,87 @@ $("bankFab").addEventListener("click", () => {
   else { renderJokes(); bankPop.classList.toggle("hidden"); }   // in the lobby -> editor popup
 });
 renderJokes();
+
+// ---------- soundboard: catalog comes from the server manifest; favorites are local ----------
+// Sounds are addressed only by { id, name, url } from /api/sounds — never by file path — so
+// the audio can move to external storage later without touching this page.
+const SOUND_FAVS_KEY = "omeglol_sound_favs";
+let sounds = [], soundFavs = [];
+try {
+  const f = JSON.parse(localStorage.getItem(SOUND_FAVS_KEY) || "[]");
+  if (Array.isArray(f)) soundFavs = f.filter(x => typeof x === "string");
+} catch {}
+function saveSoundFavs() { try { localStorage.setItem(SOUND_FAVS_KEY, JSON.stringify(soundFavs)); } catch {} }
+
+const soundPop = $("soundPop"), sndAudio = new Audio();
+let playingSnd = null;
+sndAudio.addEventListener("ended", () => { playingSnd = null; renderSounds(); });
+function playSound(s) {
+  if (playingSnd === s.id) {                       // tap again to stop
+    sndAudio.pause(); sndAudio.currentTime = 0; playingSnd = null; renderSounds(); return;
+  }
+  playingSnd = s.id; sndAudio.src = s.url;
+  sndAudio.play().catch(() => { playingSnd = null; renderSounds(); });
+  renderSounds();
+}
+
+const SND_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M3.4 9h3.3l5.2-4.2c.65-.52 1.6-.06 1.6.77v12.86c0 .83-.95 1.3-1.6.77L6.7 15H3.4c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M16.2 9.4a4 4 0 0 1 0 5.2M18.8 7.2a7.4 7.4 0 0 1 0 9.6"/></svg>';
+function renderSounds() {
+  $("soundCount").textContent = sounds.length ? sounds.length + (sounds.length === 1 ? " sound" : " sounds") : "";
+  const fav = new Set(soundFavs);
+  const sorted = [...sounds].sort((a, b) => fav.has(b.id) - fav.has(a.id));   // stable: favs float up
+  for (const [wrap, editable] of [[$("soundList"), true], [$("soundView"), false]]) {
+    wrap.innerHTML = "";
+    if (!sounds.length) {
+      const d = document.createElement("div"); d.className = "bank-empty";
+      d.textContent = "no sounds available"; wrap.appendChild(d); continue;
+    }
+    for (const s of sorted) {
+      const row = document.createElement("div");
+      row.className = "snd-row" + (playingSnd === s.id ? " playing" : "");
+      const ico = document.createElement("span"); ico.className = "snd-ico"; ico.innerHTML = SND_SVG;
+      const nm = document.createElement("span"); nm.className = "snd-name"; nm.textContent = s.name;
+      row.append(ico, nm);
+      if (editable) {
+        const st = document.createElement("button");
+        st.type = "button"; st.className = "snd-fav" + (fav.has(s.id) ? " on" : "");
+        st.textContent = fav.has(s.id) ? "★" : "☆";
+        st.title = fav.has(s.id) ? "unfavorite" : "favorite";
+        st.onclick = e => {
+          e.stopPropagation();
+          soundFavs = fav.has(s.id) ? soundFavs.filter(x => x !== s.id) : [...soundFavs, s.id];
+          saveSoundFavs(); renderSounds();
+        };
+        row.appendChild(st);
+      } else if (fav.has(s.id)) {                  // match tab: favorites shown, not editable
+        const st = document.createElement("span"); st.className = "snd-fav on"; st.textContent = "★";
+        row.appendChild(st);
+      }
+      row.onclick = () => playSound(s);
+      wrap.appendChild(row);
+    }
+  }
+}
+async function loadSounds() {
+  try {
+    const r = await fetch("/api/sounds", { credentials: "same-origin" });
+    if (!r.ok) return;
+    const d = await r.json();
+    if (d && Array.isArray(d.sounds))
+      sounds = d.sounds
+        .filter(s => s && typeof s.id === "string" && typeof s.url === "string")
+        .map(s => ({ id: s.id, name: String(s.name || s.id), url: s.url }));
+    renderSounds();
+  } catch { /* board just stays empty */ }
+}
+makeDraggable(soundPop, $("soundHead"));
+$("soundClose").addEventListener("click", () => soundPop.classList.add("hidden"));
+$("soundFab").addEventListener("click", () => {
+  if (stageEl.classList.contains("split")) openSndTab();
+  else { renderSounds(); soundPop.classList.toggle("hidden"); }
+});
+renderSounds();
+loadSounds();
 
 // ---------- media + WebRTC ----------
 // Concurrency-safe: when the lobby cam opens, startMesh and a racing inbound acceptOffer can
@@ -1974,6 +2108,7 @@ function resetMatchUi() {
   clearOpponent();
   setChatEnabled(false);
   closeBankTab();                // next match starts on the Chat tab
+  closeSndTab();
   setScores({ you: 0, them: 0 });
 }
 // ---------- round timer: draining bar + :SS readout above the chat ----------
@@ -2091,7 +2226,8 @@ ws.addEventListener("message", async (e) => {
       renderMatchCards(msg);
       matchPeers = (msg.peers || []).map(p => ({ id: p.id, name: p.name, team: p.team }));   // report dropdown roster
       stageEl.classList.add("split");   // cams pull apart; chat/next/report take the middle
-      $("bankPop").classList.add("hidden");   // the lobby joke editor doesn't follow you into a match
+      $("bankPop").classList.add("hidden");   // the lobby popups don't follow you into a match
+      $("soundPop").classList.add("hidden");
       document.querySelector(".scorebar").classList.add("live");
       try { await startMesh(msg.peers || []); } catch (err) { setStatus("camera error: " + err.message); }
       ensureDetector();
