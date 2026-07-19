@@ -658,12 +658,13 @@
   /* ---- joke bank: your prepared material. Faded-gold fab lives on YOUR cam —
      top-right in the lobby, bottom-right during a match (nameplate owns bottom-left). ---- */
   .bank-fab { position:absolute; top:8px; right:8px; z-index:7; width:42px; height:38px;
-    display:grid; place-items:center; padding:0; cursor:pointer; color:var(--gold); opacity:.72;
-    background:rgba(242,176,30,.14); border:1px solid rgba(242,176,30,.38); border-radius:var(--r-sm);
+    display:grid; place-items:center; padding:0; cursor:pointer; color:var(--gold);
+    background:var(--scrim); border:1px solid rgba(242,176,30,.6); border-radius:var(--r-sm);
+    box-shadow:0 2px 10px rgba(0, 0, 0, .45);
     backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
-    transition:opacity var(--t-fast) var(--ease), background var(--t-fast) var(--ease),
+    transition:background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
       transform var(--t-fast) var(--ease); }
-  .bank-fab:hover { opacity:1; background:rgba(242,176,30,.24); transform:translateY(-1px); }
+  .bank-fab:hover { background:rgba(242,176,30,.28); border-color:var(--gold); transform:translateY(-1px); }
   .bank-fab:active { transform:translateY(0); }
   .stage.split .local-tile .bank-fab { left:8px; right:auto; }   /* match: top-LEFT of your cam */
   /* soundboard fab rides beside the bank in both layouts */
@@ -730,6 +731,20 @@
   .snd-fav:hover { color:var(--gold); background:var(--bg); }
   .snd-fav.on { color:var(--gold); }
   span.snd-fav { cursor:default; }   /* read-only star in the match tab */
+  /* in a match, sounds arm only while it's YOUR turn to tell jokes — otherwise the
+     board sits dimmed with a hint (the server enforces the same rule) */
+  #chatCard .snd-view::before { content:"sounds unlock when it's your turn"; flex:none;
+    padding:2px 0 4px; text-align:center; font-size:11px; letter-spacing:.04em;
+    text-transform:uppercase; color:var(--text-3); }
+  #chatCard .snd-view .snd-row { opacity:.45; cursor:default; }
+  #chatCard .snd-view .snd-row:hover { border-color:var(--border); background:var(--surface); }
+  body[data-phase="round1"][data-role="performer"] #chatCard .snd-view::before,
+  body[data-phase="round2"][data-role="performer"] #chatCard .snd-view::before { display:none; }
+  body[data-phase="round1"][data-role="performer"] #chatCard .snd-view .snd-row,
+  body[data-phase="round2"][data-role="performer"] #chatCard .snd-view .snd-row { opacity:1; cursor:pointer; }
+  body[data-phase="round1"][data-role="performer"] #chatCard .snd-view .snd-row:hover,
+  body[data-phase="round2"][data-role="performer"] #chatCard .snd-view .snd-row:hover {
+    border-color:var(--border-2); background:var(--surface-2); }
 
   /* ---- chat card as a browser: tab strip across the top. "Chat" is permanent;
      "Joke Bank" appears when opened from the fab and carries its own ×. ---- */
@@ -971,7 +986,7 @@
         <div class="pcard panel" id="chatCard">
           <div class="chat-tabs">
             <button type="button" class="chat-tab active" id="tabChat">Chat</button>
-            <button type="button" class="chat-tab hidden" id="tabBank">Joke Bank<span class="ct-x" id="tabBankX" aria-label="close joke bank">×</span></button>
+            <button type="button" class="chat-tab hidden" id="tabBank">Jokes<span class="ct-x" id="tabBankX" aria-label="close joke bank">×</span></button>
             <button type="button" class="chat-tab hidden" id="tabSnd">Sounds<span class="ct-x" id="tabSndX" aria-label="close soundboard">×</span></button>
           </div>
           <div class="chat-log" id="chatLog">
@@ -1818,7 +1833,13 @@ function triggerSound(s) {
 // end triggers the same local audio off the same event. Alone in the lobby it's a preview:
 // plays immediately, press again to stop.
 function playSound(s) {
-  if (stageEl.classList.contains("split") || lobby) { signal({ type: "sound", id: s.id }); return; }
+  if (stageEl.classList.contains("split")) {       // in a match: performer-only, during rounds
+    const d = document.body.dataset;
+    if ((d.phase === "round1" || d.phase === "round2") && d.role === "performer")
+      signal({ type: "sound", id: s.id });         // server re-checks; silently drops otherwise
+    return;
+  }
+  if (lobby) { signal({ type: "sound", id: s.id }); return; }   // duo lobby: no turns, fire away
   if (playingSnd === s.id) {                       // preview mode: tap again to stop
     sndAudio.pause(); sndAudio.currentTime = 0; playingSnd = null; renderSounds(); return;
   }

@@ -1047,6 +1047,12 @@ export async function startServer({ db, pool = null, port = PORT }) {
       } else if (msg.type === "sound" && c.userId) {
         // Soundboard relay: no audio crosses the wire — only a catalog id. Every client holds
         // the same catalog (from /api/sounds), so each end just triggers local playback.
+        // In a match, sounds are a PERFORMER's tool: only relayed while it's your team's turn
+        // to tell jokes. (Duo-lobby banter has no turns, so it stays open there.)
+        if (c.game) {
+          const inRound = c.game.phase === "round1" || c.game.phase === "round2";
+          if (!inRound || teamOf(c.game, id) !== c.game.performerTeam) return;
+        }
         const now = Date.now();
         if (now - (c.lastSoundAt || 0) < 1500) return;           // spam guard: one trigger / 1.5s
         const catalog = await getSoundCatalog();
