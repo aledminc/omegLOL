@@ -199,17 +199,38 @@
   .mid-actions { display:flex; gap:8px; margin-top:0 !important; }
   .mid-actions button { flex:1; padding:10px 8px !important; }
 
-  /* solo match: you | mid | them — side tiles stay square (1 + .62 + 1 wide, 1 tall) */
-  .stage.split[data-cams="2"] { grid-template-columns:1fr minmax(215px, .62fr) 1fr; aspect-ratio:2.62/1;
-    flex:0 1 min(100%, 1280px); max-height:76vh; }
-  .stage.split[data-cams="2"] #localTile { grid-column:1; }
-  .stage.split[data-cams="2"] .remote-tile { grid-column:3; }
-  /* duos match: your team | mid | their team (mid spans both rows) */
+  /* solo match: you | mid | them — cams up top, each team's score bar fused below its cam
+     (row-gap 0 so cam + bar read as one taller unit; the mid column spans both rows) */
+  .stage.split[data-cams="2"] { grid-template-columns:1fr minmax(215px, .62fr) 1fr;
+    grid-template-rows:1fr auto; gap:0 14px; aspect-ratio:2.62/1.13;
+    flex:0 1 min(100%, 1280px); max-height:80vh; }
+  .stage.split[data-cams="2"] #localTile { grid-column:1; grid-row:1; }
+  .stage.split[data-cams="2"] .remote-tile { grid-column:3; grid-row:1; }
+  /* duos match: your team | mid | their team (mid spans all rows) */
   .stage.split[data-cams="3"], .stage.split[data-cams="4"] {
-    grid-template-columns:1fr minmax(215px, .55fr) 1fr; grid-template-rows:1fr 1fr;
-    aspect-ratio:2.55/2; max-width:none; flex:0 1 min(100%, 1080px); max-height:82vh; }
+    grid-template-columns:1fr minmax(215px, .55fr) 1fr; grid-template-rows:1fr 1fr auto;
+    aspect-ratio:2.55/2.13; max-width:none; flex:0 1 min(100%, 1080px); max-height:84vh; }
   .stage.split[data-cams="3"] .remote-tile:not([data-team="ally"]),
   .stage.split[data-cams="4"] .remote-tile:not([data-team="ally"]) { grid-column:3; }
+
+  /* ---- match scoreboard: the scorebar dissolves (display:contents) and each side's bar
+     docks to the bottom of its team's cam column, sharing the cam's edge ---- */
+  .stage.split .scorebar.live { display:contents; }
+  .stage.split .scorebar .side { position:relative; z-index:2; margin:0; border-top:0;
+    border-radius:0 0 var(--r-lg) var(--r-lg); background:var(--surface); }
+  .stage.split[data-cams="2"] .scorebar .side:first-child { grid-column:1; grid-row:2; }
+  .stage.split[data-cams="2"] .scorebar .side:last-child { grid-column:3; grid-row:2; }
+  /* duos keep the 14px cam gap, so the bars pull up flush against the bottom cams */
+  .stage.split[data-cams="3"] .scorebar .side:first-child,
+  .stage.split[data-cams="4"] .scorebar .side:first-child { grid-column:1; grid-row:3; margin-top:-14px; }
+  .stage.split[data-cams="3"] .scorebar .side:last-child,
+  .stage.split[data-cams="4"] .scorebar .side:last-child { grid-column:3; grid-row:3; margin-top:-14px; }
+  /* the cam directly above each bar drops its bottom rounding so the two merge */
+  .stage.split[data-cams="2"] #localTile, .stage.split[data-cams="2"] .remote-tile,
+  .stage.split[data-cams="3"] #localTile, .stage.split[data-cams="4"] #localTile,
+  .stage.split[data-cams="3"] .remote-tile:nth-child(2 of .remote-tile:not([data-team="ally"])),
+  .stage.split[data-cams="4"] .remote-tile:nth-child(2 of .remote-tile:not([data-team="ally"])) {
+    border-bottom-left-radius:0; border-bottom-right-radius:0; }
 
   /* each split cam is its own tile; the ACTIVE performer's tile carries the spotlight */
   .stage.split .remote-tile, .stage.split .local-tile { border:1px solid var(--border); border-radius:var(--r-lg);
@@ -226,9 +247,13 @@
 
   @media (max-width:900px) {   /* narrow screens: stack cams with the mid column between */
     .stage.split[data-cams="2"], .stage.split[data-cams="3"], .stage.split[data-cams="4"] {
-      grid-template-columns:1fr; grid-template-rows:none; aspect-ratio:auto; max-height:none; }
-    .stage.split .remote-tile, .stage.split .local-tile { aspect-ratio:4/3; grid-column:1 !important; grid-row:auto !important; }
+      grid-template-columns:1fr; grid-template-rows:none; gap:14px; aspect-ratio:auto; max-height:none; }
+    .stage.split .remote-tile, .stage.split .local-tile { aspect-ratio:4/3; grid-column:1 !important; grid-row:auto !important;
+      border-radius:var(--r-lg) !important; }
     .stage.split .match-mid { grid-column:1; grid-row:auto; min-height:260px; }
+    /* stacked: the score bars detach from the cams and stack as plain rows */
+    .stage.split .scorebar .side { grid-column:1 !important; grid-row:auto !important; margin-top:0;
+      border-top:1px solid var(--border); border-radius:var(--r-sm); }
   }
 
   .remote-grid { display:contents; }
@@ -260,6 +285,8 @@
   body[data-phase="swap"] .cam-card,
   body[data-phase="result"] .cam-card,
   body.in-lobby .remote-tile .cam-card { display:flex; }
+  /* in a match the nameplates move to the top-right corner of each cam */
+  .stage.split .cam-card { left:auto; right:6px; top:6px; bottom:auto; }
   .cam-card .cc-name { font-weight:500; font-size:12px; line-height:1.2; color:var(--on-video);
     overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .cam-card .cc-rank { font-size:9px; font-weight:500; line-height:1.4;
@@ -638,7 +665,7 @@
       transform var(--t-fast) var(--ease); }
   .bank-fab:hover { opacity:1; background:rgba(242,176,30,.24); transform:translateY(-1px); }
   .bank-fab:active { transform:translateY(0); }
-  .stage.split .local-tile .bank-fab { top:auto; bottom:8px; }
+  .stage.split .local-tile .bank-fab { left:8px; right:auto; }   /* match: top-LEFT of your cam */
 
   /* lobby editor popup: draggable by its header, resizable from the corner */
   .bank-pop { position:fixed; z-index:30; top:calc(var(--navH, 56px) + 18px); right:18px;
@@ -687,9 +714,11 @@
   .chat-tabs { display:flex; align-items:flex-end; gap:3px; margin:-10px -10px 2px; padding:6px 8px 0;
     background:var(--bg); border-bottom:1px solid var(--border);
     border-radius:inherit; border-bottom-left-radius:0; border-bottom-right-radius:0; }
+  /* every tab is a drawn tab; the inactive one sits a shade lighter, tucked BEHIND the
+     strip's bottom line — only the active tab breaks through and fuses with the card */
   .chat-tab { display:flex; align-items:center; gap:7px; padding:6px 11px 7px; font:inherit;
     font-size:11px; font-weight:500; letter-spacing:.07em; text-transform:uppercase;
-    color:var(--text-2); background:transparent; border:1px solid transparent; border-bottom:0;
+    color:var(--text-2); background:var(--surface-2); border:1px solid var(--border); border-bottom:0;
     border-radius:9px 9px 0 0; cursor:pointer;
     transition:color var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
   .chat-tab:hover { color:var(--text); }
@@ -697,7 +726,9 @@
     border-color:var(--border); color:var(--text); }
   .chat-tab.hidden { display:none; }
   .chat-tab .ct-x { display:grid; place-items:center; width:14px; height:14px;
-    font-size:12px; line-height:1; color:var(--text-3); border-radius:4px; }
+    font-size:12px; line-height:1; color:var(--text-3); border-radius:4px;
+    opacity:0; transition:opacity var(--t-fast) var(--ease); }
+  .chat-tab:hover .ct-x, .chat-tab:focus-visible .ct-x { opacity:1; }
   .chat-tab .ct-x:hover { color:var(--lose); background:var(--lose-dim); }
   #chatCard .bank-view { display:none; }
   #chatCard.show-bank .bank-view { display:flex; }
@@ -917,6 +948,11 @@
           <button id="report" class="ghost danger" hidden>Report</button>
         </div>
       </div>
+      <!-- match scoreboard: lives in the stage grid so each side can dock under its team's cams -->
+      <div class="scorebar">
+        <div class="side"><div class="lab"><span id="youLabel">you</span><span id="youNum">0</span></div><div class="track"><div class="fill you" id="youBar"></div></div></div>
+        <div class="side"><div class="lab"><span id="themLabel">them</span><span id="themNum">0</span></div><div class="track"><div class="fill them" id="themBar"></div></div></div>
+      </div>
       <div class="fx" id="fx"></div>
       <div class="banner hidden" id="banner">
         <div class="big" id="bannerBig"></div>
@@ -938,10 +974,6 @@
     </div>
   </div>
 
-  <div class="scorebar">
-    <div class="side"><div class="lab"><span id="youLabel">you</span><span id="youNum">0</span></div><div class="track"><div class="fill you" id="youBar"></div></div></div>
-    <div class="side"><div class="lab"><span id="themLabel">them</span><span id="themNum">0</span></div><div class="track"><div class="fill them" id="themBar"></div></div></div>
-  </div>
   </main>
 
     <aside class="action-panel">
