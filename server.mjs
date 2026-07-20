@@ -561,7 +561,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
       try { form = (await db.recentMatches(c.userId, 5)).map(m => m.outcome); }
       catch (e) { console.error("recentMatches (card) failed:", e.message); }
     }
-    return { id, name: c?.name || "?", rating: c?.rating || 1000, form };
+    return { id, name: c?.name || "?", rating: c?.rating || 1000, form, clipConsent: !!c?.clipConsent };
   }
 
   async function pair(a, b) {
@@ -1059,6 +1059,10 @@ export async function startServer({ db, pool = null, port = PORT }) {
         if (!catalog.some(s => s.id === msg.id)) return;         // only real catalog ids relay
         c.lastSoundAt = now;
         for (const pid of chatPeers(id)) send(pid, { type: "sound", id: msg.id, from: c.name, self: pid === id });
+      } else if (msg.type === "clipPref" && c.userId) {
+        // Clip consent: whether this player allows in-browser clipping of the match. Stored on the
+        // connection and surfaced in playerCard, so the other side can gate its clip button.
+        c.clipConsent = !!msg.enabled;
       } else if (msg.type === "addFriend" && c.userId) {
         // Sends a friend REQUEST; the friendship only forms when the other side accepts.
         // (Crossed requests auto-accept in db.requestFriend — both sides already said yes.)
