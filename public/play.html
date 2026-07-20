@@ -658,7 +658,8 @@
   /* ---- joke bank: your prepared material. Faded-gold fab lives on YOUR cam —
      top-right in the lobby, bottom-right during a match (nameplate owns bottom-left). ---- */
   .bank-fab { position:absolute; top:8px; right:8px; z-index:7; width:42px; height:38px;
-    display:grid; place-items:center; padding:0; cursor:pointer; color:var(--gold);
+    display:grid; place-items:center; align-items:center; justify-items:center; padding:0; line-height:0;
+    cursor:pointer; color:var(--gold);
     background:var(--scrim); border:1px solid rgba(242,176,30,.6); border-radius:var(--r-sm);
     box-shadow:0 2px 10px rgba(0, 0, 0, .45);
     backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
@@ -690,10 +691,11 @@
     max-width:0; opacity:0; transform:translateX(6px);
     transition:max-width var(--t-slow) var(--ease), opacity var(--t-fast) var(--ease),
       transform var(--t-slow) var(--ease); }
-  .match-dock.open .md-tray { max-width:100px; opacity:1; transform:none; }
+  .match-dock.open .md-tray { max-width:126px; opacity:1; transform:none; }
   @media (prefers-reduced-motion: reduce) { .md-tray { transition:none; } }
   .md-btn { position:relative; flex:none; width:38px; height:34px; display:grid; place-items:center;
-    padding:0; cursor:pointer; color:var(--on-video-dim);
+    align-items:center; justify-items:center; padding:0; line-height:0; cursor:pointer;
+    color:var(--on-video-dim);
     background:transparent; border:1px solid transparent; border-radius:var(--r-sm);
     transition:color var(--t-fast) var(--ease), background var(--t-fast) var(--ease),
       transform var(--t-fast) var(--ease); }
@@ -709,6 +711,8 @@
   .md-toggle .fab-badge { top:-6px; right:-6px; }
   .md-btn:disabled { opacity:.32; cursor:default; }
   .md-btn:disabled:hover { color:var(--on-video-dim); background:transparent; }
+  .bank-fab svg, .md-btn svg { display:block; flex:none; }
+  .md-tool, .md-close { display:grid; place-items:center; line-height:0; }
 
   /* ---- clipping: lobby config fab sits right of settings; opens a small dropdown ---- */
   .stage .clip-fab { left:108px; }
@@ -1047,7 +1051,7 @@
         <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13c.04-.32.06-.66.06-1s-.02-.68-.06-1l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96c-.5-.38-1.04-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.56-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.91 8.78a.5.5 0 0 0 .12.64L5.06 11c-.04.32-.06.66-.06 1s.02.68.06 1l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.61.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.24 1.12-.56 1.62-.94l2.39.96c.21.1.48.01.61-.22l1.92-3.32a.5.5 0 0 0-.12-.64L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
       </button>
       <button class="friends-fab clip-fab" id="clipFab" type="button" aria-label="clip settings" aria-expanded="false" title="clips">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16v13H4z"/><path d="M4 7l2-4h16l-2 4"/><path d="M8 3l2 4M14 3l2 4M20 3l-2 4"/></svg>
       </button>
       <div class="remote-grid" id="remoteGrid" data-count="0"></div>
       <div class="local-tile" id="localTile">
@@ -1073,7 +1077,7 @@
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13c.04-.32.06-.66.06-1s-.02-.68-.06-1l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96c-.5-.38-1.04-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.56-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.91 8.78a.5.5 0 0 0 .12.64L5.06 11c-.04.32-.06.66-.06 1s.02.68.06 1l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.61.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.24 1.12-.56 1.62-.94l2.39.96c.21.1.48.01.61-.22l1.92-3.32a.5.5 0 0 0-.12-.64L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
             </button>
             <button class="md-btn" id="matchClip" type="button" aria-label="clip the last moments" title="clip" disabled>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16v13H4z"/><path d="M4 7l2-4h16l-2 4"/><path d="M8 3l2 4M14 3l2 4M20 3l-2 4"/></svg>
             </button>
           </div>
           <button class="md-btn md-toggle" id="matchDockToggle" type="button" aria-label="open toolbox" aria-expanded="false" title="tools">
