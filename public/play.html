@@ -1668,12 +1668,32 @@ function clipNameCard(ctx, name, rightX, topY) {
   ctx.fillStyle = "rgba(13,12,10,.72)"; clipRoundRect(ctx, x, topY, w, h, 12); ctx.fill();
   ctx.fillStyle = "#F5F2EC"; ctx.fillText(name, x + 18, topY + h / 2 + 1);
 }
-function clipScore(ctx, label, value, x, y) {
-  const w = 128, h = 60;
-  ctx.fillStyle = "rgba(13,12,10,.72)"; clipRoundRect(ctx, x, y, w, h, 12); ctx.fill();
-  ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-  ctx.fillStyle = "#A39B8B"; ctx.font = "600 16px 'Space Grotesk', sans-serif"; ctx.fillText(label, x + 14, y + 24);
-  ctx.fillStyle = "#F2B01E"; ctx.font = "700 30px 'IBM Plex Mono', monospace"; ctx.fillText(String(Math.round(value ?? 0)), x + 14, y + 50);
+// full-width score bar docked at the bottom of a cam tile, mirroring the live site scorebar:
+// an uppercase label (left) + mono number (right), then a track that fills with the team's
+// color (green = you, red = them). Both bars share one `max` so their fills are comparable.
+function clipScoreBar(ctx, r, label, value, max, mine, rad) {
+  const H = 92, pad = 26, x = r.x, y = r.y + r.h - H, w = r.w;
+  // scrim panel that follows the cam's bottom rounding, so it reads as fused to the cam
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x, y); ctx.lineTo(x + w, y);
+  ctx.lineTo(x + w, y + H - rad); ctx.arcTo(x + w, y + H, x + w - rad, y + H, rad);
+  ctx.lineTo(x + rad, y + H); ctx.arcTo(x, y + H, x, y + H - rad, rad);
+  ctx.closePath(); ctx.fillStyle = "rgba(13,12,10,.82)"; ctx.fill();
+  ctx.restore();
+  ctx.textBaseline = "alphabetic";
+  ctx.save(); try { ctx.letterSpacing = "0.08em"; } catch {}
+  ctx.textAlign = "left"; ctx.fillStyle = "#A39B8B";
+  ctx.font = "600 22px 'Space Grotesk', sans-serif"; ctx.fillText(String(label).toUpperCase(), x + pad, y + 38);
+  ctx.restore();
+  ctx.textAlign = "right"; ctx.fillStyle = "#F5F2EC";
+  ctx.font = "500 34px 'IBM Plex Mono', monospace"; ctx.fillText(String(Math.round(value ?? 0)), x + w - pad, y + 41);
+  // track + fill
+  const tx = x + pad, tw = w - pad * 2, ty = y + 56, th = 16;
+  ctx.fillStyle = "#0D0C0A"; clipRoundRect(ctx, tx, ty, tw, th, 8); ctx.fill();
+  ctx.strokeStyle = "#2A2620"; ctx.lineWidth = 1; clipRoundRect(ctx, tx + 0.5, ty + 0.5, tw - 1, th - 1, 8); ctx.stroke();
+  const fw = Math.max(0, Math.min(1, value / max)) * tw;
+  if (fw > 0.5) { ctx.fillStyle = mine ? "#4ADE80" : "#F0524D"; clipRoundRect(ctx, tx, ty, fw, th, Math.min(8, fw / 2)); ctx.fill(); }
 }
 // faux browser/site nav across the top — surface bar + the omegLOL brand (dot + omeg + gold LOL)
 // top-left, matching the real nav. This carries the mandatory branding.
@@ -1751,10 +1771,10 @@ async function renderClip(snap) {
     clipCamTile(ctx, rf, cam1, RAD);                        // opponent (remote) on top
     clipCamTile(ctx, lf, cam2, RAD);                        // you (local) on the bottom
     const st = stateAt(om / 1000);
-    if (st.score) {                                         // scoreboard at the bottom of each cam
-      clipScore(ctx, "THEM", st.score.them, cam1.x + 18, cam1.y + cam1.h - 78);
-      clipScore(ctx, "YOU", st.score.you, cam2.x + 18, cam2.y + cam2.h - 78);
-    }
+    const sc = st.score || { you: 0, them: 0 };              // always show the board, even 0-0
+    const smax = Math.max(10, sc.you, sc.them);              // shared scale, like the live scorebar
+    clipScoreBar(ctx, cam1, "them", sc.them, smax, false, RAD);   // opponent (top): red fill
+    clipScoreBar(ctx, cam2, "you",  sc.you,  smax, true,  RAD);   // you (bottom): green fill
     clipNameCard(ctx, M.remote?.name || "opponent", cam1.x + cam1.w - 16, cam1.y + 16);
     clipNameCard(ctx, M.local?.name || "you", cam2.x + cam2.w - 16, cam2.y + 16);
     if (st.phase === "intro") { ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "700 200px 'Space Grotesk', sans-serif"; ctx.fillStyle = "rgba(242,176,30,.92)"; ctx.shadowColor = "rgba(0,0,0,.55)"; ctx.shadowBlur = 30; ctx.fillText("VS", W / 2, seamY); ctx.restore(); }
@@ -2749,7 +2769,7 @@ function localCountdown(from, label, sub) {
   countdownTimer = setInterval(() => { n -= 1; if (n <= 0) { clearInterval(countdownTimer); return; } $("bannerCount").textContent = n; }, 1000);
 }
 function applyGameState(msg) {
-  if (msg.scores) setScores(msg.scores);
+  if (msg.scores) { setScores(msg.scores); clipCapture.note("score", msg.scores); }
   clipCapture.note("phase", { phase: msg.phase, seconds: msg.seconds, role: msg.role });
   setBodyState(msg.phase, msg.role);
   const inRound = msg.phase === "round1" || msg.phase === "round2";
