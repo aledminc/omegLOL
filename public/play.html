@@ -711,6 +711,17 @@
   .md-toggle .fab-badge { top:-6px; right:-6px; }
   .md-btn:disabled { opacity:.32; cursor:default; }
   .md-btn:disabled:hover { color:var(--on-video-dim); background:transparent; }
+  /* clip status toast — anchored to the dock: above the toolbar when open, left of it when minimized */
+  .clip-toast { position:absolute; z-index:11; pointer-events:none; white-space:nowrap;
+    padding:5px 11px; font-size:12px; font-weight:500; line-height:1.3; border-radius:9px;
+    background:rgba(58,55,50,.82); color:var(--on-video); border:1px solid rgba(255,255,255,.12);
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    opacity:0; transform:translateY(3px); transition:opacity .8s var(--ease), transform .8s var(--ease), background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
+  .clip-toast.show { opacity:1; transform:none; }
+  .clip-toast.saved { background:rgba(74,222,128,.9); color:#0D0C0A; border-color:rgba(74,222,128,.9); }
+  .clip-toast.error { background:rgba(240,82,77,.9); color:var(--on-video); border-color:rgba(240,82,77,.9); }
+  .match-dock.open .clip-toast { bottom:calc(100% + 6px); right:0; }
+  .match-dock:not(.open) .clip-toast { right:calc(100% + 6px); top:50%; margin-top:-13px; }
   .bank-fab svg, .md-btn svg { display:block; flex:none; }
   .md-tool, .md-close { display:grid; place-items:center; line-height:0; }
 
@@ -1085,6 +1096,7 @@
             <span class="md-close" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M15 5v14l-9-7z"/></svg></span>
             <span class="fab-badge hidden" id="matchReqBadge">0</span>
           </button>
+          <div class="clip-toast" id="clipToast" aria-hidden="true"></div>
         </div>
       </div>
       <!-- in a match the cams split apart and this column sits between them -->
@@ -1584,15 +1596,27 @@ let clipRendering = false;
 const CLIP_MUXER_URL = "https://cdn.jsdelivr.net/npm/mp4-muxer@5/+esm";
 const CLIP_DEC_CODEC = "avc1.42E028";   // must match the capture encoder
 const CLIP_ENC_CODEC = "avc1.64002A";   // High L4.2 — required for a 1080×1920 output frame
+// Small status toast on the dock: gray while processing, green on save, red on failure, then fades.
+let clipToastTimer = null;
+function showClipToast(text, state) {
+  const t = $("clipToast"); if (!t) return;
+  clearTimeout(clipToastTimer);
+  t.textContent = text;
+  t.classList.remove("saved", "error");
+  if (state === "saved" || state === "error") t.classList.add(state);
+  t.classList.add("show");
+  if (state !== "processing") clipToastTimer = setTimeout(() => t.classList.remove("show"), 2000);   // let it linger, then fade
+}
 function triggerClip() {
   if (!matchClipOk || clipRendering) return;
   setStatus("preparing clip…");
+  showClipToast("Clip processing…", "processing");
   clipCapture.snapshot(async snap => {
-    if (!snap) { setStatus("clipping isn't running for this match"); return; }
-    if (!snap.ready) { setStatus("clip: still buffering — give it a few seconds"); return; }
+    if (!snap) { setStatus("clipping isn't running for this match"); showClipToast("Clipping unavailable", "error"); return; }
+    if (!snap.ready) { setStatus("clip: still buffering — give it a few seconds"); showClipToast("Still buffering…", "error"); return; }
     clipRendering = true;
-    try { setStatus("rendering clip…"); await renderClip(snap); setStatus("clip saved to your downloads ✓"); }
-    catch (err) { console.error("clip render failed:", err); setStatus("clip render failed — see console"); }
+    try { setStatus("rendering clip…"); await renderClip(snap); setStatus("clip saved to your downloads ✓"); showClipToast("Clip saved!", "saved"); }
+    catch (err) { console.error("clip render failed:", err); setStatus("clip render failed — see console"); showClipToast("Clip failed", "error"); }
     finally { clipRendering = false; }
   });
 }
