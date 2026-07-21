@@ -1626,7 +1626,7 @@ function makeCamReader(chunks, desc, codec) {
       }
       return current;
     },
-    close() { try { if (current) current.close(); if (look) look.close(); dec.close(); } catch {} },
+    close() { try { if (current) current.close(); if (look) look.close(); for (const f of q) { try { f.close(); } catch {} } q.length = 0; dec.close(); } catch {} },
   };
 }
 
@@ -1679,6 +1679,7 @@ async function renderClip(snap) {
   const lr = makeCamReader(L.chunks, L.desc, CLIP_DEC_CODEC), rr = makeCamReader(R.chunks, R.desc, CLIP_DEC_CODEC);
   const target = new mux.ArrayBufferTarget();
   const muxer = new mux.Muxer({ target, fastStart: "in-memory",
+    firstTimestampBehavior: "offset",   // audio is window-aligned, so its first ts isn't exactly 0
     video: { codec: "avc", width: W, height: H },
     audio: (A && A.chunks.length) ? { codec: "opus", numberOfChannels: 2, sampleRate: 48000 } : undefined });
   const venc = new VideoEncoder({ output: (c, meta) => muxer.addVideoChunk(c, meta), error: e => console.warn("clip venc:", e) });
@@ -1723,13 +1724,15 @@ async function renderClip(snap) {
   }
   await venc.flush(); venc.close(); lr.close(); rr.close();
   if (A && A.chunks.length) {                                          // remux the mixed audio, right-aligned to the window
-    const shift = A.chunks[A.chunks.length - 1].timestamp - windowUs; let first = true;
-    for (const c of A.chunks) {
-      const ts = c.timestamp - shift; if (ts < 0) { continue; }
-      muxer.addAudioChunk(new EncodedAudioChunk({ type: c.type, timestamp: Math.round(ts), duration: c.duration || 0, data: c.bytes }),
-        (first && A.desc) ? { decoderConfig: { codec: "opus", numberOfChannels: 2, sampleRate: 48000, description: A.desc } } : undefined);
-      first = false;
-    }
+    try {
+      const shift = A.chunks[A.chunks.length - 1].timestamp - windowUs; let first = true;
+      for (const c of A.chunks) {
+        const ts = c.timestamp - shift; if (ts < 0) { continue; }
+        muxer.addAudioChunk(new EncodedAudioChunk({ type: c.type, timestamp: Math.round(ts), duration: c.duration || 0, data: c.bytes }),
+          (first && A.desc) ? { decoderConfig: { codec: "opus", numberOfChannels: 2, sampleRate: 48000, description: A.desc } } : undefined);
+        first = false;
+      }
+    } catch (err) { console.warn("clip audio mux failed — saving video-only:", err); }   // one bad piece shouldn't sink the clip
   }
   muxer.finalize();
   clipDownload(new Blob([target.buffer], { type: "video/mp4" }), "omeglol-clip-" + Date.now() + ".mp4");
