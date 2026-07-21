@@ -2447,13 +2447,14 @@ const clipCapture = (() => {
       function build(cfg) {
         const e = new Codec({
           output: (chunk, meta) => {
-            const bytes = new ArrayBuffer(chunk.byteLength); chunk.copyTo(bytes);
-            let desc = null;
+            // The AVC description arrives once (first output); persist it on the buffer so the
+            // rolling trim can never discard it — otherwise late clips decode without a description.
             if (meta && meta.decoderConfig && meta.decoderConfig.description) {
               const d = meta.decoderConfig.description;
-              desc = d.buffer ? d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength) : d.slice(0);
+              b.desc = d.buffer ? d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength) : d.slice(0);
             }
-            b.chunks.push({ timestamp: chunk.timestamp, duration: chunk.duration || 0, type: chunk.type, bytes, desc });
+            const bytes = new ArrayBuffer(chunk.byteLength); chunk.copyTo(bytes);
+            b.chunks.push({ timestamp: chunk.timestamp, duration: chunk.duration || 0, type: chunk.type, bytes });
             trim(b, chunk.timestamp);
           },
           error: err => postMessage({ type: "err", id, msg: String(err) }),
@@ -2492,9 +2493,9 @@ const clipCapture = (() => {
         const out = {}, transfer = [];
         for (const id in bufs) {
           const src = bufs[id].chunks, chunks = [];
-          for (const c of src) { const b = c.bytes.slice(0); chunks.push({ timestamp: c.timestamp, duration: c.duration, type: c.type, bytes: b }); transfer.push(b); }
-          const dc = src.find(c => c.desc); let desc = null;
-          if (dc) { desc = dc.desc.slice(0); transfer.push(desc); }
+          for (const c of src) { const cp = c.bytes.slice(0); chunks.push({ timestamp: c.timestamp, duration: c.duration, type: c.type, bytes: cp }); transfer.push(cp); }
+          let desc = null;
+          if (bufs[id].desc) { desc = bufs[id].desc.slice(0); transfer.push(desc); }   // persisted, trim-proof
           out[id] = { chunks, desc };
         }
         postMessage({ type: "snapfull", data: out }, transfer);
