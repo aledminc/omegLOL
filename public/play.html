@@ -13,7 +13,7 @@
 <style>
   /* Layout-only rules; visual treatment lives in /css/base.css */
   .app { width:100%; max-width:1500px; margin:14px auto; padding:0 14px; }
-  body.in-lobby .app { max-width:1640px; margin-left:auto; margin-right:auto; }
+  body.in-lobby .app { max-width:min(1780px, 96vw); margin-left:auto; margin-right:auto; }
   /* status text is kept (many flows still write to it: camera errors, queue state, bans...) but no
      longer shown top-left — it's off-screen, not deleted, so nothing that calls setStatus() breaks. */
   #status { position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
@@ -22,7 +22,7 @@
      range rather than a rigid px so it never dead-airs on wide screens or heavy zoom; it's also a
      query container so its own cards/text scale off its rendered width (cqw), not the viewport.
      The rail is height-synced to the camera column (see syncRails) so it always sits beside it. */
-  .play-shell { display:grid; grid-template-columns:minmax(230px, 21vw) minmax(0, 1fr); gap:14px; align-items:start; }
+  .play-shell { display:grid; grid-template-columns:minmax(230px, clamp(230px, 20vw, 320px)) minmax(0, 1fr); gap:14px; align-items:start; }
   body[data-phase="matched"] .play-shell,
   body[data-phase="intro"] .play-shell,
   body[data-phase="countdown"] .play-shell,
@@ -151,6 +151,8 @@
 
   /* friends + lobby cards keep their panel look */
   .arena { display:flex; gap:12px; align-items:stretch; justify-content:center; }
+  /* lobby: hug the camera to the left of its column so it sits right beside the rail */
+  body.in-lobby .arena { justify-content:flex-start; }
   .pcard { flex:1; padding:12px; display:flex; flex-direction:column; gap:7px; }
   /* eyebrow micro-label (Friends / Chat / Game Mode / Your Standing). Scales with the
      container (cqw) so it fills a wide rail instead of floating tiny in white space. */
@@ -164,8 +166,9 @@
      3-4 cams = 1:1 (a 2x2 of squares, height-capped so it never blows past the viewport). */
   .stage { flex:1; min-width:0; position:relative; aspect-ratio:4/3; overflow:hidden;
     display:grid; gap:2px; }
-  body.in-lobby .stage,
   .stage[data-cams="1"] { flex:0 1 min(100%, 980px); max-height:85vh; }
+  /* lobby: fill the column (bounded by height) so the cam is big and hugs the rail on wide screens */
+  body.in-lobby .stage { flex:1 1 auto; max-width:100%; max-height:85vh; }
   .stage[data-cams="1"] { grid-template-columns:1fr; }
   /* matched 1v1: two square cams side by side — let it grow wide so it dominates the screen */
   .stage[data-cams="2"] { grid-template-columns:1fr 1fr; aspect-ratio:2/1; flex:0 1 min(100%, 1200px); max-height:80vh; }
@@ -403,41 +406,69 @@
   .stage.split .banner > div:empty { display:none; }
   .stage.split .banner > div + div:not(:empty) { margin-top:8px; }
 
-  /* juice layer. Popups spawn INSIDE the opponent's camera tile (see popLayer) so they sit
-     exactly where the player is already looking; .fx on the stage is only a fallback. They
-     ride above the tile vignette (z4) and nameplate (z6) but under the intro plates (z7+). */
+  /* Reaction chips spawn inside the camera of the side earning points, then move through the
+     fixed flight layer into that side's meter. .fx remains the no-camera fallback. */
   .fx { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:5; }
   .tile-fx { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:7; }
+  .bank-fx { position:fixed; inset:0; overflow:visible; pointer-events:none; z-index:60; }
+  .bank-fx .pop { max-width:min(94vw, 420px); }
   /* readable over live video: a dark scrim chip, tinted by kind, not bare glowing text */
   .pop { position:absolute; white-space:nowrap; transform:translate(-50%,-50%);
     max-width:94%; overflow:hidden; text-overflow:ellipsis;
     padding:.3em .55em; background:var(--scrim-heavy);
     border:1px solid var(--border); border-radius:var(--r-sm);
-    animation:popFloat 1.4s var(--ease) forwards; }
+    opacity:0; will-change:transform, opacity;
+    animation:popArrive .22s cubic-bezier(.2,1.45,.35,1) forwards; }
   .pop.scold  { border-color:var(--lose-glow); }
   .pop.reward, .pop.points { border-color:var(--gold-glow); }
   .pop.small { font-size:1.125rem; } .pop.big { font-size:1.625rem; } .pop.laugh { font-size:2.25rem; }
   .pop.points { font-size:1.125rem; } .pop.points.laugh { font-size:1.5rem; }
-  /* appear (snappy pop-in), hold readable, then melt to nothing */
-  @keyframes popFloat {
-    0%   { opacity:0; transform:translate(-50%,-50%) scale(.85); }
-    9%   { opacity:1; transform:translate(-50%,-50%) scale(1.05); }
-    16%  { transform:translate(-50%,-50%) scale(1); }
-    62%  { opacity:1; transform:translate(-50%,-53%) scale(1); }
-    100% { opacity:0; transform:translate(-50%,-58%) scale(.97); }
+  .pop.banking { animation:popBank .65s cubic-bezier(.32,.02,.18,1) forwards; }
+  @keyframes popArrive {
+    0%   { opacity:0; transform:translate(-50%,-42%) scale(.72); }
+    70%  { opacity:1; transform:translate(-50%,-53%) scale(1.06); }
+    100% { opacity:1; transform:translate(-50%,-50%) scale(1); }
   }
-  /* reduced motion: opacity-only fade — still fires animationend so the node self-removes */
+  @keyframes popBank {
+    0%   { opacity:1; transform:translate(-50%,-50%) scale(1); }
+    28%  { opacity:1; transform:translate(-50%,-68%) scale(.78); }
+    100% { opacity:.08; transform:translate(calc(-50% + var(--fly-x)), calc(-50% + var(--fly-y))) scale(.12) rotate(var(--fly-tilt)); }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .pop { animation:popFade 1.4s linear forwards; }
+    .pop { animation:popArriveReduced .1s linear forwards; }
+    .pop.banking { animation:popBankReduced .25s linear forwards; }
   }
-  @keyframes popFade { 0%, 55% { opacity:1; } 100% { opacity:0; } }
+  @keyframes popArriveReduced { from { opacity:0; } to { opacity:1; } }
+  @keyframes popBankReduced { from { opacity:1; } to { opacity:0; } }
 
   .scorebar { display:none; gap:10px; margin-top:12px; align-items:stretch; }
   .scorebar.live { display:flex; }               /* only visible while actually in a match */
   .side { flex:1; }
   .side .lab { display:flex; justify-content:space-between; font-size:13px; margin-bottom:4px; }
-  .track { height:12px; overflow:hidden; }
-  .fill { height:100%; width:0%; transition:width 200ms ease; }
+  .score-meter { --score-tone:color-mix(in srgb, var(--gold) 40%, white); position:relative;
+    height:12px; overflow:hidden; isolation:isolate; }
+  .score-meter .fill { position:absolute; top:0; bottom:0; width:0; border-radius:4px; }
+  .score-solid { left:0; z-index:1; background:var(--score-tone);
+    transition:width .32s var(--ease), background-color .35s var(--ease); }
+  .score-pending { left:0; z-index:2; opacity:.92;
+    background:repeating-linear-gradient(105deg, var(--score-tone) 0 5px, transparent 5px 10px);
+    background-size:14px 100%; box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--score-tone) 72%, transparent);
+    transition:left .32s var(--ease), width .32s var(--ease), background-color .35s var(--ease);
+    animation:scorePendingFlow .45s linear infinite; }
+  .score-pending::after { content:""; position:absolute; top:0; right:0; bottom:0; width:2px;
+    background:var(--score-tone); box-shadow:0 0 8px var(--score-tone); }
+  .score-meter.settling .score-solid { filter:brightness(1.08); }
+  .score-meter.lap-reset { animation:scoreLapReset .42s var(--ease); }
+  @keyframes scorePendingFlow { to { background-position:14px 0; } }
+  @keyframes scoreLapReset {
+    0% { box-shadow:0 0 0 transparent; }
+    42% { box-shadow:0 0 16px color-mix(in srgb, var(--score-tone) 70%, transparent); }
+    100% { box-shadow:0 0 0 transparent; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .score-pending { animation:none; }
+    .score-meter.lap-reset { animation:none; }
+  }
 
   .gamebar { display:flex; gap:8px; margin-top:12px; }
   .gamebar button { padding:11px 16px; font:inherit; cursor:pointer; }
@@ -1086,7 +1117,7 @@
             </button>
           </div>
           <button class="md-btn md-toggle" id="matchDockToggle" type="button" aria-label="open toolbox" aria-expanded="false" title="tools">
-            <span class="md-tool" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20"><path fill="currentColor" d="M22.7 19l-9.1-9.1c.9-2.3.4-5-1.5-6.9-2-2-5-2.4-7.4-1.3L9 6 6 9 1.6 4.7C.4 7.1.9 10.1 2.9 12.1c1.9 1.9 4.6 2.4 6.9 1.5l9.1 9.1c.4.4 1 .4 1.4 0l2.3-2.3c.5-.4.5-1.1.1-1.4z"/></svg></span>
+            <span class="md-tool" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-wrench-icon lucide-wrench"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.106-3.105c.32-.322.863-.22.983.218a6 6 0 0 1-8.259 7.057l-7.91 7.91a1 1 0 0 1-2.999-3l7.91-7.91a6 6 0 0 1 7.057-8.259c.438.12.54.662.219.984z"/></svg></span>
             <span class="md-close" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18"><path fill="currentColor" d="M15 5v14l-9-7z"/></svg></span>
             <span class="fab-badge hidden" id="matchReqBadge">0</span>
           </button>
@@ -1122,8 +1153,8 @@
       </div>
       <!-- match scoreboard: lives in the stage grid so each side can dock under its team's cams -->
       <div class="scorebar">
-        <div class="side"><div class="lab"><span id="youLabel">you</span><span id="youNum">0</span></div><div class="track"><div class="fill you" id="youBar"></div></div></div>
-        <div class="side"><div class="lab"><span id="themLabel">them</span><span id="themNum">0</span></div><div class="track"><div class="fill them" id="themBar"></div></div></div>
+        <div class="side"><div class="lab"><span id="youLabel">you</span><span id="youNum">0</span></div><div class="track score-meter" id="youTrack"><div class="fill score-solid" id="youBar"></div><div class="fill score-pending" id="youPending"></div></div></div>
+        <div class="side"><div class="lab"><span id="themLabel">them</span><span id="themNum">0</span></div><div class="track score-meter" id="themTrack"><div class="fill score-solid" id="themBar"></div><div class="fill score-pending" id="themPending"></div></div></div>
       </div>
       <div class="fx" id="fx"></div>
       <div class="banner hidden" id="banner">
@@ -1316,25 +1347,57 @@ const REWARD = {
   laugh: ["you got 'em!", "they're losing it!", "destroyed", "comedy gold"],
 };
 const pick = a => a[Math.floor(Math.random() * a.length)];
-// Popups land on the OPPONENT's camera — the tile the player is already watching in either
-// role (the reactor watches the teller and vice versa) — so their eyes never leave the action.
-// Falls back to the whole-stage fx layer if no enemy tile exists yet.
-function popLayer() {
-  const enemies = [...remoteGrid.querySelectorAll('.remote-tile:not([data-team="ally"])')];
-  if (!enemies.length) return fx;
-  const tile = enemies[Math.floor(Math.random() * enemies.length)];
+let popSlot = 0;
+const POP_X_SLOTS = [18, 34, 50, 66, 82];
+
+// A reaction belongs on the camera of the side earning points: local for "you", an enemy tile
+// for "them". Duos spread enemy reactions between both opposing cameras.
+function popLayer(side) {
+  let tile = $("localTile");
+  if (side === "them") {
+    const enemies = [...remoteGrid.querySelectorAll('.remote-tile:not([data-team="ally"])')];
+    tile = enemies.length ? enemies[popSlot % enemies.length] : null;
+  }
+  if (!tile) return fx;
   let layer = tile.querySelector(".tile-fx");
   if (!layer) { layer = document.createElement("div"); layer.className = "tile-fx"; tile.appendChild(layer); }
   return layer;
 }
-function spawnPop(text, kind, tier) {
+
+function bankPopup(el, side) {
+  if (!el.isConnected) return;
+  const track = $(side + "Track"), solid = $(side + "Bar"), pending = $(side + "Pending");
+  if (!track || !solid || !pending) { el.remove(); return; }
+  const tr = track.getBoundingClientRect(), sr = solid.getBoundingClientRect(), pr = pending.getBoundingClientRect();
+  const er = el.getBoundingClientRect();
+  const targetX = Math.max(tr.left + 2, Math.min(tr.right - 2, Math.max(sr.right, pr.right)));
+  const targetY = tr.top + tr.height / 2;
+  const startX = er.left + er.width / 2, startY = er.top + er.height / 2;
+  let flight = $("bankFx");
+  if (!flight) {
+    flight = document.createElement("div"); flight.id = "bankFx"; flight.className = "bank-fx";
+    document.body.appendChild(flight);
+  }
+  flight.appendChild(el);
+  el.style.position = "fixed";
+  el.style.left = startX + "px";
+  el.style.top = startY + "px";
+  el.style.setProperty("--fly-x", (targetX - startX) + "px");
+  el.style.setProperty("--fly-y", (targetY - startY) + "px");
+  el.style.setProperty("--fly-tilt", ((popSlot % 2 ? 1 : -1) * 8) + "deg");
+  el.classList.add("banking");
+  el.addEventListener("animationend", () => el.remove(), { once:true });
+}
+
+function spawnPop(text, kind, tier, side) {
+  const slot = popSlot++;
   const el = document.createElement("div");
   el.className = `pop ${kind} ${tier}`;
   el.textContent = text;
-  el.style.left = (30 + Math.random() * 40) + "%";
-  el.style.top  = (32 + Math.random() * 32) + "%";
-  popLayer().appendChild(el);
-  el.addEventListener("animationend", () => el.remove());
+  el.style.left = (POP_X_SLOTS[slot % POP_X_SLOTS.length] + (Math.random() * 4 - 2)) + "%";
+  el.style.top = (79 + Math.random() * 10) + "%";
+  popLayer(side).appendChild(el);
+  setTimeout(() => bankPopup(el, side), 1500);
 }
 function flashEdge(kind) { stageEl.classList.add("flash-" + kind); setTimeout(() => stageEl.classList.remove("flash-" + kind), 360); }
 
@@ -1435,7 +1498,7 @@ function renderMeCard(p) {
     const span = Math.max(1, next.min - floor);
     const progress = Math.max(0, Math.min(100, ((rating - floor) / span) * 100));
     $("meNextFill").style.width = progress + "%";
-    progressBox.querySelector("span").textContent = `${Math.max(0, next.min - rating)} ${next.name}`;
+    progressBox.querySelector("span").textContent = `${Math.max(0, next.min - rating)} elo to ${next.name}`;
   } else {
     $("meNextFill").style.width = "100%";
     progressBox.querySelector("span").textContent = "top tier";
@@ -2685,7 +2748,7 @@ const tierOf = a => a > LAUGH_TIER ? "laugh" : a > BIG_TIER ? "big" : "small";
 function reactionBeat(silent) {
   if (scoreAccum <= 0) { peakAmuse = 0; return; }
   const tier = tierOf(peakAmuse);
-  if (!silent) { spawnPop(pick(SCOLD[tier]), "scold", tier); if (tier !== "small") flashEdge("danger"); }
+  if (!silent) { spawnPop(pick(SCOLD[tier]), "scold", tier, "them"); if (tier !== "small") flashEdge("danger"); }
   signal({ type: "reaction", tier, delta: scoreAccum });
   scoreAccum = 0; peakAmuse = 0;
 }
@@ -2740,10 +2803,68 @@ function showSearching(on, label) {
     if (searchTimer) { clearInterval(searchTimer); searchTimer = null; }
   }
 }
+// The score remains server-authoritative. These objects only stage how much of each score is
+// shown as banked versus still moving; every 10 visual points starts a darker meter lap.
+const SCORE_LAP_POINTS = 10, SCORE_SETTLE_MS = 2500;
+const scoreVisuals = {
+  you:  { total:0, banked:0, lap:0, settleTimer:null },
+  them: { total:0, banked:0, lap:0, settleTimer:null },
+};
+const scoreLap = total => Math.max(0, Math.floor(total / SCORE_LAP_POINTS));
+const scoreInLap = (total, lap) => Math.max(0, Math.min(SCORE_LAP_POINTS, total - lap * SCORE_LAP_POINTS));
+
+function renderScoreVisual(side) {
+  const state = scoreVisuals[side], meter = $(side + "Track");
+  const solid = $(side + "Bar"), pending = $(side + "Pending");
+  const banked = scoreInLap(state.banked, state.lap);
+  const current = scoreInLap(state.total, state.lap);
+  const solidPct = banked / SCORE_LAP_POINTS * 100;
+  const pendingPct = Math.max(0, current - banked) / SCORE_LAP_POINTS * 100;
+  const goldWeight = Math.min(100, 40 + state.lap * 15);
+  meter.style.setProperty("--score-tone", `color-mix(in srgb, var(--gold) ${goldWeight}%, white)`);
+  meter.dataset.lap = String(state.lap);
+  solid.style.width = solidPct + "%";
+  pending.style.left = solidPct + "%";
+  pending.style.width = pendingPct + "%";
+}
+
+function settleScoreVisual(side) {
+  const state = scoreVisuals[side], meter = $(side + "Track");
+  state.settleTimer = null;
+  state.banked = state.total;
+  meter.classList.add("settling");
+  renderScoreVisual(side);
+  setTimeout(() => meter.classList.remove("settling"), 360);
+}
+
+function setScoreVisual(side, nextTotal) {
+  const state = scoreVisuals[side], meter = $(side + "Track");
+  const total = Math.max(0, Number(nextTotal) || 0);
+  if (total < state.total) {
+    clearTimeout(state.settleTimer);
+    state.total = total; state.banked = total; state.lap = scoreLap(total); state.settleTimer = null;
+    renderScoreVisual(side);
+    return;
+  }
+  if (total <= state.total) return;
+  const previousLap = state.lap;
+  state.total = total;
+  state.lap = scoreLap(total);
+  if (state.lap !== previousLap) {
+    meter.classList.remove("lap-reset");
+    void meter.offsetWidth;
+    meter.classList.add("lap-reset");
+    setTimeout(() => meter.classList.remove("lap-reset"), 440);
+  }
+  renderScoreVisual(side);
+  clearTimeout(state.settleTimer);
+  state.settleTimer = setTimeout(() => settleScoreVisual(side), SCORE_SETTLE_MS);
+}
+
 function setScores(s) {
   $("youNum").textContent = Math.round(s.you); $("themNum").textContent = Math.round(s.them);
-  const max = Math.max(10, s.you, s.them);
-  $("youBar").style.width = (s.you / max * 100) + "%"; $("themBar").style.width = (s.them / max * 100) + "%";
+  setScoreVisual("you", s.you);
+  setScoreVisual("them", s.them);
 }
 function resetMatchUi() {
   endIntro();                    // clear any VS screen / intro cards from an aborted opener
@@ -2764,6 +2885,7 @@ function resetMatchUi() {
   setMatchDock(false);           // toolbox starts collapsed each match
   matchClipOk = false; applyClipUi();   // clip button re-arms only when the next match consents
   clipCapture.stop();                   // tear down the rolling buffer + audio graph
+  for (const pop of document.querySelectorAll(".pop")) pop.remove();
   setScores({ you: 0, them: 0 });
 }
 // ---------- round timer: draining bar + :SS readout above the chat ----------
@@ -2905,8 +3027,8 @@ ws.addEventListener("message", async (e) => {
     case "gameState": applyGameState(msg); break;
     case "score": setScores(msg.scores); clipCapture.note("score", msg.scores); break;
     case "reaction":
-      spawnPop(pick(REWARD[msg.tier]), "reward", msg.tier);
-      if (msg.delta) spawnPop("+" + msg.delta.toFixed(1), "points", msg.tier);
+      spawnPop(pick(REWARD[msg.tier]), "reward", msg.tier, "you");
+      if (msg.delta) spawnPop("+" + msg.delta.toFixed(1), "points", msg.tier, "you");
       if (msg.tier !== "small") flashEdge("score");
       break;
     case "ranked":
