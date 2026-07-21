@@ -1675,16 +1675,32 @@ function clipScore(ctx, label, value, x, y) {
   ctx.fillStyle = "#A39B8B"; ctx.font = "600 16px 'Space Grotesk', sans-serif"; ctx.fillText(label, x + 14, y + 24);
   ctx.fillStyle = "#F2B01E"; ctx.font = "700 30px 'IBM Plex Mono', monospace"; ctx.fillText(String(Math.round(value ?? 0)), x + 14, y + 50);
 }
-// the mandatory branding — matches index.html's hero wordmark (Space Grotesk 700, omeg + gold LOL)
-function clipWordmark(ctx, W, cy) {
+// faux browser/site nav across the top — surface bar + the omegLOL brand (dot + omeg + gold LOL)
+// top-left, matching the real nav. This carries the mandatory branding.
+function clipNav(ctx, W, navH) {
+  ctx.fillStyle = "#161411"; ctx.fillRect(0, 0, W, navH);           // --surface
+  ctx.fillStyle = "#2A2620"; ctx.fillRect(0, navH - 2, W, 2);       // --border hairline
+  const cy = navH / 2, x0 = 40;
   ctx.save(); ctx.textBaseline = "middle"; ctx.textAlign = "left";
-  ctx.font = "700 46px 'Space Grotesk', sans-serif"; try { ctx.letterSpacing = "-0.02em"; } catch {}
-  const wo = ctx.measureText("omeg").width, wl = ctx.measureText("LOL").width, x = (W - wo - wl) / 2;
-  ctx.fillStyle = "rgba(13,12,10,.82)"; ctx.fillRect(0, cy - 30, W, 60);
-  ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 6;
-  ctx.fillStyle = "#F5F2EC"; ctx.fillText("omeg", x, cy + 1);
-  ctx.fillStyle = "#F2B01E"; ctx.fillText("LOL", x + wo, cy + 1);
+  ctx.fillStyle = "#F2B01E"; ctx.beginPath(); ctx.arc(x0 + 7, cy + 1, 7, 0, Math.PI * 2); ctx.fill();   // brand dot
+  ctx.font = "700 42px 'Space Grotesk', sans-serif"; try { ctx.letterSpacing = "-0.02em"; } catch {}
+  const tx = x0 + 28, wo = ctx.measureText("omeg").width;
+  ctx.fillStyle = "#F5F2EC"; ctx.fillText("omeg", tx, cy + 1);
+  ctx.fillStyle = "#F2B01E"; ctx.fillText("LOL", tx + wo, cy + 1);
   ctx.restore();
+}
+// a rounded camera tile: black backing, cover-fit video clipped to the radius, then a border
+function clipCamTile(ctx, src, r, rad) {
+  ctx.save(); clipRoundRect(ctx, r.x, r.y, r.w, r.h, rad); ctx.clip();
+  ctx.fillStyle = "#000"; ctx.fillRect(r.x, r.y, r.w, r.h);
+  if (src) {
+    const sw = src.displayWidth || src.codedWidth || src.width || r.w;
+    const sh = src.displayHeight || src.codedHeight || src.height || r.h;
+    const s = Math.max(r.w / sw, r.h / sh), w = sw * s, h = sh * s;
+    ctx.drawImage(src, r.x + (r.w - w) / 2, r.y + (r.h - h) / 2, w, h);
+  }
+  ctx.restore();
+  ctx.save(); clipRoundRect(ctx, r.x + 1, r.y + 1, r.w - 2, r.h - 2, rad); ctx.lineWidth = 2; ctx.strokeStyle = "#3D372E"; ctx.stroke(); ctx.restore();
 }
 function clipDownload(blob, name) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
@@ -1698,7 +1714,13 @@ async function renderClip(snap) {
   const lLast = L.chunks[L.chunks.length - 1].timestamp, rLast = R.chunks[R.chunks.length - 1].timestamp;
   const windowUs = Math.min(lLast - L.chunks[0].timestamp, rLast - R.chunks[0].timestamp, snap.lengthSec * 1e6);
   const fps = snap.framerate || 30, frameUs = 1e6 / fps, n = Math.max(1, Math.round(windowUs / frameUs));
-  const W = 1080, H = 1920, half = 960;
+  const W = 1080, H = 1920;
+  // page-chrome layout: a nav bar up top, then two rounded cam tiles inset in the --bg, stacked
+  const NAV_H = 96, PAD = 36, GAP = 24, RAD = 22;
+  const camW = W - PAD * 2, camTop = NAV_H + GAP, camH = Math.floor((H - camTop - PAD - GAP) / 2);
+  const cam1 = { x: PAD, y: camTop, w: camW, h: camH };                   // opponent (remote), top
+  const cam2 = { x: PAD, y: camTop + camH + GAP, w: camW, h: camH };      // you (local), bottom
+  const seamY = cam2.y - GAP / 2;                                         // overlays center between the cams
   const canvas = new OffscreenCanvas(W, H), ctx = canvas.getContext("2d", { alpha: false });
   const lr = makeCamReader(L.chunks, L.desc, CLIP_DEC_CODEC), rr = makeCamReader(R.chunks, R.desc, CLIP_DEC_CODEC);
   const target = new mux.ArrayBufferTarget();
@@ -1724,23 +1746,26 @@ async function renderClip(snap) {
     const om = i * frameUs;
     const lf = await lr.frameAt(lLast - windowUs + om);
     const rf = await rr.frameAt(rLast - windowUs + om);
-    ctx.fillStyle = "#0D0C0A"; ctx.fillRect(0, 0, W, H);
-    if (rf) clipDrawCover(ctx, rf, 0, 0, W, half);          // opponent (remote) on top
-    if (lf) clipDrawCover(ctx, lf, 0, half, W, half);       // you (local) on the bottom
+    ctx.fillStyle = "#0D0C0A"; ctx.fillRect(0, 0, W, H);    // page bg (chrome around the cams)
+    clipNav(ctx, W, NAV_H);
+    clipCamTile(ctx, rf, cam1, RAD);                        // opponent (remote) on top
+    clipCamTile(ctx, lf, cam2, RAD);                        // you (local) on the bottom
     const st = stateAt(om / 1000);
-    if (st.score) { clipScore(ctx, "THEM", st.score.them, 24, half - 84); clipScore(ctx, "YOU", st.score.you, 24, H - 84); }
-    clipNameCard(ctx, M.remote?.name || "opponent", W - 20, 20);
-    clipNameCard(ctx, M.local?.name || "you", W - 20, half + 20);
-    if (st.phase === "intro") { ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "700 220px 'Space Grotesk', sans-serif"; ctx.fillStyle = "rgba(242,176,30,.9)"; ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 30; ctx.fillText("VS", W / 2, half); ctx.restore(); }
-    else if (st.phase === "countdown") { const left = Math.ceil(Math.max(0, 5 - st.phaseMs / 1000)); if (left > 0) { ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "700 240px 'Space Grotesk', sans-serif"; ctx.fillStyle = "rgba(245,242,236,.92)"; ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 30; ctx.fillText(String(left), W / 2, half); ctx.restore(); } }
+    if (st.score) {                                         // scoreboard at the bottom of each cam
+      clipScore(ctx, "THEM", st.score.them, cam1.x + 18, cam1.y + cam1.h - 78);
+      clipScore(ctx, "YOU", st.score.you, cam2.x + 18, cam2.y + cam2.h - 78);
+    }
+    clipNameCard(ctx, M.remote?.name || "opponent", cam1.x + cam1.w - 16, cam1.y + 16);
+    clipNameCard(ctx, M.local?.name || "you", cam2.x + cam2.w - 16, cam2.y + 16);
+    if (st.phase === "intro") { ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "700 200px 'Space Grotesk', sans-serif"; ctx.fillStyle = "rgba(242,176,30,.92)"; ctx.shadowColor = "rgba(0,0,0,.55)"; ctx.shadowBlur = 30; ctx.fillText("VS", W / 2, seamY); ctx.restore(); }
+    else if (st.phase === "countdown") { const left = Math.ceil(Math.max(0, 5 - st.phaseMs / 1000)); if (left > 0) { ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "700 220px 'Space Grotesk', sans-serif"; ctx.fillStyle = "rgba(245,242,236,.92)"; ctx.shadowColor = "rgba(0,0,0,.55)"; ctx.shadowBlur = 30; ctx.fillText(String(left), W / 2, seamY); ctx.restore(); } }
     if (st.elo && (om / 1000 - st.elo.at) < 4500) {
       ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "700 40px 'Space Grotesk', sans-serif";
       const txt = (st.elo.data.delta >= 0 ? "+" : "") + st.elo.data.delta + "  →  " + st.elo.data.rating;
-      const w = ctx.measureText(txt).width + 48, x = (W - w) / 2, y = H * 0.7;
-      ctx.fillStyle = "rgba(13,12,10,.82)"; clipRoundRect(ctx, x, y, w, 70, 14); ctx.fill();
+      const w = ctx.measureText(txt).width + 48, x = (W - w) / 2, y = seamY - 35;
+      ctx.fillStyle = "rgba(13,12,10,.85)"; clipRoundRect(ctx, x, y, w, 70, 14); ctx.fill();
       ctx.fillStyle = st.elo.data.delta >= 0 ? "#F2B01E" : "#F0524D"; ctx.fillText(txt, W / 2, y + 36); ctx.restore();
     }
-    clipWordmark(ctx, W, half);
     const vf = new VideoFrame(canvas, { timestamp: Math.round(om), duration: Math.round(frameUs) });
     venc.encode(vf, { keyFrame: i % (fps * 2) === 0 }); vf.close();
     if (i % 8 === 0) await new Promise(r => setTimeout(r));           // yield so the live match keeps breathing
