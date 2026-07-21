@@ -96,13 +96,14 @@
     font-size:clamp(10px, 4.2cqw, 14px); font-weight:500; color:var(--text-2); }
   .me-online { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .mc-ico { width:clamp(14px, 5.7cqw, 18px); height:clamp(14px, 5.7cqw, 18px); flex:none; color:var(--text-3); }
-  .mc-emoji { filter:grayscale(1); opacity:.65; font-size:clamp(12px, 5cqw, 16px); line-height:1; flex:none; }
   .me-rules { flex:none; display:grid; place-items:center;
     width:clamp(26px, 11cqw, 34px); height:clamp(24px, 10cqw, 30px);
-    background:transparent; border:1px solid var(--border-2); border-radius:var(--r-sm); cursor:pointer;
-    transition:background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease); }
-  .me-rules:hover { background:var(--surface-2); border-color:var(--gold); }
-  .me-rules:hover .mc-emoji { opacity:.9; }
+    padding:0; line-height:0; color:var(--text-3); background:transparent;
+    border:1px solid var(--border-2); border-radius:var(--r-sm); cursor:pointer;
+    transition:background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease),
+      color var(--t-fast) var(--ease); }
+  .me-rules svg { display:block; width:clamp(16px, 6.7cqw, 20px); height:clamp(16px, 6.7cqw, 20px); }
+  .me-rules:hover { color:var(--gold); background:var(--surface-2); border-color:var(--gold); }
   @keyframes presencePulse { 0%, 100% { transform:scale(1); } 50% { transform:scale(1.25); } }
 
   /* how-to-play modal content */
@@ -504,31 +505,24 @@
   /* the Find CTA: THE one gold element on the idle play page. Solid fill, no glow, no shine —
      cqw-scaled so it stays a dominant, well-filled CTA at any rail width. */
   #find {
-    display:flex; align-items:center; justify-content:center; gap:clamp(7px, 3.3cqw, 14px);
-    font-size:clamp(16px, 6.7cqw, 22px); font-weight:500; line-height:1.35;
+    display:flex; align-items:center; justify-content:center; text-align:center;
+    font-size:clamp(18px, 7.4cqw, 24px); font-weight:500; line-height:1.35;
     padding:clamp(22px, 9.5cqw, 36px) clamp(9px, 4cqw, 16px);
     background:var(--gold); color:var(--gold-ink); border-color:transparent;
     position:relative; overflow:hidden;
   }
-  #find .blink { flex:none; display:inline-block; }
-  /* every ~3.5s: a sheen sweeps across the gold while the ▶ gives a little "go" nudge.
-     Animations live on the pseudo/child so #find's own hover translateY still works. */
+  /* Every ~3.5s, a sheen sweeps across the gold. The animation lives on the pseudo-element
+     so #find's own hover translateY still works. */
   #find::after { content:""; position:absolute; top:-4px; bottom:-4px; left:-60%; width:40%;
     background:linear-gradient(105deg, transparent, rgba(255,255,255,.5), transparent);
     transform:skewX(-18deg); pointer-events:none; opacity:0; }
   @media (prefers-reduced-motion: no-preference) {
     #find:not(:disabled):not(.cancel-search)::after { animation:findShine 3.5s ease-in-out infinite; }
-    #find:not(:disabled):not(.cancel-search) .blink { animation:findNudge 3.5s ease-in-out infinite; }
   }
   @keyframes findShine {
     0%, 55% { left:-60%; opacity:0; }
     60%     { opacity:1; }
     85%, 100% { left:130%; opacity:0; }
-  }
-  @keyframes findNudge {
-    0%, 55%, 75%, 100% { transform:translateX(0); }
-    62% { transform:translateX(0.22em); }
-    68% { transform:translateX(-0.06em); }
   }
   #find:hover:not(:disabled) { background:var(--gold-2); transform:translateY(-1px); }
   #find:active:not(:disabled) { transform:translateY(0); }
@@ -983,7 +977,7 @@
       </span>
     </label>
     <label class="sd-row" id="clipRow">
-      <span class="sd-info"><b>Clipping</b><small id="clipHint">Save clips locally (Chrome/Edge). Blocks in-app clips only — not OS screen capture.</small></span>
+      <span class="sd-info"><b>Clipping</b><small id="clipHint">Save clips locally (Chrome/Edge). Blocks in-site clips only.</small></span>
       <span class="sd-switch"><input type="checkbox" id="setClip" /><span class="knob" aria-hidden="true"></span></span>
     </label>
   </div>
@@ -1059,10 +1053,10 @@
         <span class="fab-badge hidden" id="reqBadge">0</span>
       </button>
       <button class="friends-fab settings-fab" id="settingsFab" type="button" aria-label="open settings" aria-expanded="false" title="settings">
-        <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M19.4 13c.04-.32.06-.66.06-1s-.02-.68-.06-1l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96c-.5-.38-1.04-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.56-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.91 8.78a.5.5 0 0 0 .12.64L5.06 11c-.04.32-.06.66-.06 1s.02.68.06 1l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.61.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.24 1.12-.56 1.62-.94l2.39.96c.21.1.48.01.61-.22l1.92-3.32a.5.5 0 0 0-.12-.64L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings-icon lucide-settings" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
       </button>
       <button class="friends-fab clip-fab" id="clipFab" type="button" aria-label="clip settings" aria-expanded="false" title="clips">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11h16v9H4z"/><path d="m4 10-.8-3.5L19.7 3l.8 3.5L4 10z"/><path d="m8 5.5 1 3.5m5-4.8 1 3.5"/><path d="m10 13.5 4 2-4 2z" fill="currentColor" stroke="none"/></svg>
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clapperboard-icon lucide-clapperboard" aria-hidden="true"><path d="m12.296 3.464 3.02 3.956"/><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m6.18 5.276 3.1 3.899"/></svg>
       </button>
       <div class="remote-grid" id="remoteGrid" data-count="0"></div>
       <div class="local-tile" id="localTile">
@@ -1073,10 +1067,10 @@
           <div class="cc-form" id="selfForm"></div>
         </div>
         <button class="bank-fab" id="bankFab" type="button" aria-label="open joke bank" title="joke bank">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M11.4 2.6a1.3 1.3 0 0 1 1.2 0l8.9 5.2c1 .6.6 2.1-.6 2.1H3.1c-1.2 0-1.6-1.5-.6-2.1l8.9-5.2zM4.6 11.4h2.7v6.2H4.6v-6.2zm6.05 0h2.7v6.2h-2.7v-6.2zm6.05 0h2.7v6.2h-2.7v-6.2zM3.6 19.1h16.8c.7 0 1.25.55 1.25 1.25S21.1 21.6 20.4 21.6H3.6c-.7 0-1.25-.55-1.25-1.25S2.9 19.1 3.6 19.1z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-landmark-icon lucide-landmark" aria-hidden="true"><path d="M10 18v-7"/><path d="M11.119 2.205a2 2 0 0 1 1.762 0l7.84 3.846A.5.5 0 0 1 20.5 7h-17a.5.5 0 0 1-.22-.949z"/><path d="M14 18v-7"/><path d="M18 18v-7"/><path d="M3 22h18"/><path d="M6 18v-7"/></svg>
         </button>
         <button class="bank-fab sound-fab" id="soundFab" type="button" aria-label="open soundboard" title="soundboard">
-          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M3.4 9h3.3l5.2-4.2c.65-.52 1.6-.06 1.6.77v12.86c0 .83-.95 1.3-1.6.77L6.7 15H3.4c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M16.2 9.4a4 4 0 0 1 0 5.2M18.8 7.2a7.4 7.4 0 0 1 0 9.6M21.3 5.1a10.8 10.8 0 0 1 0 13.8"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines-icon lucide-audio-lines" aria-hidden="true"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>
         </button>
         <!-- match-only collapsible toolbox: friends + settings tuck behind one tool button -->
         <div class="match-dock" id="matchDock">
@@ -1085,10 +1079,10 @@
               <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M9 11.5a4.25 4.25 0 1 0 0-8.5 4.25 4.25 0 0 0 0 8.5zm7.5.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7zM1.5 20.5v-1.6c0-3.2 3.2-5.4 7.5-5.4s7.5 2.2 7.5 5.4v1.6H1.5zm16.7 0v-1.6c0-1.7-.6-3.2-1.7-4.3.6-.1 1.3-.2 2-.2 3.2 0 5.5 1.9 5.5 4.5v1.6h-5.8z"/></svg>
             </button>
             <button class="md-btn" id="matchSettings" type="button" aria-label="open settings" title="settings">
-              <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M19.4 13c.04-.32.06-.66.06-1s-.02-.68-.06-1l2.03-1.58a.5.5 0 0 0 .12-.64l-1.92-3.32a.5.5 0 0 0-.61-.22l-2.39.96c-.5-.38-1.04-.7-1.62-.94l-.36-2.54a.5.5 0 0 0-.5-.42h-3.84a.5.5 0 0 0-.5.42l-.36 2.54c-.58.24-1.12.56-1.62.94l-2.39-.96a.5.5 0 0 0-.61.22L2.91 8.78a.5.5 0 0 0 .12.64L5.06 11c-.04.32-.06.66-.06 1s.02.68.06 1l-2.03 1.58a.5.5 0 0 0-.12.64l1.92 3.32c.13.23.4.32.61.22l2.39-.96c.5.38 1.04.7 1.62.94l.36 2.54c.04.24.25.42.5.42h3.84c.25 0 .46-.18.5-.42l.36-2.54c.58-.24 1.12-.56 1.62-.94l2.39.96c.21.1.48.01.61-.22l1.92-3.32a.5.5 0 0 0-.12-.64L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-settings-icon lucide-settings" aria-hidden="true"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 1 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
             <button class="md-btn" id="matchClip" type="button" aria-label="clip the last moments" title="clip" disabled>
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11h16v9H4z"/><path d="m4 10-.8-3.5L19.7 3l.8 3.5L4 10z"/><path d="m8 5.5 1 3.5m5-4.8 1 3.5"/><path d="m10 13.5 4 2-4 2z" fill="currentColor" stroke="none"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clapperboard-icon lucide-clapperboard" aria-hidden="true"><path d="m12.296 3.464 3.02 3.956"/><path d="M20.2 6 3 11l-.9-2.4c-.3-1.1.3-2.2 1.3-2.5l13.5-4c1.1-.3 2.2.3 2.5 1.3z"/><path d="M3 11h18v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m6.18 5.276 3.1 3.899"/></svg>
             </button>
           </div>
           <button class="md-btn md-toggle" id="matchDockToggle" type="button" aria-label="open toolbox" aria-expanded="false" title="tools">
@@ -1198,10 +1192,10 @@
             <span class="me-online" id="meOnline">0 friends online</span>
           </span>
           <span class="me-count" title="players online">
-            <span class="mc-emoji" aria-hidden="true">🌐</span>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mc-ico lucide lucide-globe-icon lucide-globe" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
             <span id="meGlobal">—</span>
           </span>
-          <button class="me-rules" id="rulesBtn" type="button" title="how to play" aria-label="how to play"><span class="mc-emoji">📜</span></button>
+          <button class="me-rules" id="rulesBtn" type="button" title="how to play" aria-label="how to play"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scroll-text-icon lucide-scroll-text" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg></button>
         </div>
       </div>
     </aside>
@@ -2053,11 +2047,7 @@ function renderLobby() {
     return `<span class="lobby-mem">${crown}${esc(m.name)}</span>`;
   }).join("");
 }
-// go=true renders the blinking ▶ prefix (static strings only — never user data).
-function setFindLabel(find, label, go) {
-  if (go) find.innerHTML = `<span class="blink">▶</span> ${label}`;
-  else find.textContent = label;
-}
+function setFindLabel(find, label) { find.textContent = label; }
 function updateModeUI() {
   for (const b of $("topMode").children) b.classList.toggle("active", b.dataset.mode === topMode);
   for (const b of $("pvpMode").children) b.classList.toggle("active", b.dataset.pvp === mode);
@@ -2070,11 +2060,11 @@ function updateModeUI() {
     if (duosQueued) {                               // queued: leader can cancel (and stay in lobby), others wait
       find.classList.toggle("cancel-search", leader);
       find.disabled = !leader; setFindLabel(find, leader ? "Cancel search" : "Queued — waiting…");
-    } else { find.disabled = !leader; setFindLabel(find, leader ? "Queue for Duos" : "waiting for leader…", leader); }
+    } else { find.disabled = !leader; setFindLabel(find, leader ? "Queue for Duos" : "waiting for leader…"); }
   }
   else if (topMode === "br") { find.disabled = true; setFindLabel(find, "Battle Royale (soon)"); }
   else if (mode === "duos") { find.disabled = true; setFindLabel(find, "Invite a friend"); }
-  else { find.disabled = false; setFindLabel(find, "Find a match", true); }
+  else { find.disabled = false; setFindLabel(find, "Find a match"); }
   renderFriends();
 }
 $("topMode").addEventListener("click", e => { const b = e.target.closest("[data-mode]"); if (b) { topMode = b.dataset.mode; updateModeUI(); } });
@@ -2295,7 +2285,7 @@ function playSound(s) {
   triggerSound(s);
 }
 
-const SND_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M3.4 9h3.3l5.2-4.2c.65-.52 1.6-.06 1.6.77v12.86c0 .83-.95 1.3-1.6.77L6.7 15H3.4c-.55 0-1-.45-1-1v-4c0-.55.45-1 1-1z"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M16.2 9.4a4 4 0 0 1 0 5.2M18.8 7.2a7.4 7.4 0 0 1 0 9.6"/></svg>';
+const SND_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-audio-lines-icon lucide-audio-lines" aria-hidden="true"><path d="M2 10v3"/><path d="M6 6v11"/><path d="M10 3v18"/><path d="M14 8v7"/><path d="M18 5v13"/><path d="M22 10v3"/></svg>';
 function renderSounds() {
   $("soundCount").textContent = sounds.length ? sounds.length + (sounds.length === 1 ? " sound" : " sounds") : "";
   const fav = new Set(soundFavs);
