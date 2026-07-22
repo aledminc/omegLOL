@@ -238,15 +238,52 @@
     border-color:var(--gold);
     box-shadow:0 0 0 1px var(--gold), 0 0 36px var(--gold-glow); }
 
-  @media (max-width:900px) {   /* narrow screens: stack cams with the mid column between */
+  @media (max-width:900px) {   /* narrow screens: stack complete camera + scoreboard units */
     .stage.split[data-cams="2"], .stage.split[data-cams="3"], .stage.split[data-cams="4"] {
       grid-template-columns:1fr; grid-template-rows:none; gap:14px; aspect-ratio:auto; max-height:none; }
-    .stage.split .remote-tile, .stage.split .local-tile { aspect-ratio:4/3; grid-column:1 !important; grid-row:auto !important;
+    .stage.split .remote-tile, .stage.split .local-tile { aspect-ratio:4/3; grid-column:1 !important; grid-row:auto;
       border-radius:var(--r-lg) !important; }
-    .stage.split .match-mid { grid-column:1; grid-row:auto; min-height:260px; }
-    /* stacked: the score bars detach from the cams and stack as plain rows */
-    .stage.split .scorebar .side { grid-column:1 !important; grid-row:auto !important; margin-top:0;
-      border-top:1px solid var(--border); border-radius:var(--r-sm); }
+    .stage.split .match-mid { grid-column:1; grid-row:auto; min-height:300px; }
+    .stage.split .match-mid #chatCard { min-height:220px; }
+    .stage.split .scorebar .side { grid-column:1 !important; margin-top:-14px;
+      border-top:0; border-radius:0 0 var(--r-lg) var(--r-lg); }
+
+    /* solo: your camera + score, chat/tools, then their camera + score */
+    .stage.split[data-cams="2"] #localTile { grid-row:1 !important;
+      border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
+    .stage.split[data-cams="2"] .scorebar .side:first-child { grid-row:2 !important; }
+    .stage.split[data-cams="2"] .match-mid { grid-row:3 !important; }
+    .stage.split[data-cams="2"] .remote-tile { grid-row:4 !important;
+      border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
+    .stage.split[data-cams="2"] .scorebar .side:last-child { grid-row:5 !important; }
+
+    /* full duos: teammate above you, then your team score; opponents mirror that below chat */
+    .stage.split[data-cams="4"] .remote-tile[data-team="ally"] { grid-row:1 !important; }
+    .stage.split[data-cams="4"] #localTile { grid-row:2 !important;
+      border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
+    .stage.split[data-cams="4"] .scorebar .side:first-child { grid-row:3 !important; }
+    .stage.split[data-cams="4"] .match-mid { grid-row:4 !important; }
+    .stage.split[data-cams="4"] .remote-tile:nth-child(1 of .remote-tile:not([data-team="ally"])) { grid-row:5 !important; }
+    .stage.split[data-cams="4"] .remote-tile:nth-child(2 of .remote-tile:not([data-team="ally"])) { grid-row:6 !important;
+      border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
+    .stage.split[data-cams="4"] .scorebar .side:last-child { grid-row:7 !important; }
+
+    /* resilient three-camera fallback while a duo peer is reconnecting. */
+    .stage.split[data-cams="3"] #localTile { grid-row:1 !important;
+      border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
+    .stage.split[data-cams="3"] .scorebar .side:first-child { grid-row:2 !important; }
+    .stage.split[data-cams="3"] .match-mid { grid-row:3 !important; }
+    .stage.split[data-cams="3"] .remote-tile:nth-child(1 of .remote-tile:not([data-team="ally"])) { grid-row:4 !important; }
+    .stage.split[data-cams="3"] .remote-tile:nth-child(2 of .remote-tile:not([data-team="ally"])) { grid-row:5 !important;
+      border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
+    .stage.split[data-cams="3"] .scorebar .side:last-child { grid-row:6 !important; }
+    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .remote-tile[data-team="ally"] { grid-row:1 !important; }
+    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) #localTile { grid-row:2 !important; }
+    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .scorebar .side:first-child { grid-row:3 !important; }
+    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .match-mid { grid-row:4 !important; }
+    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .remote-tile:not([data-team="ally"]) { grid-row:5 !important;
+      border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
+    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .scorebar .side:last-child { grid-row:6 !important; }
   }
 
   .remote-grid { display:contents; }
@@ -792,6 +829,7 @@
   .match-dock.open .md-toggle .md-tool { display:none; }
   .match-dock.open .md-toggle .md-close { display:grid; place-items:center; }
   .md-toggle .fab-badge { top:-6px; right:-6px; }
+  #matchFriends .fab-badge { top:-6px; right:-6px; }
   .md-btn:disabled { opacity:.32; cursor:default; }
   .md-btn:disabled:hover { color:var(--on-video-dim); background:transparent; }
   /* clip status toast — anchored to the dock: above the toolbar when open, left of it when minimized */
@@ -1063,10 +1101,10 @@
   .sound-fab { left:auto; right:58px; }
 
   @media (max-width:1024px) {
-    /* stack: mode select + Find first, camera under it (mirrors the left-anchored desktop order) */
+    /* stack: cameras first, then the lobby controls beneath them */
     .play-shell { grid-template-columns:1fr; gap:12px; }
-    .action-panel { order:1; border-right:1px solid var(--border); border-radius:var(--r-lg); }
-    .match-panel { order:2; }
+    .match-panel { order:1; }
+    .action-panel { order:2; border-right:1px solid var(--border); border-radius:var(--r-lg); }
     .stage:not(.split) { margin-right:0; border-radius:var(--r-lg); }
     .action-panel .rail-cta { flex:none; min-height:100px; }
     .action-panel .me-card { min-height:0; }
@@ -1429,8 +1467,8 @@
     <h3>How to play</h3>
     <ol class="rules-list">
       <li><b>Get matched.</b> You're paired live with another player, cam to cam.</li>
-      <li><b>Know your role.</b> During the countdown you're told your role: the <b>joke teller</b> performs, the <b>reactor</b> tries to keep a straight face.</li>
-      <li><b>Perform.</b> The joke teller has the round to make the reactor crack... bits, faces, impressions, whatever works.</li>
+      <li><b>Know your role.</b> During the countdown you're told your role: the <b>joker</b> performs, the <b>reactor</b> tries to keep a straight face.</li>
+      <li><b>Perform.</b> The joker has the round to make the reactor crack... bits, faces, impressions, whatever works.</li>
       <li><b>The camera keeps score.</b> Smiles and laughs are detected on the reactor's own device and tallied in real time. Bigger reactions score more.</li>
       <li><b>Swap.</b> Roles flip and the other side gets their shot.</li>
       <li><b>Win and climb.</b> Highest total wins the match, your Elo moves, and you climb the ranked ladder. Play solo 1v1 or invite a friend for duos.</li>
@@ -1785,6 +1823,9 @@ function setMatchDock(open) {
   matchDock.classList.toggle("open", open);
   $("matchDockToggle").setAttribute("aria-expanded", String(open));
   $("matchDockToggle").setAttribute("aria-label", open ? "close toolbox" : "open toolbox");
+  const badge = $("matchReqBadge");
+  const badgeHost = open ? $("matchFriends") : $("matchDockToggle");
+  if (badge.parentElement !== badgeHost) badgeHost.appendChild(badge);
 }
 $("matchDockToggle").addEventListener("click", () => setMatchDock(!matchDock.classList.contains("open")));
 // the tray buttons just drive the existing drawers, then tuck the dock away behind them
