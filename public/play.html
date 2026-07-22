@@ -253,6 +253,8 @@
   .remote-tile, .local-tile { position:relative; min-width:0; min-height:0; overflow:hidden; background:var(--cam); }
   .remote-tile video, #local { width:100%; height:100%; object-fit:cover; display:block; }
   #local { transform:scaleX(-1); }
+  .mouth-cue { position:absolute; inset:0; z-index:5; display:block; width:100%; height:100%;
+    pointer-events:none; }
 
   /* reaction edge-flash: a felt (not blinding) inner vignette pulse on every cam tile */
   .remote-tile::after, .local-tile::after { content:""; position:absolute; inset:0; z-index:4;
@@ -1202,6 +1204,7 @@
       <div class="remote-grid" id="remoteGrid" data-count="0"></div>
       <div class="local-tile" id="localTile">
         <video id="local" autoplay playsinline muted></video>
+        <canvas class="mouth-cue" id="localMouthCue" aria-hidden="true"></canvas>
         <div class="cam-card" id="selfCard">
           <span class="cc-name" id="selfName">—</span>
           <span class="cc-rank" id="selfRank">—</span>
@@ -2054,6 +2057,29 @@ function clipCamTile(ctx, src, r, rad) {
   ctx.restore();
   ctx.save(); clipRoundRect(ctx, r.x + 1, r.y + 1, r.w - 2, r.h - 2, rad); ctx.lineWidth = 2; ctx.strokeStyle = "#3D372E"; ctx.stroke(); ctx.restore();
 }
+function clipMouthCue(ctx, src, r, cue, rad) {
+  if (!src || !cue?.points?.length) return;
+  const sw = src.displayWidth || src.codedWidth || src.width || r.w;
+  const sh = src.displayHeight || src.codedHeight || src.height || r.h;
+  const scale = Math.max(r.w / sw, r.h / sh), dw = sw * scale, dh = sh * scale;
+  const ox = r.x + (r.w - dw) / 2, oy = r.y + (r.h - dh) / 2;
+  const mapped = cue.points.map(([x, y]) => [ox + x * dw, oy + y * dh]);
+  const color = cue.active ? "#4ADE80" : "#F0524D";
+  const path = () => {
+    ctx.beginPath(); ctx.moveTo(mapped[0][0], mapped[0][1]);
+    for (let i = 1; i < mapped.length; i++) ctx.lineTo(mapped[i][0], mapped[i][1]);
+    ctx.closePath();
+  };
+  ctx.save(); clipRoundRect(ctx, r.x, r.y, r.w, r.h, rad); ctx.clip();
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  path(); ctx.strokeStyle = "rgba(0,0,0,.76)"; ctx.lineWidth = 8; ctx.stroke();
+  path(); ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.stroke();
+  for (const [x, y] of mapped) {
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fillStyle = "rgba(0,0,0,.8)"; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 5.5, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+  }
+  ctx.restore();
+}
 function clipDownload(blob, name) {
   const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 15000);
@@ -2085,6 +2111,28 @@ async function renderClip(snap) {
   // events -> clip-relative ms (the window ends "now", so shift by elapsed - windowMs)
   const clipStartMs = snap.elapsedMs - windowUs / 1000;
   const evs = (snap.events || []).map(e => ({ t: e.t - clipStartMs, type: e.type, data: e.data })).sort((a, b) => a.t - b.t);
+  const stateEvs = evs.filter(e => e.type !== "faceCue");
+  const cueTracks = { local:[], remote:[] };
+  for (const e of evs) if (e.type === "faceCue" && cueTracks[e.data?.side]) cueTracks[e.data.side].push(e);
+  const cueIndexes = { local:-1, remote:-1 };
+  function cueAt(side, ms) {
+    const track = cueTracks[side];
+    let i = cueIndexes[side];
+    while (i + 1 < track.length && track[i + 1].t <= ms) i++;
+    cueIndexes[side] = i;
+    const a = track[i];
+    if (!a || !a.data?.tracked || ms - a.t > FACE_CUE_STALE_MS || a.data.points?.length !== 6) return null;
+    let points = a.data.points.map(([x, y]) => [x / 1000, y / 1000]);
+    const b = track[i + 1];
+    if (b?.data?.tracked && b.data.points?.length === 6 && b.t > a.t && b.t - a.t <= FACE_CUE_STALE_MS) {
+      const mix = Math.max(0, Math.min(1, (ms - a.t) / (b.t - a.t)));
+      points = points.map((p, n) => [
+        p[0] + (b.data.points[n][0] / 1000 - p[0]) * mix,
+        p[1] + (b.data.points[n][1] / 1000 - p[1]) * mix,
+      ]);
+    }
+    return { points, active:a.data.active === true };
+  }
   const M = snap.meta || {};
   function stateAt(ms) {
     let score = null, phase = null, phaseData = null, phaseAt = 0, elo = null;
@@ -2092,7 +2140,7 @@ async function renderClip(snap) {
       you: { total:0, banked:0, lastAt:null, seen:false },
       them: { total:0, banked:0, lastAt:null, seen:false },
     };
-    for (const e of evs) { if (e.t > ms) break;
+    for (const e of stateEvs) { if (e.t > ms) break;
       if (e.type === "score") {
         score = e.data;
         for (const side of ["you", "them"]) {
@@ -2125,6 +2173,10 @@ async function renderClip(snap) {
     clipCamTile(ctx, rf, cam1, RAD);                        // opponent (remote) on top
     clipCamTile(ctx, lf, cam2, RAD);                        // you (local) on the bottom
     const st = stateAt(om / 1000);
+    if (st.phase === "round1" || st.phase === "round2") {
+      clipMouthCue(ctx, rf, cam1, cueAt("remote", om / 1000), RAD);
+      clipMouthCue(ctx, lf, cam2, cueAt("local", om / 1000), RAD);
+    }
     clipScoreBar(ctx, cam1, "them", st.scoreVisual.them, om / 1000, RAD);
     clipScoreBar(ctx, cam2, "you", st.scoreVisual.you, om / 1000, RAD);
     clipNameCard(ctx, M.remote?.name || "opponent", M.remote?.rating, cam1.x + cam1.w - 16, cam1.y + 16);
@@ -2708,11 +2760,13 @@ function tileFor(peer) {
   tile.dataset.team = peer.team || "";
   const video = document.createElement("video");
   video.autoplay = true; video.playsInline = true;
+  const mouthCue = document.createElement("canvas");
+  mouthCue.className = "mouth-cue"; mouthCue.setAttribute("aria-hidden", "true");
   const card = document.createElement("div");
   card.className = "cam-card";
   card.innerHTML = `<span class="cc-name"></span><span class="cc-rank"></span><div class="cc-form"></div>`;
   card.querySelector(".cc-name").textContent = peer.name || "Player";
-  tile.append(video, card);
+  tile.append(video, mouthCue, card);
   remoteGrid.appendChild(tile);
   remoteGrid.dataset.count = remoteGrid.children.length;
   syncStageLayout();
@@ -2788,6 +2842,7 @@ function endCall() {
   for (const state of peerConnections.values()) state.pc.close();
   peerConnections.clear(); activePeers = [];
   remoteGrid.innerHTML = ""; remoteGrid.dataset.count = "0";
+  clearMouthCues();
   syncStageLayout();
 }
 
@@ -2984,6 +3039,93 @@ const clipCapture = (() => {
 })();
 
 // ---------- detector + the reaction beat (watcher side) ----------
+const MOUTH_LANDMARKS = [61, 0, 291, 314, 17, 84];
+const FACE_CUE_SEND_MS = 80, FACE_CUE_STALE_MS = 420, REMOTE_CUE_DELAY_MS = 90;
+const mouthCueStates = new Map();
+let mouthCueRaf = null, mouthCueEpoch = 0, lastFaceCueSend = 0, lastFaceTracked = false;
+
+function cueSurface(key) {
+  if (key === "local") return { canvas:$("localMouthCue"), video:localVideo, mirrored:true };
+  const tile = remoteGrid.querySelector(`[data-peer="${CSS.escape(String(key))}"]`);
+  return tile ? { canvas:tile.querySelector(".mouth-cue"), video:tile.querySelector("video"), mirrored:false } : null;
+}
+function clearCueCanvas(canvas) {
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d"); ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+function paintMouthCue(surface, points, active) {
+  const { canvas, video, mirrored } = surface;
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  const sw = video.videoWidth, sh = video.videoHeight;
+  if (!cw || !ch || !sw || !sh) { clearCueCanvas(canvas); return; }
+  const dpr = Math.min(2, window.devicePixelRatio || 1), pw = Math.round(cw * dpr), ph = Math.round(ch * dpr);
+  if (canvas.width !== pw || canvas.height !== ph) { canvas.width = pw; canvas.height = ph; }
+  const ctx = canvas.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, cw, ch);
+  const scale = Math.max(cw / sw, ch / sh), dw = sw * scale, dh = sh * scale;
+  const ox = (cw - dw) / 2, oy = (ch - dh) / 2;
+  const mapped = points.map(([nx, ny]) => {
+    const x = ox + nx * dw;
+    return [mirrored ? cw - x : x, oy + ny * dh];
+  });
+  const color = active ? "#4ADE80" : "#F0524D";
+  const path = () => {
+    ctx.beginPath(); ctx.moveTo(mapped[0][0], mapped[0][1]);
+    for (let i = 1; i < mapped.length; i++) ctx.lineTo(mapped[i][0], mapped[i][1]);
+    ctx.closePath();
+  };
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+  path(); ctx.strokeStyle = "rgba(0,0,0,.72)"; ctx.lineWidth = 4; ctx.stroke();
+  path(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+  for (const [x, y] of mapped) {
+    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fillStyle = "rgba(0,0,0,.78)"; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, 3.2, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+  }
+}
+function updateMouthCue(key, points, active, tracked = true) {
+  const id = String(key), state = mouthCueStates.get(id) || { current:null, target:null, active:false, tracked:false, lastAt:0 };
+  state.tracked = tracked; state.active = !!active; state.lastAt = performance.now();
+  if (tracked && points?.length === 6) {
+    state.target = points.map(p => [p[0], p[1]]);
+    if (!state.current) state.current = state.target.map(p => [...p]);
+  }
+  mouthCueStates.set(id, state);
+  if (!tracked) clearCueCanvas(cueSurface(id)?.canvas);
+  if (!mouthCueRaf) mouthCueRaf = requestAnimationFrame(renderMouthCues);
+}
+function renderMouthCues(now) {
+  mouthCueRaf = null;
+  const phase = document.body.dataset.phase, inRound = phase === "round1" || phase === "round2";
+  let animate = false;
+  for (const [key, state] of mouthCueStates) {
+    const surface = cueSurface(key);
+    if (!surface) continue;
+    if (!inRound || !state.tracked || now - state.lastAt > FACE_CUE_STALE_MS || !state.target) {
+      clearCueCanvas(surface.canvas); continue;
+    }
+    state.current = state.current.map((p, i) => [p[0] + (state.target[i][0] - p[0]) * .38, p[1] + (state.target[i][1] - p[1]) * .38]);
+    paintMouthCue(surface, state.current, state.active); animate = true;
+  }
+  if (animate) mouthCueRaf = requestAnimationFrame(renderMouthCues);
+}
+function clearMouthCues() {
+  mouthCueEpoch++;
+  if (mouthCueRaf) cancelAnimationFrame(mouthCueRaf);
+  mouthCueRaf = null; mouthCueStates.clear(); lastFaceTracked = false; lastFaceCueSend = 0;
+  document.querySelectorAll(".mouth-cue").forEach(clearCueCanvas);
+}
+function publishFaceCue(points, active, tracked, now) {
+  if (tracked) updateMouthCue("local", points, active, true);
+  else updateMouthCue("local", null, false, false);
+  const trackingChanged = tracked !== lastFaceTracked;
+  if (!trackingChanged && now - lastFaceCueSend < FACE_CUE_SEND_MS) return;
+  if (!tracked && !lastFaceTracked) return;
+  const packed = tracked ? points.map(([x, y]) => [Math.round(x * 1000), Math.round(y * 1000)]) : [];
+  const data = { tracked:!!tracked, active:!!active, points:packed };
+  signal({ type:"faceCue", ...data });
+  clipCapture.note("faceCue", { side:"local", ...data });
+  lastFaceCueSend = now; lastFaceTracked = tracked;
+}
+
 async function ensureDetector() {
   if (detector) return;
   const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm");
@@ -2995,8 +3137,18 @@ async function ensureDetector() {
 const TICK_MS = 450, BIG_TIER = 0.5, LAUGH_TIER = 1.3;
 let scoring = false, scoreAccum = 0, peakAmuse = 0, lastDetectMs = 0, lastVideoTime = -1, lastTickMs = 0;
 
-function startScoring() { if (scoring) return; scoring = true; scoreAccum = 0; peakAmuse = 0; lastDetectMs = performance.now(); lastTickMs = performance.now(); requestAnimationFrame(scoreLoop); }
-function stopScoring() { if (scoring) { scoring = false; reactionBeat(true); } }
+function startScoring() {
+  if (scoring) return;
+  const phase = document.body.dataset.phase;
+  if ((phase !== "round1" && phase !== "round2") || document.body.dataset.role !== "watcher") return;
+  scoring = true; scoreAccum = 0; peakAmuse = 0; lastVideoTime = -1;
+  lastDetectMs = performance.now(); lastTickMs = performance.now(); lastFaceCueSend = 0; lastFaceTracked = false;
+  requestAnimationFrame(scoreLoop);
+}
+function stopScoring() {
+  if (scoring) { scoring = false; reactionBeat(true); }
+  updateMouthCue("local", null, false, false);
+}
 const tierOf = a => a > LAUGH_TIER ? "laugh" : a > BIG_TIER ? "big" : "small";
 
 function reactionBeat(silent) {
@@ -3013,16 +3165,25 @@ function scoreLoop() {
     lastVideoTime = localVideo.currentTime;
     const res = detector.detectForVideo(localVideo, now);
     const shapes = res.faceBlendshapes;
+    const landmarks = res.faceLandmarks?.[0];
+    let amusement = 0;
     if (shapes && shapes.length) {
       const m = {}; for (const c of shapes[0].categories) m[c.categoryName] = c.score;
       const smile = ((m.mouthSmileLeft || 0) + (m.mouthSmileRight || 0)) / 2;
       const jaw = m.jawOpen || 0;
       const above = Math.max(0, smile - SMILE_FLOOR);
-      const amusement = above * (1 + LAUGH_GAIN * Math.max(0, jaw - JAW_FLOOR));
+      amusement = above * (1 + LAUGH_GAIN * Math.max(0, jaw - JAW_FLOOR));
       const dt = Math.min(0.1, (now - lastDetectMs) / 1000);
       scoreAccum += amusement * dt * RATE;
       if (amusement > peakAmuse) peakAmuse = amusement;
     }
+    if (landmarks && MOUTH_LANDMARKS.every(i => landmarks[i])) {
+      const points = MOUTH_LANDMARKS.map(i => [
+        Math.max(0, Math.min(1, landmarks[i].x)),
+        Math.max(0, Math.min(1, landmarks[i].y)),
+      ]);
+      publishFaceCue(points, amusement > 0, true, now);
+    } else publishFaceCue(null, false, false, now);
     lastDetectMs = now;
   }
   if (now - lastTickMs > TICK_MS) { reactionBeat(false); lastTickMs = now; }
@@ -3255,7 +3416,8 @@ function applyGameState(msg) {
   clipCapture.note("phase", { phase: msg.phase, seconds: msg.seconds, role: msg.role });
   setBodyState(msg.phase, msg.role);
   const inRound = msg.phase === "round1" || msg.phase === "round2";
-  if (inRound && msg.role === "watcher") ensureDetector().then(startScoring); else stopScoring();
+  if (inRound && msg.role === "watcher") ensureDetector().then(startScoring);
+  else { stopScoring(); clearMouthCues(); }
   switch (msg.phase) {
     case "intro": runIntro(msg.seconds, msg.role); break;
     case "countdown":
@@ -3349,6 +3511,18 @@ ws.addEventListener("message", async (e) => {
       await acceptCandidate(msg); break;
     case "gameState": applyGameState(msg); break;
     case "score": setScores(msg.scores); clipCapture.note("score", msg.scores); break;
+    case "faceCue": {
+      const epoch = mouthCueEpoch;
+      const tracked = msg.tracked === true;
+      const packed = tracked && Array.isArray(msg.points) ? msg.points : [];
+      setTimeout(() => {
+        if (epoch !== mouthCueEpoch) return;
+        const points = tracked ? packed.map(([x, y]) => [x / 1000, y / 1000]) : null;
+        updateMouthCue(String(msg.from), points, msg.active === true, tracked);
+        clipCapture.note("faceCue", { side:"remote", tracked, active:msg.active === true, points:packed });
+      }, REMOTE_CUE_DELAY_MS);
+      break;
+    }
     case "reaction":
       spawnPop(pick(REWARD[msg.tier]), "reward", msg.tier, "you");
       if (msg.delta) spawnPop("+" + msg.delta.toFixed(1), "points", msg.tier, "you");

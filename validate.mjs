@@ -49,6 +49,8 @@ const isId   = v => (typeof v === "number" || typeof v === "string") &&
 const strOk  = (v, max) => isStr(v) && v.length <= max;
 // A signaling blob (SDP/candidate) we only relay: must be a smallish object, never interpreted.
 const blobOk = v => isObj(v) && JSON.stringify(v).length <= SDP_MAX;
+const cuePointsOk = v => Array.isArray(v) && (v.length === 0 || v.length === 6) &&
+  v.every(p => Array.isArray(p) && p.length === 2 && p.every(n => Number.isInteger(n) && n >= 0 && n <= 1000));
 
 // Per-type shape guards. Each returns true iff the message body is acceptable. Missing entry =>
 // unknown type => rejected. Optional fields are only checked when present.
@@ -66,6 +68,8 @@ const SCHEMA = {
   cancelDuos:    () => true,
   reaction:      m => (m.delta === undefined || (typeof m.delta === "number" && Number.isFinite(m.delta))) &&
                       (m.tier  === undefined || REACTION_TIERS.includes(m.tier)),
+  faceCue:       m => typeof m.tracked === "boolean" && typeof m.active === "boolean" &&
+                      cuePointsOk(m.points) && (m.tracked ? m.points.length === 6 : m.points.length === 0),
   chat:          m => strOk(m.text ?? "", CHAT_MAX * 4),   // generous pre-clean cap; cleanText trims to CHAT_MAX
   rtcStat:       m => typeof m.ok === "boolean",           // peer-connection outcome (observability counter)
   sound:         m => strOk(m.id ?? "", 64),               // soundboard trigger: catalog id only, no audio

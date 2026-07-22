@@ -42,6 +42,7 @@ function memDb() {
     async getUserByToken(t) { return users.find(u => u.token === t) || null; },
     async recentMatches() { return []; },
     async topPlayers() { return []; },
+    async friendsLeaderboard(userId) { return users.filter(u => u.id === userId); },
     async listFriends() { return []; },
     async listFriendRequests() { return []; },
     async requestFriend() { return { ok: false, reason: "not_found" }; },
@@ -96,6 +97,10 @@ function unitTests() {
   assert.equal(validateMessage({ type: "report", target: 3, reason: "cheating" }), "report");
   assert.equal(validateMessage({ type: "report", target: 3, reason: "banana" }), null);
   assert.equal(validateMessage({ type: "reaction", delta: 999, tier: "nuke" }), null);
+  assert.equal(validateMessage({ type: "faceCue", tracked: true, active: false,
+    points: [[61, 500], [200, 400], [500, 350], [800, 400], [939, 500], [500, 650]] }), "faceCue");
+  assert.equal(validateMessage({ type: "faceCue", tracked: true, active: true, points: [[1, 2]] }), null);
+  assert.equal(validateMessage({ type: "faceCue", tracked: false, active: false, points: [] }), "faceCue");
   assert.equal(validateMessage({ type: "offer", target: 2, sdp: { type: "offer", sdp: "v=0" } }), "offer");
   assert.equal(validateMessage({ type: "offer", target: 2, sdp: { x: "a".repeat(40000) } }), null); // oversized blob
   assert.equal(validateMessage({ type: "rtcStat", ok: false }), "rtcStat");

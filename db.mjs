@@ -492,6 +492,18 @@ export function makeDb(pool) {
     return rows;
   }
 
+  async function friendsLeaderboard(userId) {
+    const { rows } = await pool.query(
+      `SELECT u.name, u.rating, u.wins, u.losses, (u.id = $1) AS self
+         FROM users u
+        WHERE u.id = $1
+           OR u.id IN (SELECT f.friend_id FROM friends f WHERE f.user_id = $1)
+        ORDER BY u.rating DESC, u.games DESC, u.name ASC`,
+      [userId]
+    );
+    return rows;
+  }
+
   async function getUserByToken(token) {
     if (!token) return null;
     const { rows } = await pool.query("SELECT * FROM users WHERE token = $1", [token]);
@@ -614,7 +626,7 @@ export function makeDb(pool) {
     return rows;
   }
 
-  return { initSchema, getOrCreateUser, getUserByAuthId, createAuthedUser, createGuestUser, isNameTaken, logModeration, setConsent, recordMatch, recordDuosRatings, topPlayers, getUserByToken, recentMatches, getUserById,
+  return { initSchema, getOrCreateUser, getUserByAuthId, createAuthedUser, createGuestUser, isNameTaken, logModeration, setConsent, recordMatch, recordDuosRatings, topPlayers, friendsLeaderboard, getUserByToken, recentMatches, getUserById,
     requestFriend, listFriendRequests, acceptFriendRequest, declineFriendRequest, removeFriend, listFriends,
     insertReport, getReportCluster, getActiveBan, countPriorBans, issueBan, adjustTrust, getTrust, recentReportsBy, gamesPlayed, agingUncorroboratedReports, markStaleChecked,
     listReports, listModEvents, listActiveBans, listBans, reportsAgainst, reportsBy, clearReport, clearActiveBans };

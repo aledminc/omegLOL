@@ -30,45 +30,59 @@
   .opp { flex:1; } .elo { font-variant-numeric:tabular-nums; }
 
   .leaderboard { padding:0; overflow:hidden; }
-  .leaderboard-head { display:flex; align-items:flex-end; justify-content:space-between; gap:24px; padding:22px 24px 18px; }
-  .leaderboard-head .kicker { margin:0 0 3px; color:var(--gold); letter-spacing:0; }
-  .leaderboard-head h2 { margin:0; font-size:1.625rem; letter-spacing:0; }
+  .leaderboard-head { display:flex; align-items:flex-start; justify-content:space-between; gap:24px; padding:22px 24px 18px; }
+  .leaderboard-head h2 { margin:0; font-size:2rem; font-weight:700; letter-spacing:0; }
   .leaderboard-head p { margin:5px 0 0; color:var(--text-2); font-size:.875rem; }
-  .board-status { flex:none; display:flex; align-items:center; gap:8px; padding-bottom:3px;
-    color:var(--text-2); font-family:var(--font-mono); font-size:.75rem; }
-  .board-status::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--gold); }
+  .board-scope { flex:none; display:flex; flex-direction:column; align-items:flex-end; gap:6px; }
+  .scope-toggle { display:flex; align-items:center; gap:9px; min-height:38px; padding:6px 8px 6px 11px;
+    color:var(--text-2); background:var(--surface-2); border:1px solid var(--border); border-radius:8px;
+    font:500 .8125rem var(--font-body); cursor:pointer;
+    transition:color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease); }
+  .scope-toggle:hover { color:var(--text); border-color:var(--border-2); }
+  .scope-toggle:disabled { cursor:wait; opacity:.65; }
+  .scope-toggle svg { width:17px; height:17px; }
+  .scope-switch { position:relative; width:34px; height:20px; background:var(--bg); border:1px solid var(--border-2); border-radius:10px; }
+  .scope-switch::after { content:""; position:absolute; top:3px; left:3px; width:12px; height:12px;
+    background:var(--text-3); border-radius:50%; transition:transform var(--t-mid) var(--ease), background var(--t-mid) var(--ease); }
+  .scope-toggle[aria-checked="true"] { color:var(--text); border-color:var(--gold); background:var(--gold-dim); }
+  .scope-toggle[aria-checked="true"] .scope-switch { border-color:var(--gold); }
+  .scope-toggle[aria-checked="true"] .scope-switch::after { transform:translateX(14px); background:var(--gold); }
+  .scope-message { min-height:17px; max-width:280px; color:var(--lose); font-size:.75rem; line-height:1.35; text-align:right; }
 
   .podium { list-style:none; margin:0; padding:28px 24px 0; display:grid;
     grid-template-columns:repeat(3, minmax(0,1fr)); grid-template-areas:"second first third";
     gap:12px; align-items:end; background:var(--bg); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
-  .podium-entry { min-width:0; display:flex; flex-direction:column; }
-  .podium-entry.place-1 { grid-area:first; }
-  .podium-entry.place-2 { grid-area:second; }
-  .podium-entry.place-3 { grid-area:third; }
+  .podium-entry { --medal:var(--gold); min-width:0; display:flex; flex-direction:column; }
+  .podium-entry.place-1 { --medal:var(--gold); grid-area:first; }
+  .podium-entry.place-2 { --medal:#B9C2C9; grid-area:second; }
+  .podium-entry.place-3 { --medal:#C9824A; grid-area:third; }
   .podium-player { position:relative; min-height:172px; display:flex; flex-direction:column; align-items:center;
     justify-content:flex-end; padding:18px 14px 16px; text-align:center; background:var(--surface);
-    border:1px solid var(--border); border-bottom:0; border-top:3px solid var(--tier); border-radius:8px 8px 0 0; }
-  .place-1 .podium-player { min-height:218px; border-top-color:var(--gold); }
+    border:1px solid var(--border); border-bottom:0; border-top:3px solid var(--medal); border-radius:8px 8px 0 0; }
+  .place-1 .podium-player { min-height:218px; }
   .place-2 .podium-player { min-height:190px; }
-  .podium-rank { position:absolute; top:10px; left:12px; color:var(--text-3);
+  .podium-rank { position:absolute; top:10px; left:12px; color:var(--medal);
     font-family:var(--font-mono); font-size:.75rem; font-variant-numeric:tabular-nums; }
-  .place-1 .podium-rank { color:var(--gold); }
   .podium-monogram { width:54px; height:54px; display:grid; place-items:center; margin-bottom:10px;
-    border:1px solid color-mix(in srgb, var(--tier) 55%, var(--border)); border-radius:50%;
-    color:var(--tier); background:var(--surface-2); font-family:var(--font-display); font-size:1.375rem; font-weight:700; }
-  .place-1 .podium-monogram { width:64px; height:64px; color:var(--gold); border-color:var(--gold); font-size:1.625rem; }
+    border:1px solid var(--medal); border-radius:50%; color:var(--medal); background:var(--surface-2);
+    font-family:var(--font-display); font-size:1.375rem; font-weight:700; }
+  .place-1 .podium-monogram { width:64px; height:64px; font-size:1.625rem; }
   .podium-name { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     color:var(--text); font-family:var(--font-display); font-size:1.0625rem; letter-spacing:0; }
   .place-1 .podium-name { font-size:1.25rem; }
+  .you-tag { flex:none; padding:1px 5px; color:var(--gold); background:var(--gold-dim); border:1px solid var(--gold-glow);
+    border-radius:4px; font-family:var(--font-body); font-size:.5625rem; font-weight:600; line-height:1.4; text-transform:uppercase; }
+  .podium-player > .you-tag { margin-top:4px; }
   .podium-tier { max-width:100%; margin-top:3px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
     color:var(--tier); font-size:.75rem; font-weight:600; }
   .podium-record { margin-top:7px; color:var(--text-2); font-family:var(--font-mono); font-size:.6875rem; }
   .podium-base { min-height:62px; display:flex; align-items:center; justify-content:center; gap:9px;
-    padding:12px; background:var(--surface-2); border:1px solid var(--border); border-top-color:var(--border-2); }
-  .place-1 .podium-base { min-height:78px; border-bottom:3px solid var(--gold); }
+    padding:12px; background:color-mix(in srgb, var(--medal) 7%, var(--surface-2));
+    border:1px solid var(--border); border-top-color:var(--border-2); border-bottom:3px solid var(--medal); }
+  .place-1 .podium-base { min-height:78px; }
   .podium-base span { color:var(--text-2); font-size:.6875rem; text-transform:uppercase; }
-  .podium-base strong { color:var(--text); font-family:var(--font-mono); font-size:1.125rem; font-variant-numeric:tabular-nums; }
-  .place-1 .podium-base strong { color:var(--gold); font-size:1.375rem; }
+  .podium-base strong { color:var(--medal); font-family:var(--font-mono); font-size:1.125rem; font-variant-numeric:tabular-nums; }
+  .place-1 .podium-base strong { font-size:1.375rem; }
 
   .standings-head { display:flex; align-items:center; justify-content:space-between; gap:16px; padding:20px 24px 12px; }
   .standings-head h3 { margin:0; font-family:var(--font-display); letter-spacing:0; }
@@ -108,7 +122,10 @@
     .page-head { align-items:flex-start; }
     .leaderboard-head { padding:18px 16px 15px; }
     .leaderboard-head p { display:none; }
-    .board-status { padding-top:7px; }
+    .leaderboard-head { flex-direction:column; gap:14px; }
+    .board-scope { width:100%; align-items:stretch; }
+    .scope-toggle { justify-content:center; }
+    .scope-message { max-width:none; text-align:left; }
     .podium { padding:16px; grid-template-columns:1fr; grid-template-areas:"first" "second" "third"; }
     .podium-player, .place-1 .podium-player, .place-2 .podium-player { min-height:0; padding:42px 14px 14px; }
     .podium-monogram, .place-1 .podium-monogram { width:50px; height:50px; font-size:1.25rem; }
@@ -154,11 +171,17 @@
     <div class="leaderboard panel">
       <div class="leaderboard-head">
         <div>
-          <span class="kicker">Global ranked</span>
-          <h2>Top of the bill</h2>
-          <p>The highest-rated players on the omegLOL stage.</p>
+          <h2 id="leaderboardTitle">Global standings</h2>
+          <p id="leaderboardSubtitle">The highest-rated players on the omegLOL stage.</p>
         </div>
-        <div class="board-status">Current standings</div>
+        <div class="board-scope">
+          <button class="scope-toggle" id="friendScope" type="button" role="switch" aria-checked="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            <span>Friends leaderboard</span>
+            <span class="scope-switch" aria-hidden="true"></span>
+          </button>
+          <span class="scope-message" id="scopeMessage" role="status" aria-live="polite"></span>
+        </div>
       </div>
       <ol class="podium" id="podium" aria-label="Top three players"><li class="board-empty">loading…</li></ol>
       <div class="standings-head">
@@ -186,6 +209,7 @@
 import { TIERS, rankFor, rankRange } from "/js/ranks.mjs";
 const $ = id => document.getElementById(id);
 const token = localStorage.getItem("lastlaugh_token");
+let globalRows = [], boardMode = "global";
 // Escape user-authored strings (screennames) before they touch innerHTML — output-encoding XSS defense.
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -259,7 +283,7 @@ function renderBoard(rows) {
       <div class="podium-player">
         <span class="podium-rank" aria-label="Rank ${place}">#${String(place).padStart(2, "0")}</span>
         <span class="podium-monogram" aria-hidden="true">${initial}</span>
-        <strong class="podium-name">${esc(r.name)}</strong>
+        <strong class="podium-name">${esc(r.name)}</strong>${r.self ? '<span class="you-tag">You</span>' : ""}
         <span class="podium-tier">${esc(t.name)}</span>
         <span class="podium-record">${Number(r.wins) || 0}W · ${Number(r.losses) || 0}L</span>
       </div>
@@ -274,7 +298,7 @@ function renderBoard(rows) {
     li.style.setProperty("--tier", t.color);
     li.innerHTML =
       `<span class="board-rank">#${String(i + 1).padStart(2, "0")}</span>
-       <span class="board-player"><span class="board-avatar" aria-hidden="true">${initial}</span><span class="board-name">${esc(r.name)}</span></span>
+       <span class="board-player"><span class="board-avatar" aria-hidden="true">${initial}</span><span class="board-name">${esc(r.name)}</span>${r.self ? '<span class="you-tag">You</span>' : ""}</span>
        <span class="board-record">${Number(r.wins) || 0}W · ${Number(r.losses) || 0}L</span>
        <span class="board-tier"><span>${esc(t.name)}</span></span>
        <span class="board-rating">${Number(r.rating) || 0}</span>`;
@@ -282,8 +306,53 @@ function renderBoard(rows) {
   });
 }
 
+function showBoardMode(mode, rows) {
+  boardMode = mode;
+  const friends = mode === "friends";
+  $("friendScope").setAttribute("aria-checked", String(friends));
+  $("leaderboardTitle").textContent = friends ? "Friends standings" : "Global standings";
+  $("leaderboardSubtitle").textContent = friends
+    ? "Your place among the people you play with."
+    : "The highest-rated players on the omegLOL stage.";
+  renderBoard(rows);
+}
+
+$("friendScope").addEventListener("click", async () => {
+  const button = $("friendScope"), message = $("scopeMessage");
+  message.textContent = "";
+  if (boardMode === "friends") { showBoardMode("global", globalRows); return; }
+  button.disabled = true;
+  try {
+    const headers = token ? { "x-token": token } : {};
+    const response = await fetch("/api/leaderboard/friends", { headers, credentials: "same-origin" });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (data.error === "need_more_friends") {
+        const remaining = Math.max(1, (Number(data.required) || 4) - (Number(data.friendCount) || 0));
+        message.textContent = `Add ${remaining} more ${remaining === 1 ? "friend" : "friends"} to unlock this leaderboard.`;
+      } else if (response.status === 401) {
+        message.textContent = "Sign in to use the friends leaderboard.";
+      } else {
+        message.textContent = "Friends standings are unavailable right now.";
+      }
+      return;
+    }
+    showBoardMode("friends", Array.isArray(data.rows) ? data.rows : []);
+  } catch {
+    message.textContent = "Friends standings are unavailable right now.";
+  } finally {
+    button.disabled = false;
+  }
+});
+
 (async () => {
-  try { renderBoard(await (await fetch("/api/leaderboard")).json()); }
+  try {
+    const response = await fetch("/api/leaderboard");
+    if (!response.ok) throw new Error("leaderboard unavailable");
+    const rows = await response.json();
+    globalRows = Array.isArray(rows) ? rows : [];
+    showBoardMode("global", globalRows);
+  }
   catch {
     $("podium").innerHTML = "";
     $("board").innerHTML = '<li class="board-empty">leaderboard unavailable</li>';

@@ -36,6 +36,7 @@ const CATEGORY = {
   chat: "chat",
   report: "report",
   reaction: "signaling",  // watchers emit many small reactions during a round — treat like signaling
+  faceCue: "signaling",   // quantized mouth landmarks, throttled client-side to about 12/sec
   auth: "light", leaderboard: "light", friends: "light",
 };
 

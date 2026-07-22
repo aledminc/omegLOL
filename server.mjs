@@ -234,6 +234,16 @@ export async function startServer({ db, pool = null, port = PORT }) {
     try { res.json(await db.topPlayers(10)); }
     catch { res.status(500).json({ error: "unavailable" }); }
   });
+  app.get("/api/leaderboard/friends", async (req, res) => {
+    try {
+      const { user } = await resolveRequester(req);
+      if (!user) return res.status(401).json({ error: "no_session" });
+      const rows = await db.friendsLeaderboard(user.id);
+      const friendCount = Math.max(0, rows.length - 1);
+      if (friendCount < 4) return res.status(403).json({ error: "need_more_friends", friendCount, required: 4 });
+      res.json({ rows, friendCount });
+    } catch { res.status(500).json({ error: "unavailable" }); }
+  });
   // Global presence: just the aggregate count of players online right now (no ids, no names).
   app.get("/api/online", mkLimit(RATE.read), (_req, res) => res.json({ online: online.size }));
 
@@ -645,6 +655,13 @@ export async function startServer({ db, pool = null, port = PORT }) {
     broadcastScores(game);                       // meters, to both players
     for (const performer of game.teams[game.performerTeam]) send(performer, { type: "reaction", tier, delta });
   }
+  function handleFaceCue(id, msg) {
+    const game = clients.get(id)?.game;
+    if (!game || (game.phase !== "round1" && game.phase !== "round2")) return;
+    if (teamOf(game, id) !== game.watcherTeam) return;
+    const cue = { type: "faceCue", from: id, tracked: msg.tracked, active: msg.active, points: msg.points };
+    for (const player of game.players) if (player !== id) send(player, cue);
+  }
 
   // Who can hear a chat message: everyone in the sender's live game, or — before a game
   // exists — their duo lobby mates. Returns connection ids (including the sender's own).
@@ -1020,6 +1037,8 @@ export async function startServer({ db, pool = null, port = PORT }) {
         send(id, { type: "gameReset" });
       } else if (msg.type === "reaction") {
         handleReaction(id, msg);
+      } else if (msg.type === "faceCue") {
+        handleFaceCue(id, msg);
       } else if (msg.type === "chat" && c.userId) {
         const now = Date.now();
         if (c.chatMutedUntil && now < c.chatMutedUntil) { send(id, { type: "chatBlocked", reason: "muted" }); return; }
