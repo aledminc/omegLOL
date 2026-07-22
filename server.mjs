@@ -45,7 +45,7 @@ const dur = {
   intro:     (+process.env.T_INTRO     || 5)  * SEC,   // VS screen + player-card reveal before the countdown
   countdown: (+process.env.T_COUNTDOWN || 5)  * SEC,
   round:     (+process.env.T_ROUND     || 30) * SEC,
-  swap:      (+process.env.T_SWAP      || 3)  * SEC,
+  swap:      (+process.env.T_SWAP      || 8)  * SEC,
   result:    (+process.env.T_RESULT    || 8)  * SEC,
 };
 

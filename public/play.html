@@ -293,18 +293,28 @@
   .cam-card .form-cell.d { color:var(--text-2); }
   .cam-card .form-empty { font-size:10px; color:var(--text-3); }
 
-  .banner { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
-    text-align:center; pointer-events:none; z-index:6; }
+  .banner { position:absolute; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+    padding:18px 12px; text-align:center; pointer-events:none; overflow:hidden;
+    background:var(--scrim-heavy); border:1px solid var(--border-2);
+    border-radius:var(--r-lg); box-shadow:0 16px 42px rgba(0,0,0,.38);
+    backdrop-filter:blur(12px) saturate(.72); -webkit-backdrop-filter:blur(12px) saturate(.72); }
   .banner.hidden { display:none; }
-  .banner .count { line-height:1; }
-  .banner .sub { margin-top:4px; }
-  .banner .delta { font-size:1.375rem; margin-top:8px; }
+  .banner-card { width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .banner .big { font-family:var(--font-display); font-size:clamp(18px,2.2vw,28px); font-weight:700;
+    line-height:1.1; color:var(--on-video); }
+  .banner .count { min-height:1em; margin-top:8px; font-family:var(--font-mono); font-size:clamp(64px,8vw,104px);
+    font-weight:500; font-variant-numeric:tabular-nums; line-height:.92; color:var(--gold);
+    text-shadow:0 0 24px var(--gold-glow); }
+  .banner .sub { max-width:25ch; margin-top:14px; font-size:clamp(12px,1.2vw,15px); font-weight:600;
+    line-height:1.35; color:var(--on-video); }
+  .banner .delta { font-family:var(--font-mono); font-size:1.125rem; margin-top:12px; color:var(--gold); }
+  .banner .big:empty, .banner .count:empty, .banner .sub:empty, .banner .delta:empty { display:none; }
   /* countdown heartbeat: the number scales in once per second — never a slam */
   @media (prefers-reduced-motion: no-preference) {
-    body[data-phase="countdown"] .banner .count,
-    body[data-phase="swap"] .banner .count { animation:countBeat 1s var(--ease) infinite; }
+    .banner .count.tick { animation:countBeat .58s cubic-bezier(.2,1.45,.35,1) both; }
   }
-  @keyframes countBeat { 0% { transform:scale(1.15); opacity:.85; } 40% { transform:scale(1); opacity:1; } 100% { transform:scale(1); opacity:1; } }
+  @keyframes countBeat { 0% { transform:scale(.62); opacity:0; filter:blur(5px); }
+    55% { transform:scale(1.08); opacity:1; filter:blur(0); } 100% { transform:scale(1); opacity:1; filter:blur(0); } }
 
   /* in-stage "searching" overlay: three gold dots doing a slow wave + elapsed time in mono */
   .searching { position:absolute; inset:0; z-index:7;
@@ -330,19 +340,21 @@
   /* ---- match intro: VS slam between the cams, then a name+rank reveal over each dimmed cam.
      Only the CAMS dim (brightness filter per video) — the mid column stays at full brightness. ---- */
   .stage.introing #local, .stage.introing .remote-tile video { filter:brightness(.28) contrast(.9); transition:filter .25s ease; }
-  .vs-screen { position:absolute; inset:0; z-index:8; display:flex; align-items:center; justify-content:center;
-    pointer-events:none; background:radial-gradient(circle at center, transparent 0%, var(--scrim) 68%); }
+  .vs-screen { position:absolute; inset:0; z-index:21; display:flex; align-items:center; justify-content:center;
+    pointer-events:none; overflow:hidden; background:var(--scrim-heavy);
+    border:1px solid var(--border-2); border-radius:var(--r-lg); box-shadow:0 16px 42px rgba(0,0,0,.38);
+    backdrop-filter:blur(12px) saturate(.72); -webkit-backdrop-filter:blur(12px) saturate(.72); }
   .vs-screen.hidden { display:none; }
   .vs-emblem { position:relative; display:grid; place-items:center; }
   @media (prefers-reduced-motion: no-preference) {
     .vs-emblem { animation:vsSlam .5s cubic-bezier(.2,1.7,.4,1) both; }
   }
-  .vs-bolt { position:absolute; width:clamp(110px,22vw,200px); height:clamp(170px,34vw,310px);
-    background:var(--bg); transform:rotate(14deg);
+  .vs-bolt { position:absolute; width:clamp(90px,12vw,150px); height:clamp(145px,20vw,230px);
+    background:#2A2620; transform:rotate(14deg);
     clip-path:polygon(69% 0, 24% 57%, 43% 57%, 31% 100%, 76% 43%, 57% 43%);
     filter:drop-shadow(0 0 24px var(--gold-glow)); }
   .vs-text { position:relative; font-family:var(--font-display); font-weight:700; line-height:1; letter-spacing:-.02em; }
-  .vs-text span { display:inline-block; font-size:clamp(56px,10vw,110px); }
+  .vs-text span { display:inline-block; font-size:clamp(52px,6vw,82px); }
   .vs-text .v { color:var(--on-video); transform:translate(-6%,-18%) rotate(-6deg); }
   .vs-text .s { color:var(--gold); transform:translate(6%,18%) rotate(-6deg); }
   @keyframes vsSlam { 0% { transform:scale(2.6); opacity:0; } 55% { transform:scale(.92); opacity:1; }
@@ -363,6 +375,11 @@
     border-radius:var(--r-sm); }
   .intro-card .in-tier { font-family:var(--font-display); font-weight:500; font-size:clamp(15px,2vw,20px);
     color:var(--tc); letter-spacing:-.01em; }
+  .intro-card .in-role { order:-1; padding:5px 10px; font-family:var(--font-mono); font-size:clamp(10px,1.1vw,13px);
+    font-weight:500; line-height:1; text-transform:uppercase; color:var(--on-video);
+    background:rgba(13,12,10,.76); border:1px solid var(--border-2); border-radius:var(--r-sm); }
+  .intro-card .in-role.joker { color:var(--gold); border-color:color-mix(in srgb, var(--gold) 72%, var(--border)); }
+  .intro-card .in-role.reactor { color:var(--on-video); border-color:color-mix(in srgb, var(--on-video) 42%, var(--border)); }
   @keyframes introIn { from { opacity:0; transform:scale(1.08); } to { opacity:1; transform:scale(1); } }
 
   /* round timer above the chat: the bar drains right-to-left, blending white -> red past
@@ -386,14 +403,19 @@
 
   /* countdown/swap: the role line below the count gets big + readable */
   body[data-phase="countdown"] .banner .sub,
-  body[data-phase="swap"] .banner .sub { font-size:1.25rem; font-weight:500; color:var(--gold); }
+  body[data-phase="swap"] .banner .sub { color:var(--gold); text-transform:uppercase; }
 
   /* in the split layout the banner never veils the whole stage (the cams dim individually via
      .introing instead) — its lines sit on compact dark plates centered over the mid column */
-  .stage.split .banner { background:none; }
-  .stage.split .banner > div { background:var(--scrim-heavy); border:1px solid var(--border); border-radius:var(--r-md); padding:7px 16px; }
-  .stage.split .banner > div:empty { display:none; }
-  .stage.split .banner > div + div:not(:empty) { margin-top:8px; }
+  .banner[data-kind="go"] .count { margin:0; font-family:var(--font-display); font-size:clamp(54px,6vw,82px); }
+  .banner .big.time-up { display:flex; align-items:center; justify-content:center; gap:10px;
+    font-size:clamp(24px,2.8vw,36px); color:var(--on-video); }
+  .banner .big.time-up svg { width:clamp(25px,2.6vw,34px); height:clamp(25px,2.6vw,34px); color:var(--gold); }
+  @media (prefers-reduced-motion: no-preference) {
+    .banner .big.time-up svg { animation:alarmWiggle .44s ease-in-out infinite; transform-origin:50% 62%; }
+  }
+  @keyframes alarmWiggle { 0%,100% { transform:rotate(0); } 25% { transform:rotate(-11deg); }
+    75% { transform:rotate(11deg); } }
 
   /* Reaction chips spawn inside the camera of the side earning points, then move through the
      fixed flight layer into that side's meter. .fx remains the no-camera fallback. */
@@ -1195,6 +1217,20 @@
       </div>
       <!-- in a match the cams split apart and this column sits between them -->
       <div class="match-mid" id="matchMid">
+        <div class="banner hidden" id="banner" aria-live="polite">
+          <div class="banner-card">
+            <div class="big" id="bannerBig"></div>
+            <div class="count" id="bannerCount"></div>
+            <div class="sub" id="bannerSub"></div>
+            <div class="delta" id="bannerDelta"></div>
+          </div>
+        </div>
+        <div class="vs-screen hidden" id="vsScreen" aria-hidden="true">
+          <div class="vs-emblem">
+            <div class="vs-bolt"></div>
+            <div class="vs-text"><span class="v">V</span><span class="s">S</span></div>
+          </div>
+        </div>
         <div class="round-timer hidden" id="roundTimer" aria-hidden="true">
           <div class="rt-track"><div class="rt-fill" id="rtFill"></div></div>
           <span class="rt-count" id="rtCount">:30</span>
@@ -1226,18 +1262,6 @@
         <div class="side"><div class="lab"><span id="themLabel">them</span><span id="themNum">0</span></div><div class="track score-meter" id="themTrack"><div class="fill score-solid" id="themBar"></div><div class="fill score-pending" id="themPending"></div></div></div>
       </div>
       <div class="fx" id="fx"></div>
-      <div class="banner hidden" id="banner">
-        <div class="big" id="bannerBig"></div>
-        <div class="count" id="bannerCount"></div>
-        <div class="sub" id="bannerSub"></div>
-        <div class="delta" id="bannerDelta"></div>
-      </div>
-      <div class="vs-screen hidden" id="vsScreen" aria-hidden="true">
-        <div class="vs-emblem">
-          <div class="vs-bolt"></div>
-          <div class="vs-text"><span class="v">V</span><span class="s">S</span></div>
-        </div>
-      </div>
       <div class="searching hidden" id="searchOverlay">
         <div class="ring" aria-hidden="true"></div>
         <div class="s-label" id="searchLabel">Finding a match</div>
@@ -1621,33 +1645,37 @@ function clearOpponent() { peerProfiles.clear(); }
 // under an intro-card (big name, ladder numeral badge, tier). The server's "countdown" ends it.
 const ROMAN = ["VI", "V", "IV", "III", "II", "I"];   // TIERS index -> ladder numeral (as on /ranked)
 let introTimer = null;
-function introCardEl(prof) {
+function introCardEl(prof, role) {
   const t = rankFor(prof.rating || 0);
   const el = document.createElement("div");
   el.className = "intro-card";
   el.style.setProperty("--tc", t.color);
+  const roleEl = document.createElement("div");
+  roleEl.className = "in-role " + (role === "performer" ? "joker" : "reactor");
+  roleEl.textContent = role === "performer" ? "Joker" : "Reactor";
   const nm = document.createElement("div"); nm.className = "in-name"; nm.textContent = prof.name || "Player";
   const bd = document.createElement("div"); bd.className = "in-badge"; bd.textContent = ROMAN[TIERS.indexOf(t)] || "VI";
   const tn = document.createElement("div"); tn.className = "in-tier"; tn.textContent = t.name;
-  el.append(nm, bd, tn);
+  el.append(roleEl, nm, bd, tn);
   return el;
 }
-function showIntroCards() {
+function showIntroCards(myRole) {
   removeIntroCards();
-  if (selfProfile) $("localTile").appendChild(introCardEl(selfProfile));
+  if (selfProfile) $("localTile").appendChild(introCardEl(selfProfile, myRole));
   for (const [id, prof] of peerProfiles) {
     const tile = remoteGrid.querySelector(`[data-peer="${id}"]`);
-    if (tile) tile.appendChild(introCardEl(prof));
+    const peerRole = prof.team === "ally" ? myRole : myRole === "performer" ? "watcher" : "performer";
+    if (tile) tile.appendChild(introCardEl(prof, peerRole));
   }
 }
 function removeIntroCards() { for (const el of document.querySelectorAll(".intro-card")) el.remove(); }
-function runIntro(seconds) {
-  endIntro(); hideBanner();
+function runIntro(seconds, role) {
+  stopPreRoundSequence(); endIntro(); hideBanner();
   stageEl.classList.add("introing");             // dims the cams only — never the mid column
   $("vsScreen").classList.remove("hidden");
   // VS slam holds ~2s, then the card reveal covers the rest (the server moves us to countdown)
   const vsMs = Math.min(2200, (seconds || 5) * 1000 * 0.45);
-  introTimer = setTimeout(() => { $("vsScreen").classList.add("hidden"); showIntroCards(); }, vsMs);
+  introTimer = setTimeout(() => { $("vsScreen").classList.add("hidden"); showIntroCards(role); }, vsMs);
 }
 function endIntro() {
   clearTimeout(introTimer); introTimer = null;
@@ -2861,12 +2889,15 @@ function scoreLoop() {
 }
 
 // ---------- game UI ----------
-function showBanner(big, count, sub) {
+function showBanner(big, count, sub, kind = "") {
   banner.classList.remove("hidden");
+  banner.dataset.kind = kind;
+  $("bannerBig").className = "big";
+  $("bannerCount").className = "count";
   $("bannerBig").textContent = big || ""; $("bannerCount").textContent = count != null ? count : "";
   $("bannerSub").textContent = sub || ""; $("bannerDelta").textContent = "";
 }
-function hideBanner() { banner.classList.add("hidden"); }
+function hideBanner() { banner.classList.add("hidden"); banner.dataset.kind = ""; }
 
 // searching overlay: spinner + a live elapsed clock so the queue feels like it's progressing
 let searchTimer = null, searchStart = 0;
@@ -2962,6 +2993,7 @@ function setScores(s) {
 }
 function resetMatchUi() {
   endIntro();                    // clear any VS screen / intro cards from an aborted opener
+  stopPreRoundSequence();
   stopRoundTimer();
   stageEl.classList.remove("split");   // cams rejoin into the single lobby stage
   document.querySelector(".scorebar").classList.remove("live");   // scoreboard is match-only
@@ -3015,11 +3047,50 @@ function startRoundTimer(seconds) {
   roundTimerRaf = requestAnimationFrame(tick);
 }
 
-let countdownTimer = null;
-function localCountdown(from, label, sub) {
-  clearInterval(countdownTimer);
-  let n = Math.ceil(from); showBanner(label, n, sub);
-  countdownTimer = setInterval(() => { n -= 1; if (n <= 0) { clearInterval(countdownTimer); return; } $("bannerCount").textContent = n; }, 1000);
+const ALARM_CLOCK_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3 2 6"/><path d="m22 6-3-3"/><path d="M6.38 18.7 4 21"/><path d="M17.64 18.67 20 21"/></svg>';
+let countdownTimer = null, swapLeadTimer = null;
+function stopPreRoundSequence() {
+  clearInterval(countdownTimer); countdownTimer = null;
+  clearTimeout(swapLeadTimer); swapLeadTimer = null;
+}
+function setCountdownNumber(n) {
+  const count = $("bannerCount");
+  if (count.textContent === String(n)) return;
+  count.textContent = n;
+  count.classList.remove("tick");
+  void count.offsetWidth;
+  count.classList.add("tick");
+}
+function roleLine(role) {
+  return role === "performer" ? "JOKER: make them laugh" : "REACTOR: don't laugh";
+}
+function localCountdown(from, label, sub, kind = "countdown") {
+  stopPreRoundSequence();
+  const seconds = Math.max(1, Number(from) || 5);
+  const endAt = performance.now() + seconds * 1000;
+  showBanner(label, "", sub, kind);
+  const tick = () => {
+    const left = Math.max(1, Math.ceil((endAt - performance.now()) / 1000));
+    setCountdownNumber(left);
+    if (performance.now() >= endAt) { clearInterval(countdownTimer); countdownTimer = null; }
+  };
+  tick();
+  countdownTimer = setInterval(tick, 100);
+}
+function showTimesUp() {
+  showBanner("", "", "", "timeup");
+  const big = $("bannerBig");
+  big.className = "big time-up";
+  big.innerHTML = "<span>Time's Up!</span>" + ALARM_CLOCK_SVG;
+}
+function runSwapSequence(seconds, oldRole) {
+  stopPreRoundSequence();
+  showTimesUp();
+  const leadSeconds = 3;
+  swapLeadTimer = setTimeout(() => {
+    const nextRole = oldRole === "performer" ? "watcher" : "performer";
+    localCountdown(Math.max(1, (Number(seconds) || 8) - leadSeconds), "SWITCH!", roleLine(nextRole), "swap");
+  }, leadSeconds * 1000);
 }
 function applyGameState(msg) {
   if (msg.scores) { setScores(msg.scores); clipCapture.note("score", msg.scores); }
@@ -3028,29 +3099,25 @@ function applyGameState(msg) {
   const inRound = msg.phase === "round1" || msg.phase === "round2";
   if (inRound && msg.role === "watcher") ensureDetector().then(startScoring); else stopScoring();
   switch (msg.phase) {
-    case "intro": runIntro(msg.seconds); break;
+    case "intro": runIntro(msg.seconds, msg.role); break;
     case "countdown":
       endIntro();
       stageEl.classList.add("introing");            // cams stay dimmed through the countdown
       // the role is explained DURING the countdown, so the round can start clean with just "GO!"
-      localCountdown(msg.seconds, "Get ready", msg.role === "performer"
-        ? "you're the joke teller — make them laugh"
-        : "you're the reactor — don't laugh"); break;
+      localCountdown(msg.seconds, "ROUND 1", roleLine(msg.role)); break;
     case "round1": case "round2":
-      clearInterval(countdownTimer);
+      stopPreRoundSequence();
       stageEl.classList.remove("introing");         // full brightness — the round is live
       startRoundTimer(msg.seconds);
-      showBanner("", "GO!", "");
+      showBanner("", "GO!", "", "go");
       setTimeout(hideBanner, 700); break;
     // during swap msg.role is still the ROUND-1 role, so the hint announces its flip
     case "swap":
       stopRoundTimer();
       stageEl.classList.add("introing");
-      localCountdown(msg.seconds, "Swap!", msg.role === "performer"
-        ? "now you react — don't laugh"
-        : "now you tell the jokes"); break;
+      runSwapSequence(msg.seconds, msg.role); break;
     case "result": {
-      clearInterval(countdownTimer);
+      stopPreRoundSequence();
       stopRoundTimer();
       stageEl.classList.add("introing");            // dim the cams behind the result plates
       const word = msg.outcome === "win" ? "You win" : msg.outcome === "lose" ? "You lose" : "Draw";
@@ -3067,7 +3134,7 @@ function applyGameState(msg) {
 }
 
 ws.addEventListener("open", () => { setStatus("connecting…"); authenticate(); });
-ws.addEventListener("close", () => { isSearching = false; duosQueued = false; updateModeUI(); setStatus("disconnected"); endCall(); endIntro(); stageEl.classList.remove("split"); document.querySelector(".scorebar").classList.remove("live"); stopScoring(); setChatEnabled(false); setBodyState("idle", ""); showSearching(false); setReportVisible(false); });
+ws.addEventListener("close", () => { isSearching = false; duosQueued = false; updateModeUI(); setStatus("disconnected"); endCall(); endIntro(); stopPreRoundSequence(); hideBanner(); stageEl.classList.remove("split"); document.querySelector(".scorebar").classList.remove("live"); stopScoring(); setChatEnabled(false); setBodyState("idle", ""); showSearching(false); setReportVisible(false); });
 ws.addEventListener("message", async (e) => {
   const msg = JSON.parse(e.data);
   switch (msg.type) {
