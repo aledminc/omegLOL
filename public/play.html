@@ -1866,10 +1866,32 @@ function clipNameCard(ctx, name, rating, rightX, topY) {
   ctx.fillStyle = "#F5F2EC"; ctx.font = "600 30px 'Space Grotesk', sans-serif"; ctx.fillText(name, x + pad, topY + 35);
   ctx.fillStyle = t.color; ctx.font = "600 22px 'Space Grotesk', sans-serif"; ctx.fillText(rankTxt, x + pad, topY + 65);
 }
-// full-width score bar docked at the bottom of a cam tile, mirroring the live site scorebar:
-// an uppercase label (left) + mono number (right), then a track that fills with the team's
-// color (green = you, red = them). Both bars share one `max` so their fills are comparable.
-function clipScoreBar(ctx, r, label, value, max, mine, rad) {
+// Full-width score bar docked at the bottom of a camera tile. It mirrors the live ten-point
+// lap, progressively darker gold tone, and banked-versus-pending score treatment.
+function clipCornerRect(ctx, x, y, w, h, corners = {}) {
+  const tl = Math.min(corners.tl || 0, w / 2, h / 2), tr = Math.min(corners.tr || 0, w / 2, h / 2);
+  const br = Math.min(corners.br || 0, w / 2, h / 2), bl = Math.min(corners.bl || 0, w / 2, h / 2);
+  ctx.beginPath(); ctx.moveTo(x + tl, y); ctx.lineTo(x + w - tr, y);
+  if (tr) ctx.arcTo(x + w, y, x + w, y + tr, tr); else ctx.lineTo(x + w, y);
+  ctx.lineTo(x + w, y + h - br);
+  if (br) ctx.arcTo(x + w, y + h, x + w - br, y + h, br); else ctx.lineTo(x + w, y + h);
+  ctx.lineTo(x + bl, y + h);
+  if (bl) ctx.arcTo(x, y + h, x, y + h - bl, bl); else ctx.lineTo(x, y + h);
+  ctx.lineTo(x, y + tl);
+  if (tl) ctx.arcTo(x, y, x + tl, y, tl); else ctx.lineTo(x, y);
+  ctx.closePath();
+}
+function clipScoreTone(lap) {
+  const gold = [242, 176, 30], white = [255, 255, 255], mix = Math.min(1, (40 + Math.max(0, lap) * 15) / 100);
+  return white.map((v, i) => Math.round(v + (gold[i] - v) * mix));
+}
+function clipRgb(rgb, alpha = 1) { return `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${alpha})`; }
+function clipScoreBar(ctx, r, label, visual, frameMs, rad) {
+  const value = Math.max(0, Number(visual?.total) || 0), bankedValue = Math.max(0, Number(visual?.banked) || 0);
+  const lap = Math.max(0, Number(visual?.lap) || 0), lapStart = lap * 10;
+  const solidPoints = Math.max(0, Math.min(10, bankedValue - lapStart));
+  const currentPoints = Math.max(0, Math.min(10, value - lapStart));
+  const pendingPoints = Math.max(0, currentPoints - solidPoints), tone = clipScoreTone(lap);
   const H = 92, pad = 26, x = r.x, y = r.y + r.h - H, w = r.w;
   // scrim panel that follows the cam's bottom rounding, so it reads as fused to the cam
   ctx.save();
@@ -1890,8 +1912,24 @@ function clipScoreBar(ctx, r, label, value, max, mine, rad) {
   const tx = x + pad, tw = w - pad * 2, ty = y + 56, th = 16;
   ctx.fillStyle = "#0D0C0A"; clipRoundRect(ctx, tx, ty, tw, th, 8); ctx.fill();
   ctx.strokeStyle = "#2A2620"; ctx.lineWidth = 1; clipRoundRect(ctx, tx + 0.5, ty + 0.5, tw - 1, th - 1, 8); ctx.stroke();
-  const fw = Math.max(0, Math.min(1, value / max)) * tw;
-  if (fw > 0.5) { ctx.fillStyle = mine ? "#4ADE80" : "#F0524D"; clipRoundRect(ctx, tx, ty, fw, th, Math.min(8, fw / 2)); ctx.fill(); }
+  const solidW = solidPoints / 10 * tw, pendingW = pendingPoints / 10 * tw, radius = th / 2;
+  if (solidW > 0.5) {
+    ctx.fillStyle = clipRgb(tone);
+    clipCornerRect(ctx, tx, ty, solidW, th, { tl:radius, bl:radius, tr:pendingW > .5 ? 0 : radius, br:pendingW > .5 ? 0 : radius });
+    ctx.fill();
+  }
+  if (pendingW > 0.5) {
+    const px = tx + solidW, phase = ((frameMs || 0) % 2200) / 2200;
+    ctx.save();
+    clipCornerRect(ctx, px, ty, pendingW, th, { tl:solidW > .5 ? 0 : radius, bl:solidW > .5 ? 0 : radius, tr:radius, br:radius }); ctx.clip();
+    ctx.fillStyle = clipRgb(tone, .28); ctx.fillRect(px, ty, pendingW, th);
+    const sheenX = px - pendingW * .4 + pendingW * 1.4 * phase;
+    const sheen = ctx.createLinearGradient(sheenX - pendingW * .35, 0, sheenX + pendingW * .35, 0);
+    sheen.addColorStop(0, clipRgb(tone, 0)); sheen.addColorStop(.5, clipRgb(tone, .18)); sheen.addColorStop(1, clipRgb(tone, 0));
+    ctx.fillStyle = sheen; ctx.fillRect(px, ty, pendingW, th);
+    ctx.strokeStyle = clipRgb(tone, .24); ctx.lineWidth = 1; ctx.strokeRect(px + .5, ty + .5, Math.max(0, pendingW - 1), th - 1);
+    ctx.fillStyle = clipRgb(tone, .55); ctx.fillRect(px + pendingW - 1, ty + 2, 1, th - 4); ctx.restore();
+  }
 }
 // the "VS" moment, mirroring .vs-screen/.vs-emblem in base.css: a center-out scrim, a tilted
 // --bg lightning bolt with a gold glow behind, then two-tone V (on-video) + S (gold), each
@@ -1919,8 +1957,78 @@ function clipVs(ctx, W, cy) {
   ctx.save(); ctx.translate(cx + 54, cy + 28); ctx.rotate(-6 * Math.PI / 180); ctx.fillStyle = "#F2B01E"; ctx.fillText("S", 0, 0); ctx.restore();
   ctx.restore();
 }
-// faux browser/site nav across the top — surface bar + the omegLOL brand (dot + omeg + gold LOL)
-// top-left, matching the real nav. This carries the mandatory branding.
+// Centered round overlays sit across the narrow gap between the stacked clip cameras.
+function clipRoleLine(role) {
+  return role === "performer" ? "JOKER: MAKE THEM LAUGH" : "REACTOR: DON'T LAUGH";
+}
+function clipPhasePlate(ctx, cx, cy, w, h) {
+  const x = cx - w / 2, y = cy - h / 2;
+  ctx.save(); ctx.shadowColor = "rgba(0,0,0,.68)"; ctx.shadowBlur = 38; ctx.shadowOffsetY = 8;
+  ctx.fillStyle = "rgba(13,12,10,.94)"; clipRoundRect(ctx, x, y, w, h, 22); ctx.fill();
+  ctx.shadowColor = "transparent"; ctx.strokeStyle = "#3D372E"; ctx.lineWidth = 2;
+  clipRoundRect(ctx, x + 1, y + 1, w - 2, h - 2, 21); ctx.stroke(); ctx.restore();
+  return { x, y, w, h };
+}
+function clipAlarmClock(ctx, cx, cy, size, rotation = 0) {
+  const r = size * .27;
+  ctx.save(); ctx.translate(cx, cy); ctx.rotate(rotation); ctx.strokeStyle = "#F2B01E";
+  ctx.lineWidth = Math.max(3, size * .065); ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.beginPath(); ctx.arc(0, size * .03, r, 0, Math.PI * 2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0, -size * .09); ctx.lineTo(0, size * .03); ctx.lineTo(size * .11, size * .13); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-size * .24, -size * .25); ctx.lineTo(-size * .37, -size * .37);
+  ctx.moveTo(size * .24, -size * .25); ctx.lineTo(size * .37, -size * .37);
+  ctx.moveTo(-size * .18, size * .29); ctx.lineTo(-size * .28, size * .41);
+  ctx.moveTo(size * .18, size * .29); ctx.lineTo(size * .28, size * .41); ctx.stroke(); ctx.restore();
+}
+function clipCountdownOverlay(ctx, W, cy, left, role, phaseMs, label = "ROUND 1") {
+  if (left <= 0) return;
+  const plate = clipPhasePlate(ctx, W / 2, cy, 570, 292), beat = (phaseMs % 1000) / 1000;
+  const countSize = 142 + Math.sin(Math.min(1, beat) * Math.PI) * 8;
+  ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  ctx.fillStyle = "#F5F2EC"; ctx.font = "700 42px 'Space Grotesk', sans-serif";
+  ctx.fillText(label, W / 2, plate.y + 52);
+  ctx.fillStyle = "#F2B01E"; ctx.font = `500 ${countSize}px 'IBM Plex Mono', monospace`;
+  ctx.fillText(String(left), W / 2, plate.y + 146);
+  ctx.fillStyle = role === "performer" ? "#F2B01E" : "#F5F2EC";
+  ctx.font = "700 25px 'Space Grotesk', sans-serif"; ctx.fillText(clipRoleLine(role), W / 2, plate.y + 258); ctx.restore();
+}
+function clipSwapOverlay(ctx, W, cy, phaseMs, seconds, oldRole) {
+  if (phaseMs < 3000) {
+    const plate = clipPhasePlate(ctx, W / 2, cy, 650, 158);
+    ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillStyle = "#F5F2EC";
+    ctx.font = "700 58px 'Space Grotesk', sans-serif"; ctx.fillText("TIME'S UP!", W / 2 - 36, plate.y + plate.h / 2);
+    const wiggle = Math.sin(phaseMs / 75) * 9 * Math.PI / 180;
+    clipAlarmClock(ctx, W / 2 + 208, plate.y + plate.h / 2, 82, wiggle); ctx.restore();
+    return;
+  }
+  const switchSeconds = Math.max(1, (Number(seconds) || 8) - 3);
+  const left = Math.ceil(Math.max(0, switchSeconds - (phaseMs - 3000) / 1000));
+  const nextRole = oldRole === "performer" ? "watcher" : "performer";
+  clipCountdownOverlay(ctx, W, cy, left, nextRole, phaseMs - 3000, "SWITCH!");
+}
+function clipRoundTimer(ctx, W, cy, phaseMs, seconds) {
+  const totalMs = Math.max(1, Number(seconds) || 30) * 1000;
+  const remainMs = Math.max(0, totalMs - Math.max(0, phaseMs));
+  const frac = Math.max(0, Math.min(1, remainMs / totalMs));
+  const trackW = 430, trackH = 12, gap = 14, countW = 66;
+  const groupW = trackW + gap + countW, x = (W - groupW) / 2, y = cy - trackH / 2;
+  ctx.save();
+  ctx.fillStyle = "#0D0C0A"; clipRoundRect(ctx, x, y, trackW, trackH, 6); ctx.fill();
+  ctx.strokeStyle = "#3D372E"; ctx.lineWidth = 1;
+  clipRoundRect(ctx, x + .5, y + .5, trackW - 1, trackH - 1, 5.5); ctx.stroke();
+  const from = [255, 255, 255], danger = [240, 82, 77], blend = frac >= .5 ? 0 : 1 - frac / .5;
+  const tone = from.map((v, i) => Math.round(v + blend * (danger[i] - v)));
+  const fillW = frac * trackW;
+  if (fillW > .5) {
+    ctx.fillStyle = clipRgb(tone); clipRoundRect(ctx, x, y, fillW, trackH, Math.min(5, fillW / 2)); ctx.fill();
+  }
+  const remainingSeconds = Math.ceil(remainMs / 1000);
+  ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillStyle = "#F5F2EC";
+  ctx.font = "500 26px 'IBM Plex Mono', monospace";
+  ctx.fillText(":" + String(remainingSeconds).padStart(2, "0"), x + groupW, cy + 1);
+  ctx.restore();
+}
+// Faux browser/site nav across the top, matching the real surface bar and omegLOL brand.
 function clipNav(ctx, W, navH) {
   ctx.fillStyle = "#161411"; ctx.fillRect(0, 0, W, navH);           // --surface
   ctx.fillStyle = "#2A2620"; ctx.fillRect(0, navH - 2, W, 2);       // --border hairline
@@ -1960,7 +2068,7 @@ async function renderClip(snap) {
   const fps = snap.framerate || 30, frameUs = 1e6 / fps, n = Math.max(1, Math.round(windowUs / frameUs));
   const W = 1080, H = 1920;
   // page-chrome layout: a nav bar up top, then two rounded cam tiles inset in the --bg, stacked
-  const NAV_H = 96, PAD = 36, GAP = 24, RAD = 22;
+  const NAV_H = 96, PAD = 36, GAP = 72, RAD = 22;
   const camW = W - PAD * 2, camTop = NAV_H + GAP, camH = Math.floor((H - camTop - PAD - GAP) / 2);
   const cam1 = { x: PAD, y: camTop, w: camW, h: camH };                   // opponent (remote), top
   const cam2 = { x: PAD, y: camTop + camH + GAP, w: camW, h: camH };      // you (local), bottom
@@ -1979,12 +2087,34 @@ async function renderClip(snap) {
   const evs = (snap.events || []).map(e => ({ t: e.t - clipStartMs, type: e.type, data: e.data })).sort((a, b) => a.t - b.t);
   const M = snap.meta || {};
   function stateAt(ms) {
-    let score = null, phase = null, phaseAt = 0, elo = null;
+    let score = null, phase = null, phaseData = null, phaseAt = 0, elo = null;
+    const scoreState = {
+      you: { total:0, banked:0, lastAt:null, seen:false },
+      them: { total:0, banked:0, lastAt:null, seen:false },
+    };
     for (const e of evs) { if (e.t > ms) break;
-      if (e.type === "score") score = e.data;
-      else if (e.type === "phase") { phase = e.data.phase; phaseAt = e.t; }
+      if (e.type === "score") {
+        score = e.data;
+        for (const side of ["you", "them"]) {
+          const s = scoreState[side], next = Math.max(0, Number(e.data?.[side]) || 0);
+          if (s.lastAt != null && e.t - s.lastAt >= 2500) s.banked = s.total;
+          if (!s.seen) {
+            s.total = next; s.banked = e.t <= 0 ? next : 0; s.lastAt = e.t <= 0 ? null : e.t; s.seen = true;
+          } else if (next < s.total) {
+            s.total = next; s.banked = next; s.lastAt = null;
+          } else if (next !== s.total) {
+            s.total = next; s.lastAt = e.t;
+          }
+        }
+      }
+      else if (e.type === "phase") { phaseData = e.data; phase = e.data.phase; phaseAt = e.t; }
       else if (e.type === "elo") elo = { data: e.data, at: e.t }; }
-    return { score, phase, phaseMs: ms - phaseAt, elo };
+    for (const side of ["you", "them"]) {
+      const s = scoreState[side];
+      if (s.lastAt != null && ms - s.lastAt >= 2500) { s.banked = s.total; s.lastAt = null; }
+      s.lap = Math.max(0, Math.floor(s.total / 10));
+    }
+    return { score, scoreVisual:scoreState, phase, phaseData, phaseMs:ms - phaseAt, elo };
   }
   for (let i = 0; i < n; i++) {
     const om = i * frameUs;
@@ -1995,28 +2125,18 @@ async function renderClip(snap) {
     clipCamTile(ctx, rf, cam1, RAD);                        // opponent (remote) on top
     clipCamTile(ctx, lf, cam2, RAD);                        // you (local) on the bottom
     const st = stateAt(om / 1000);
-    const sc = st.score || { you: 0, them: 0 };              // always show the board, even 0-0
-    const smax = Math.max(10, sc.you, sc.them);              // shared scale, like the live scorebar
-    clipScoreBar(ctx, cam1, "them", sc.them, smax, false, RAD);   // opponent (top): red fill
-    clipScoreBar(ctx, cam2, "you",  sc.you,  smax, true,  RAD);   // you (bottom): green fill
+    clipScoreBar(ctx, cam1, "them", st.scoreVisual.them, om / 1000, RAD);
+    clipScoreBar(ctx, cam2, "you", st.scoreVisual.you, om / 1000, RAD);
     clipNameCard(ctx, M.remote?.name || "opponent", M.remote?.rating, cam1.x + cam1.w - 16, cam1.y + 16);
     clipNameCard(ctx, M.local?.name || "you", M.local?.rating, cam2.x + cam2.w - 16, cam2.y + 16);
     if (st.phase === "intro") clipVs(ctx, W, seamY);
     else if (st.phase === "countdown") {
-      const left = Math.ceil(Math.max(0, 5 - st.phaseMs / 1000));
-      if (left > 0) {
-        ctx.save(); ctx.textAlign = "center"; ctx.shadowColor = "rgba(0,0,0,.55)"; ctx.shadowBlur = 26;
-        // label above (mirrors .banner .big — Display 700, uppercase, --on-video)
-        ctx.textBaseline = "alphabetic"; ctx.fillStyle = "#F5F2EC";
-        ctx.font = "700 46px 'Space Grotesk', sans-serif"; try { ctx.letterSpacing = "0.02em"; } catch {}
-        ctx.fillText("ROUND STARTS IN", W / 2, seamY - 58);
-        try { ctx.letterSpacing = "0"; } catch {}
-        // the count below (mirrors .banner .count — mono 500, --gold); group is centered on the seam
-        ctx.textBaseline = "middle"; ctx.fillStyle = "#F2B01E";
-        ctx.font = "500 150px 'IBM Plex Mono', monospace"; ctx.fillText(String(left), W / 2, seamY + 44);
-        ctx.restore();
-      }
+      const seconds = Math.max(1, Number(st.phaseData?.seconds) || 5);
+      const left = Math.ceil(Math.max(0, seconds - st.phaseMs / 1000));
+      clipCountdownOverlay(ctx, W, seamY, left, st.phaseData?.role, st.phaseMs);
     }
+    else if (st.phase === "swap") clipSwapOverlay(ctx, W, seamY, st.phaseMs, st.phaseData?.seconds, st.phaseData?.role);
+    else if (st.phase === "round1" || st.phase === "round2") clipRoundTimer(ctx, W, seamY, st.phaseMs, st.phaseData?.seconds);
     if (st.elo && (om / 1000 - st.elo.at) < 4500) {
       ctx.save(); ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.font = "700 40px 'Space Grotesk', sans-serif";
       const txt = (st.elo.data.delta >= 0 ? "+" : "") + st.elo.data.delta + "  →  " + st.elo.data.rating;
