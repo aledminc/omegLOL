@@ -49,10 +49,8 @@
      Every size below is clamp(min, Xcqw, max) off the rail's own container width, so the card's
      text/paddings grow or shrink WITH the card instead of sitting fixed-size in variable white
      space (the exact issue at different screen sizes / browser zoom). */
-  /* the card grows to fill the rest of the rail and distributes its rows top-to-bottom:
-     first row anchored to the card top, last row to the bottom, no dead air at any zoom.
-     The gap is the MINIMUM spacing; space-between absorbs whatever height is left. */
-  .me-card { flex:1 1 auto; min-height:0; justify-content:space-between;
+  /* the card grows to fill the rail while its dashboard rows stay grouped at the top. */
+  .me-card { flex:1 1 auto; min-height:0; justify-content:flex-start;
     gap:clamp(7px, 3.3cqw, 14px); margin-top:clamp(9px, 4cqw, 16px); overflow:hidden; }
   body.in-lobby .me-card { display:none; }
   /* rank text + numeral badge hug each other, centered in the card */
@@ -82,18 +80,7 @@
     border-right:1px solid rgba(255,230,109,.5); pointer-events:none;
     transition:width var(--t-slow) var(--ease); }
   .me-next span { position:relative; z-index:1; }
-  .me-form-row, .me-friends-row { display:flex; align-items:center; justify-content:space-between; gap:clamp(7px, 3.3cqw, 14px);
-    padding-top:clamp(7px, 3.3cqw, 14px); border-top:1px solid var(--border); }
-  /* the Last 5 row reads at a glance: bigger label + chunky W/L/D cells that fill the row */
-  .me-form-row .me-label { font-size:clamp(11px, 4.5cqw, 15px); }
-  .me-form { display:flex; gap:clamp(4px, 1.7cqw, 7px); align-items:center; justify-content:flex-end; min-width:0; }
-  .me-form .form-cell { width:clamp(20px, 8.5cqw, 32px); height:clamp(20px, 8.5cqw, 32px); display:grid; place-items:center;
-    font-size:clamp(11px, 4.7cqw, 17px); font-weight:600; border:1px solid var(--border); border-radius:5px; background:var(--bg); }
-  .me-form .form-cell.w { color:var(--win); }
-  .me-form .form-cell.l { color:var(--lose); }
-  .me-form .form-cell.d { color:var(--text-2); }
-  .me-form .form-empty { font-size:clamp(10px, 4.2cqw, 13px); color:var(--text-3); }
-  /* bottom row: friends-online count, global players-online count, and the rules button */
+  /* online counts and rules controls */
   .me-count { display:inline-flex; align-items:center; gap:clamp(4px, 1.7cqw, 7px); min-width:0;
     font-size:clamp(10px, 4.2cqw, 14px); font-weight:500; color:var(--text-2); }
   .me-online { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -949,14 +936,14 @@
   .sidebar-tools .fab-badge { top:5px; right:clamp(8px, 3cqw, 13px); }
 
   /* online presence is promoted to the top and reads as one compact status band */
-  .rail-presence { display:grid; grid-template-columns:1fr 1fr; padding:10px 12px;
+  .rail-presence { display:grid; grid-template-columns:minmax(0, 1.35fr) minmax(0, 1fr); padding:6px 12px;
     border-bottom:1px solid var(--border); background:color-mix(in srgb, var(--bg) 45%, transparent); }
-  .rail-presence .me-count { min-height:38px; gap:8px; padding:0 10px;
-    font-size:clamp(11px, 4.3cqw, 14px); line-height:1.25; color:var(--text); }
+  .rail-presence .me-count { min-height:30px; gap:7px; padding:0 8px;
+    font-size:clamp(11px, 4cqw, 13px); line-height:1; color:var(--text); }
   .rail-presence .me-count:first-child { padding-left:0; border-right:1px solid var(--border); }
   .rail-presence .me-count:last-child { padding-right:0; }
-  .rail-presence .mc-ico { width:clamp(17px, 6.5cqw, 21px); height:clamp(17px, 6.5cqw, 21px); color:var(--gold); }
-  .rail-presence .me-online { white-space:normal; line-height:1.2; }
+  .rail-presence .mc-ico { width:clamp(16px, 6cqw, 19px); height:clamp(16px, 6cqw, 19px); color:var(--gold); }
+  .rail-presence .me-online { white-space:nowrap; line-height:1; }
 
   /* two clearly labelled segmented rows replace the loose stack of mode buttons */
   .action-panel .modebar { display:flex; flex-direction:column; gap:10px; margin:0; padding:13px 14px 14px;
@@ -984,11 +971,11 @@
     border:0; border-bottom:1px solid var(--border); border-radius:0; }
 
   /* standing becomes a quiet mini dashboard, with one shared stat strip instead of three cards */
-  .action-panel .me-card { flex:1 1 auto; min-height:0; margin:0; padding:13px 14px 14px;
-    gap:clamp(9px, 3.4cqw, 13px); justify-content:space-between; overflow:hidden; }
+  .action-panel .me-card { flex:1 1 auto; min-height:0; margin:0; padding:10px 14px 14px;
+    gap:10px; justify-content:flex-start; overflow:hidden; }
   .me-dashboard-head { display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding-bottom:9px; border-bottom:1px solid var(--border); }
-  .me-dashboard-head .me-rules { width:30px; height:28px; }
+    padding-bottom:6px; border-bottom:1px solid var(--border); }
+  .me-dashboard-head .me-rules { width:27px; height:25px; }
   .me-head { justify-content:space-between; gap:12px; }
   .me-tier { font-size:clamp(16px, 6.4cqw, 22px); }
   .me-badge { padding:8px 10px; font-size:clamp(13px, 5cqw, 17px);
@@ -1000,11 +987,6 @@
   .me-stat:last-child { border-right:0; }
   .me-stat b { font-size:clamp(14px, 5.5cqw, 19px); }
   .me-next { padding:8px 9px; }
-  .me-form-row { margin-top:0; padding-top:10px; border-top:1px solid var(--border); }
-  .me-form-row .me-label { font-size:clamp(10px, 4cqw, 13px); }
-  .me-form .form-cell { width:clamp(20px, 7.8cqw, 28px); height:clamp(20px, 7.8cqw, 28px);
-    font-size:clamp(10px, 4cqw, 14px); background:color-mix(in srgb, var(--bg) 62%, transparent); }
-
   /* the rail and idle camera share one outline; match mode restores its own full camera shells */
   .stage:not(.split) { margin-right:auto; border-radius:0 var(--r-lg) var(--r-lg) 0; }
   .bank-fab { left:8px; right:auto; }
@@ -1325,10 +1307,6 @@
           <div class="me-stat"><span>Win rate</span><b id="meWinRate">--</b></div>
         </div>
         <div class="me-next" id="meNext"><i class="me-next-fill" id="meNextFill" aria-hidden="true"></i><span>play a match to place</span></div>
-        <div class="me-form-row">
-          <span class="me-label">Last 5</span>
-          <div class="me-form" id="meForm"></div>
-        </div>
       </div>
     </aside>
   </div>
@@ -1561,6 +1539,7 @@ let peerProfiles = new Map();          // peerId -> { name, rating, form, team }
 const outcomeLetter = o => o === "win" ? "W" : o === "lose" ? "L" : "D";
 const outcomeClass  = o => o === "win" ? "w" : o === "lose" ? "l" : "d";
 function renderForm(el, form) {
+  if (!el) return;
   el.innerHTML = "";
   const games = (form || []).slice(0, 5).reverse();   // oldest -> newest, most recent on the right
   if (!games.length) { el.innerHTML = `<span class="form-empty">no games yet</span>`; return; }
@@ -1579,7 +1558,7 @@ function renderCard(who, p) {           // the host's own card, pinned to the lo
   const eloEl = $(who + "Elo"); if (eloEl) eloEl.textContent = p.rating;
   renderForm($(who + "Form"), p.form);
 }
-// "Your Standing" card in the right rail: rank, rating, record, recent form, and next-tier hint.
+// "Your Standing" card in the left rail: rank, rating, record, and next-tier hint.
 function renderMeCard(p) {
   const t = rankFor(p.rating);
   const tierIndex = TIERS.indexOf(t);
@@ -1604,7 +1583,6 @@ function renderMeCard(p) {
     $("meNextFill").style.width = "100%";
     progressBox.querySelector("span").textContent = "top tier";
   }
-  renderForm($("meForm"), p.form);
   const badge = $("meBadge");
   badge.textContent = ROMAN[tierIndex] || "VI";
   badge.style.setProperty("--tc", t.color);
