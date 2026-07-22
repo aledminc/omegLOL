@@ -2064,7 +2064,8 @@ function clipMouthCue(ctx, src, r, cue, rad) {
   const scale = Math.max(r.w / sw, r.h / sh), dw = sw * scale, dh = sh * scale;
   const ox = r.x + (r.w - dw) / 2, oy = r.y + (r.h - dh) / 2;
   const mapped = cue.points.map(([x, y]) => [ox + x * dw, oy + y * dh]);
-  const color = cue.active ? "#4ADE80" : "#F0524D";
+  const color = cue.active ? (cue.activeColor || "#4ADE80") : "rgba(190,194,199,.48)";
+  const underColor = cue.active ? "rgba(0,0,0,.76)" : "rgba(0,0,0,.22)";
   const path = () => {
     ctx.beginPath(); ctx.moveTo(mapped[0][0], mapped[0][1]);
     for (let i = 1; i < mapped.length; i++) ctx.lineTo(mapped[i][0], mapped[i][1]);
@@ -2072,11 +2073,12 @@ function clipMouthCue(ctx, src, r, cue, rad) {
   };
   ctx.save(); clipRoundRect(ctx, r.x, r.y, r.w, r.h, rad); ctx.clip();
   ctx.lineJoin = "round"; ctx.lineCap = "round";
-  path(); ctx.strokeStyle = "rgba(0,0,0,.76)"; ctx.lineWidth = 8; ctx.stroke();
-  path(); ctx.strokeStyle = color; ctx.lineWidth = 4; ctx.stroke();
+  path(); ctx.strokeStyle = underColor; ctx.lineWidth = cue.active ? 8 : 6; ctx.stroke();
+  path(); ctx.strokeStyle = color; ctx.lineWidth = cue.active ? 4 : 3; ctx.stroke();
   for (const [x, y] of mapped) {
-    ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fillStyle = "rgba(0,0,0,.8)"; ctx.fill();
-    ctx.beginPath(); ctx.arc(x, y, 5.5, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, cue.active ? 9 : 8, 0, Math.PI * 2);
+    ctx.fillStyle = cue.active ? "rgba(0,0,0,.8)" : "rgba(0,0,0,.25)"; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, cue.active ? 5.5 : 4.75, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
   }
   ctx.restore();
 }
@@ -2131,7 +2133,8 @@ async function renderClip(snap) {
         p[1] + (b.data.points[n][1] / 1000 - p[1]) * mix,
       ]);
     }
-    return { points, active:a.data.active === true };
+    return { points, active:a.data.active === true,
+      activeColor:side === "local" ? "#F0524D" : "#4ADE80" };
   }
   const M = snap.meta || {};
   function stateAt(ms) {
@@ -3067,18 +3070,21 @@ function paintMouthCue(surface, points, active) {
     const x = ox + nx * dw;
     return [mirrored ? cw - x : x, oy + ny * dh];
   });
-  const color = active ? "#4ADE80" : "#F0524D";
+  const viewerIsReactor = document.body.dataset.role === "watcher";
+  const color = active ? (viewerIsReactor ? "#F0524D" : "#4ADE80") : "rgba(190,194,199,.48)";
+  const underColor = active ? "rgba(0,0,0,.72)" : "rgba(0,0,0,.2)";
   const path = () => {
     ctx.beginPath(); ctx.moveTo(mapped[0][0], mapped[0][1]);
     for (let i = 1; i < mapped.length; i++) ctx.lineTo(mapped[i][0], mapped[i][1]);
     ctx.closePath();
   };
   ctx.lineJoin = "round"; ctx.lineCap = "round";
-  path(); ctx.strokeStyle = "rgba(0,0,0,.72)"; ctx.lineWidth = 4; ctx.stroke();
-  path(); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+  path(); ctx.strokeStyle = underColor; ctx.lineWidth = active ? 4 : 3; ctx.stroke();
+  path(); ctx.strokeStyle = color; ctx.lineWidth = active ? 2 : 1.5; ctx.stroke();
   for (const [x, y] of mapped) {
-    ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI * 2); ctx.fillStyle = "rgba(0,0,0,.78)"; ctx.fill();
-    ctx.beginPath(); ctx.arc(x, y, 3.2, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, active ? 5 : 4.5, 0, Math.PI * 2);
+    ctx.fillStyle = active ? "rgba(0,0,0,.78)" : "rgba(0,0,0,.22)"; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y, active ? 3.2 : 2.7, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
   }
 }
 function updateMouthCue(key, points, active, tracked = true) {
