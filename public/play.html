@@ -1393,7 +1393,7 @@
     <ol class="rules-list">
       <li><b>Get matched.</b> You're paired live with another player, cam to cam.</li>
       <li><b>Know your role.</b> During the countdown you're told your role: the <b>joke teller</b> performs, the <b>reactor</b> tries to keep a straight face.</li>
-      <li><b>Perform.</b> The joke teller has the round to make the reactor crack — bits, faces, impressions, whatever works.</li>
+      <li><b>Perform.</b> The joke teller has the round to make the reactor crack... bits, faces, impressions, whatever works.</li>
       <li><b>The camera keeps score.</b> Smiles and laughs are detected on the reactor's own device and tallied in real time. Bigger reactions score more.</li>
       <li><b>Swap.</b> Roles flip and the other side gets their shot.</li>
       <li><b>Win and climb.</b> Highest total wins the match, your Elo moves, and you climb the ranked ladder. Play solo 1v1 or invite a friend for duos.</li>
@@ -1552,7 +1552,7 @@ async function authenticate() {
 // If we get here unconsented, send the user to the start of that flow. The server also hard-gates
 // matchmaking on the consent record, so this is UX routing, not the enforcement.
 function handleNoConsent() {
-  setStatus("one more step — please review the Terms");
+  setStatus("one more step... please review the Terms");
   location.href = "/agree";
 }
 function submitName() {
@@ -1804,7 +1804,7 @@ function triggerClip() {
   showClipToast("Clip processing…", "processing");
   clipCapture.snapshot(async snap => {
     if (!snap) { setStatus("clipping isn't running for this match"); showClipToast("Clipping unavailable", "error"); return; }
-    if (!snap.ready) { setStatus("clip: still buffering — give it a few seconds"); showClipToast("Still buffering…", "error"); return; }
+    if (!snap.ready) { setStatus("clip: still buffering, give it a few seconds"); showClipToast("Still buffering…", "error"); return; }
     clipRendering = true;
     try { setStatus("rendering clip…"); await renderClip(snap); setStatus("clip saved to your downloads ✓"); showClipToast("Clip saved!", "saved"); }
     catch (err) { console.error("clip render failed:", err); setStatus("clip render failed — see console"); showClipToast("Clip failed", "error"); }
@@ -2159,7 +2159,7 @@ async function renderClip(snap) {
           (first && A.desc) ? { decoderConfig: { codec: "opus", numberOfChannels: 2, sampleRate: 48000, description: A.desc } } : undefined);
         first = false;
       }
-    } catch (err) { console.warn("clip audio mux failed — saving video-only:", err); }   // one bad piece shouldn't sink the clip
+    } catch (err) { console.warn("clip audio mux failed... saving video-only:", err); }   // one bad piece shouldn't sink the clip
   }
   muxer.finalize();
   clipDownload(new Blob([target.buffer], { type: "video/mp4" }), "omeglol-clip-" + Date.now() + ".mp4");
@@ -2476,7 +2476,7 @@ function renderJokes() {
     wrap.innerHTML = "";
     if (!jokes.length) {
       const d = document.createElement("div"); d.className = "bank-empty";
-      d.textContent = editable ? "no jokes banked yet — save your best material" : "your joke bank is empty — write some in the lobby";
+      d.textContent = editable ? "no jokes banked yet — save your best material" : "your joke bank is empty! write some in the lobby";
       wrap.appendChild(d); continue;
     }
     jokes.forEach((j, i) => {
@@ -3390,9 +3390,9 @@ ws.addEventListener("message", async (e) => {
       if (msg.ok) {
         closeReportModal();
         if (!msg.already) { reportedThisMatch = true; $("report").disabled = true; }   // one report per opponent per match
-        setStatus(msg.already ? "you already reported that player" : "report submitted — thanks");
+        setStatus(msg.already ? "you already reported that player" : "report submitted, thanks");
       } else {
-        reportMsgSet(msg.reason === "rate" ? "you're reporting too fast — try again later" : "couldn't submit that report", true);
+        reportMsgSet(msg.reason === "rate" ? "you're reporting too fast, try again later" : "couldn't submit that report", true);
       }
       break;
     case "banned": showBanGate(msg); break;
