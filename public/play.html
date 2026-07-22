@@ -449,17 +449,23 @@
     height:12px; overflow:hidden; isolation:isolate; }
   .score-meter .fill { position:absolute; top:0; bottom:0; width:0; border-radius:4px; }
   .score-solid { left:0; z-index:1; background:var(--score-tone);
-    transition:width .32s var(--ease), background-color .35s var(--ease); }
-  .score-pending { left:0; z-index:2; opacity:.92;
-    background:repeating-linear-gradient(105deg, var(--score-tone) 0 5px, transparent 5px 10px);
-    background-size:14px 100%; box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--score-tone) 72%, transparent);
-    transition:left .32s var(--ease), width .32s var(--ease), background-color .35s var(--ease);
-    animation:scorePendingFlow .45s linear infinite; }
-  .score-pending::after { content:""; position:absolute; top:0; right:0; bottom:0; width:2px;
-    background:var(--score-tone); box-shadow:0 0 8px var(--score-tone); }
+    transition:width .32s var(--ease), border-radius .18s var(--ease), background-color .35s var(--ease); }
+  .score-meter.has-pending .score-solid { border-radius:4px 0 0 4px; }
+  .score-meter .score-pending { left:0; z-index:2; opacity:.62; border-radius:0 4px 4px 0;
+    background:linear-gradient(90deg,
+      color-mix(in srgb, var(--score-tone) 42%, transparent),
+      color-mix(in srgb, var(--score-tone) 68%, transparent),
+      color-mix(in srgb, var(--score-tone) 42%, transparent));
+    background-size:180% 100%;
+    box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--score-tone) 30%, transparent);
+    transition:left .32s var(--ease), width .32s var(--ease), border-radius .18s var(--ease), background-color .35s var(--ease);
+    animation:scorePendingFlow 2.2s ease-in-out infinite alternate; }
+  .score-meter.pending-only .score-pending { border-radius:4px; }
+  .score-pending::after { content:""; position:absolute; top:1px; right:0; bottom:1px; width:1px;
+    opacity:.55; background:var(--score-tone); box-shadow:0 0 3px var(--score-tone); }
   .score-meter.settling .score-solid { filter:brightness(1.08); }
   .score-meter.lap-reset { animation:scoreLapReset .42s var(--ease); }
-  @keyframes scorePendingFlow { to { background-position:14px 0; } }
+  @keyframes scorePendingFlow { from { background-position:0 0; } to { background-position:100% 0; } }
   @keyframes scoreLapReset {
     0% { box-shadow:0 0 0 transparent; }
     42% { box-shadow:0 0 16px color-mix(in srgb, var(--score-tone) 70%, transparent); }
@@ -2823,6 +2829,15 @@ function renderScoreVisual(side) {
   const goldWeight = Math.min(100, 40 + state.lap * 15);
   meter.style.setProperty("--score-tone", `color-mix(in srgb, var(--gold) ${goldWeight}%, white)`);
   meter.dataset.lap = String(state.lap);
+  if (pendingPct > .001) {
+    clearTimeout(meter._shapeTimer);
+    meter.classList.add("has-pending");
+    meter.classList.toggle("pending-only", solidPct <= .001);
+  } else {
+    meter.classList.remove("pending-only");
+    clearTimeout(meter._shapeTimer);
+    meter._shapeTimer = setTimeout(() => meter.classList.remove("has-pending"), 340);
+  }
   solid.style.width = solidPct + "%";
   pending.style.left = solidPct + "%";
   pending.style.width = pendingPct + "%";
