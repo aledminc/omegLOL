@@ -45,7 +45,7 @@
   body[data-phase="result"] .action-panel { display:none; }
   .action-panel .gamebar { flex-direction:column; gap:10px; margin-top:0 !important; }
   .action-panel .gamebar button { width:100%; }
-  /* "Your Standing" card: compact rank header + useful season-at-a-glance stats.
+  /* Standing dashboard: compact rank header + useful season-at-a-glance stats.
      Every size below is clamp(min, Xcqw, max) off the rail's own container width, so the card's
      text/paddings grow or shrink WITH the card instead of sitting fixed-size in variable white
      space (the exact issue at different screen sizes / browser zoom). */
@@ -948,7 +948,7 @@
   /* two clearly labelled segmented rows replace the loose stack of mode buttons */
   .action-panel .modebar { display:flex; flex-direction:column; gap:10px; margin:0; padding:13px 14px 14px;
     border-bottom:1px solid var(--border); background:transparent; }
-  .action-panel .modebar > .pc-tag, .me-dashboard-head .pc-tag {
+  .action-panel .modebar > .pc-tag {
     padding:0; font-size:clamp(14px, 4.8cqw, 17px); font-weight:700; line-height:1.2;
     letter-spacing:0; text-transform:none; color:var(--text); }
   .action-panel .modebar > .pc-tag { margin-bottom:2px; }
@@ -973,9 +973,6 @@
   /* standing becomes a quiet mini dashboard, with one shared stat strip instead of three cards */
   .action-panel .me-card { flex:1 1 auto; min-height:0; margin:0; padding:10px 14px 14px;
     gap:10px; justify-content:flex-start; overflow:hidden; }
-  .me-dashboard-head { display:flex; align-items:center; justify-content:space-between; gap:10px;
-    padding-bottom:6px; border-bottom:1px solid var(--border); }
-  .me-dashboard-head .me-rules { width:27px; height:25px; }
   .me-head { justify-content:space-between; gap:12px; }
   .me-tier { font-size:clamp(16px, 6.4cqw, 22px); }
   .me-badge { padding:8px 10px; font-size:clamp(13px, 5cqw, 17px);
@@ -986,7 +983,9 @@
   .me-stat { padding:9px 5px; background:transparent; border:0; border-right:1px solid var(--border); border-radius:0; }
   .me-stat:last-child { border-right:0; }
   .me-stat b { font-size:clamp(14px, 5.5cqw, 19px); }
+  .me-progress-row { display:grid; grid-template-columns:minmax(0, 1fr) 32px; align-items:stretch; gap:8px; }
   .me-next { padding:8px 9px; }
+  .me-progress-row .me-rules { width:32px; height:auto; min-height:32px; }
   /* the rail and idle camera share one outline; match mode restores its own full camera shells */
   .stage:not(.split) { margin-right:auto; border-radius:0 var(--r-lg) var(--r-lg) 0; }
   .bank-fab { left:8px; right:auto; }
@@ -1290,10 +1289,6 @@
         <button class="btn ghost" id="leaveLobbyBtn">Leave Lobby</button>
       </div>
       <div class="pcard panel me-card">
-        <div class="me-dashboard-head">
-          <span class="pc-tag">Your Standing</span>
-          <button class="me-rules" id="rulesBtn" type="button" title="how to play" aria-label="how to play"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scroll-text-icon lucide-scroll-text" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg></button>
-        </div>
         <div class="me-head">
           <div>
             <span class="me-label">Current rank</span>
@@ -1306,7 +1301,10 @@
           <div class="me-stat"><span>Record</span><b id="meRecord">0-0-0</b></div>
           <div class="me-stat"><span>Win rate</span><b id="meWinRate">--</b></div>
         </div>
-        <div class="me-next" id="meNext"><i class="me-next-fill" id="meNextFill" aria-hidden="true"></i><span>play a match to place</span></div>
+        <div class="me-progress-row">
+          <div class="me-next" id="meNext"><i class="me-next-fill" id="meNextFill" aria-hidden="true"></i><span>play a match to place</span></div>
+          <button class="me-rules" id="rulesBtn" type="button" title="how to play" aria-label="how to play"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scroll-text-icon lucide-scroll-text" aria-hidden="true"><path d="M15 12h-5"/><path d="M15 8h-5"/><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg></button>
+        </div>
       </div>
     </aside>
   </div>
@@ -1558,7 +1556,7 @@ function renderCard(who, p) {           // the host's own card, pinned to the lo
   const eloEl = $(who + "Elo"); if (eloEl) eloEl.textContent = p.rating;
   renderForm($(who + "Form"), p.form);
 }
-// "Your Standing" card in the left rail: rank, rating, record, and next-tier hint.
+// Standing dashboard in the left rail: rank, rating, record, and next-tier hint.
 function renderMeCard(p) {
   const t = rankFor(p.rating);
   const tierIndex = TIERS.indexOf(t);
@@ -2101,7 +2099,7 @@ function applyRequestsPref() {
   for (const r of requests) signal({ type: "declineFriend", fromId: r.id });
   requests = [];
 }
-// "N friends online" line in the Your Standing card's second rail.
+// "N friends online" line in the sidebar presence band.
 function renderOnlineCount() {
   const n = friends.filter(f => f.online).length;
   $("meOnline").textContent = n + (n === 1 ? " friend online" : " friends online");
