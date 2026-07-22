@@ -403,6 +403,27 @@
     75% { transform:translateX(1.5px) rotate(4deg); }
   }
 
+  /* After the result plate closes, this compact strip takes the timer's place above chat. */
+  .post-match-actions { display:grid; grid-template-columns:1fr 1fr; gap:7px; flex:none; }
+  .post-match-actions.hidden { display:none; }
+  .post-match-actions button { min-width:0; min-height:42px; padding:8px 10px; display:flex;
+    align-items:center; justify-content:center; gap:7px; font-family:var(--font-display); font-size:12px; font-weight:700;
+    color:var(--text); background:var(--surface-2); border:1px solid var(--border-2);
+    border-radius:var(--r-sm); cursor:pointer; }
+  .post-match-actions button svg { width:18px; height:18px; flex:none; }
+  .post-match-actions .pm-incoming-icon { display:none; }
+  .post-match-actions[data-mode="incoming"] .pm-default-icon { display:none; }
+  .post-match-actions[data-mode="incoming"] .pm-incoming-icon { display:block; }
+  .post-match-actions button:hover:not(:disabled) { border-color:var(--gold); color:var(--gold); }
+  .post-match-actions .pm-primary { color:var(--gold-ink); background:var(--gold); border-color:transparent; }
+  .post-match-actions .pm-primary:hover:not(:disabled) { color:var(--gold-ink); background:var(--gold-2); }
+  .post-match-actions[data-mode="incoming"] .pm-secondary { color:var(--lose); background:var(--lose-dim);
+    border-color:color-mix(in srgb, var(--lose) 45%, var(--border)); }
+  .post-match-actions button:disabled { opacity:.55; cursor:default; }
+  .post-match-note { grid-column:1 / -1; min-height:16px; overflow:hidden; text-align:center;
+    font-family:var(--font-mono); font-size:11px; line-height:16px; color:var(--text-3);
+    white-space:nowrap; text-overflow:ellipsis; }
+
   /* countdown/swap: the role line below the count gets big + readable */
   body[data-phase="countdown"] .banner .sub,
   body[data-phase="swap"] .banner .sub { color:var(--gold); text-transform:uppercase; }
@@ -1254,6 +1275,19 @@
             <div class="vs-bolt"></div>
             <div class="vs-text"><span class="v">V</span><span class="s">S</span></div>
           </div>
+        </div>
+        <div class="post-match-actions hidden" id="postMatchActions" data-mode="default" aria-live="polite">
+          <button class="pm-primary" id="postMatchPrimary" type="button">
+            <svg class="pm-default-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>
+            <svg class="pm-incoming-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m20 6-11 11-5-5"/></svg>
+            <span id="postMatchPrimaryLabel">Rematch!</span>
+          </button>
+          <button class="pm-secondary" id="postMatchSecondary" type="button">
+            <svg class="pm-default-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6"/><path d="M22 11h-6"/></svg>
+            <svg class="pm-incoming-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 6-12 12"/><path d="m6 6 12 12"/></svg>
+            <span id="postMatchSecondaryLabel">Add Friend</span>
+          </button>
+          <div class="post-match-note" id="postMatchNote"></div>
         </div>
         <div class="round-timer hidden" id="roundTimer" aria-hidden="true">
           <div class="rt-track"><div class="rt-fill" id="rtFill"></div></div>
@@ -3208,10 +3242,35 @@ function showBanner(big, count, sub, kind = "") {
   $("bannerSub").textContent = sub || ""; $("bannerDelta").textContent = "";
 }
 function hideBanner() { banner.classList.add("hidden"); banner.dataset.kind = ""; }
+let postMatchMode = "default", matchFriendState = "idle";
+function setPostMatchMode(mode = "default", note = "") {
+  postMatchMode = mode;
+  const box = $("postMatchActions"), primary = $("postMatchPrimary"), secondary = $("postMatchSecondary");
+  box.dataset.mode = mode;
+  const incoming = mode === "incoming";
+  $("postMatchPrimaryLabel").textContent = incoming ? "Accept" :
+    mode === "pending" ? "Sent" : mode === "waiting" ? "Waiting..." :
+    mode === "closed" ? "Declined" : "Rematch!";
+  $("postMatchSecondaryLabel").textContent = incoming ? "Decline" :
+    matchFriendState === "done" ? "Sent" : matchFriendState === "friends" ? "Added" : "Add Friend";
+  primary.disabled = mode === "pending" || mode === "waiting" || mode === "closed";
+  secondary.disabled = !incoming && matchFriendState !== "idle";
+  $("postMatchNote").textContent = note;
+}
+function showPostMatchActions(mode = postMatchMode, note = "") {
+  setPostMatchMode(mode, note);
+  $("postMatchActions").classList.remove("hidden");
+}
+function resetPostMatchActions() {
+  postMatchMode = "default"; matchFriendState = "idle";
+  setPostMatchMode();
+  $("postMatchActions").classList.add("hidden");
+}
 function closeResultOverlay() {
   if (document.body.dataset.phase !== "result") return;
   hideBanner();
   stageEl.classList.remove("introing");
+  showPostMatchActions();
 }
 function requestLeaveMatch() {
   if (document.body.dataset.phase !== "result") return;
@@ -3221,6 +3280,29 @@ function requestLeaveMatch() {
 }
 $("resultClose").addEventListener("click", closeResultOverlay);
 $("resultLeave").addEventListener("click", requestLeaveMatch);
+$("postMatchPrimary").addEventListener("click", () => {
+  if (document.body.dataset.phase !== "result") return;
+  if (postMatchMode === "incoming") {
+    setPostMatchMode("waiting", "rematch accepted - waiting for everyone");
+    signal({ type:"rematchResponse", accept:true });
+    return;
+  }
+  if (postMatchMode !== "default") return;
+  setPostMatchMode("pending", "rematch request sent");
+  signal({ type:"rematchRequest" });
+});
+$("postMatchSecondary").addEventListener("click", () => {
+  if (document.body.dataset.phase !== "result") return;
+  if (postMatchMode === "incoming") {
+    setPostMatchMode("closed", "you declined the rematch");
+    signal({ type:"rematchResponse", accept:false });
+    return;
+  }
+  if (matchFriendState !== "idle") return;
+  matchFriendState = "pending";
+  setPostMatchMode(postMatchMode, "sending friend request...");
+  signal({ type:"addMatchFriend" });
+});
 
 // searching overlay: spinner + a live elapsed clock so the queue feels like it's progressing
 let searchTimer = null, searchStart = 0;
@@ -3334,6 +3416,7 @@ function resetMatchUi() {
   setMatchDock(false);           // toolbox starts collapsed each match
   $("next").textContent = "Next";
   $("resultLeave").disabled = false;
+  resetPostMatchActions();
   matchClipOk = false; applyClipUi();   // clip button re-arms only when the next match consents
   clipCapture.stop();                   // tear down the rolling buffer + audio graph
   for (const pop of document.querySelectorAll(".pop")) pop.remove();
@@ -3445,6 +3528,7 @@ function applyGameState(msg) {
     case "result": {
       stopPreRoundSequence();
       stopRoundTimer();
+      resetPostMatchActions();
       stageEl.classList.add("introing");            // dim the cams behind the result plates
       const word = msg.outcome === "win" ? "You win" : msg.outcome === "lose" ? "You lose" : "Draw";
       showBanner(word, "", `${Math.round(msg.scores.you)} – ${Math.round(msg.scores.them)}`, "result");
@@ -3464,7 +3548,7 @@ function applyGameState(msg) {
 }
 
 ws.addEventListener("open", () => { setStatus("connecting…"); authenticate(); });
-ws.addEventListener("close", () => { isSearching = false; duosQueued = false; updateModeUI(); setStatus("disconnected"); endCall(); endIntro(); stopPreRoundSequence(); hideBanner(); stageEl.classList.remove("split"); document.querySelector(".scorebar").classList.remove("live"); stopScoring(); setChatEnabled(false); setBodyState("idle", ""); showSearching(false); setReportVisible(false); });
+ws.addEventListener("close", () => { isSearching = false; duosQueued = false; updateModeUI(); setStatus("disconnected"); endCall(); endIntro(); stopPreRoundSequence(); hideBanner(); resetPostMatchActions(); stageEl.classList.remove("split"); document.querySelector(".scorebar").classList.remove("live"); stopScoring(); setChatEnabled(false); setBodyState("idle", ""); showSearching(false); setReportVisible(false); });
 ws.addEventListener("message", async (e) => {
   const msg = JSON.parse(e.data);
   switch (msg.type) {
@@ -3509,6 +3593,21 @@ ws.addEventListener("message", async (e) => {
       setStatus(currentMatchMode === "duos" ? "duos match found" : "opponent found");
       setChatEnabled(true);
       setBodyState("matched", ""); $("find").disabled = true; $("next").disabled = false; setReportVisible(true); renderFriends(); break;
+    case "rematchStarted":
+      hideBanner(); resetPostMatchActions(); stopPreRoundSequence(); stopRoundTimer();
+      myPeerId = msg.peerId; currentMatchMode = msg.mode || currentMatchMode;
+      $("youLabel").textContent = currentMatchMode === "duos" ? "your team" : "you";
+      $("themLabel").textContent = currentMatchMode === "duos" ? "their team" : "them";
+      renderMatchCards(msg);
+      matchPeers = (msg.peers || []).map(p => ({ id:p.id, name:p.name, team:p.team }));
+      matchClipOk = clipEnabled() && currentMatchMode === "solo"
+        && (msg.peers || []).length === 1 && !!msg.peers[0]?.clipConsent;
+      applyClipUi();
+      setScores({ you:0, them:0 });
+      $("next").textContent = "Next"; $("next").disabled = false; $("resultLeave").disabled = false;
+      setReportVisible(true); setChatEnabled(true); setBodyState("matched", "");
+      setStatus("rematch accepted");
+      break;
     case "offer":
       await acceptOffer(msg); break;
     case "answer":
@@ -3540,6 +3639,39 @@ ws.addEventListener("message", async (e) => {
       if (selfProfile) { selfProfile.rating = msg.rating; renderCard("self", selfProfile); renderMeCard(selfProfile); }
       clipCapture.note("elo", { delta: msg.delta, rating: msg.rating });
       break;
+    case "rematchRequested":
+      if (document.body.dataset.phase === "result") {
+        closeResultOverlay();
+        showPostMatchActions("incoming", (msg.from || "Opponent") + " wants a rematch");
+      }
+      break;
+    case "rematchPending": {
+      const left = Math.max(0, Number(msg.total) - Number(msg.accepted));
+      showPostMatchActions("pending", left === 1 ? "waiting for opponent" : `waiting for ${left} players`);
+      break;
+    }
+    case "rematchProgress": {
+      const ready = Number(msg.accepted) || 0, total = Number(msg.total) || 0;
+      if (postMatchMode === "incoming") setPostMatchMode("incoming", `${ready}/${total} players ready`);
+      else showPostMatchActions("waiting", ready >= total ? "everyone accepted - starting rematch" : `${ready}/${total} players ready`);
+      break;
+    }
+    case "rematchDeclined":
+      showPostMatchActions("closed", (msg.by || "Opponent") + " declined the rematch");
+      break;
+    case "rematchUnavailable":
+      showPostMatchActions("closed", msg.reason === "failed" ? "couldn't start the rematch" : "rematch unavailable");
+      break;
+    case "matchFriendResult": {
+      if (msg.ok) matchFriendState = msg.accepted ? "friends" : "done";
+      else if (msg.reason === "already") matchFriendState = "friends";
+      else if (msg.reason === "pending") matchFriendState = "done";
+      else matchFriendState = "idle";
+      const note = msg.ok ? (msg.accepted ? `you and ${msg.to || "your opponent"} are now friends` : `friend request sent to ${msg.to || "your opponent"}`) :
+        (friendReason[msg.reason] || "couldn't send friend request");
+      setPostMatchMode(postMatchMode, note);
+      break;
+    }
     case "friends": friends = msg.list; renderFriends(); break;
     case "friendRequests": requests = msg.list || []; applyRequestsPref(); renderFriends(); break;
     case "friendRequestSent": setStatus(msg.accepted ? "you're now friends with " + msg.to : "friend request sent to " + msg.to); break;

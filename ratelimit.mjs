@@ -30,8 +30,9 @@ const LIMITS = {
 const CATEGORY = {
   offer: "signaling", answer: "signaling", candidate: "signaling",
   find: "matchmaking", cancelSearch: "matchmaking", next: "matchmaking", leaveMatch: "matchmaking",
+  rematchRequest: "matchmaking", rematchResponse: "matchmaking",
   queueDuos: "matchmaking", cancelDuos: "matchmaking",
-  addFriend: "social", invite: "social", acceptInvite: "social", declineInvite: "social",
+  addFriend: "social", addMatchFriend: "social", invite: "social", acceptInvite: "social", declineInvite: "social",
   leaveLobby: "social",
   chat: "chat",
   report: "report",

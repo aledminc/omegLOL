@@ -586,6 +586,9 @@ export async function startServer({ db, pool = null, port = PORT }) {
       watcherTeam: null,
       phase: null,
       timer: null,
+      rematch: null,
+      rematchClosed: false,
+      resultFinalized: false,
     };
     ca.game = game; cb.game = game;
     await announceMatch(game);
@@ -611,10 +614,74 @@ export async function startServer({ db, pool = null, port = PORT }) {
   function startSwap(game)      {                    setPhase(game, "swap",      dur.swap,      startRound2); broadcast(game, "swap",      dur.swap / SEC); }
   function startRound2(game)    { setRoles(game, 1); setPhase(game, "round2",    dur.round,     endGame);     broadcast(game, "round2",    dur.round / SEC); }
 
+  function maybeStartRematch(game) {
+    const vote = game.rematch;
+    if (!vote || vote.starting || game.phase !== "result" || !game.resultFinalized ||
+        vote.accepted.size !== game.players.length) return;
+    if (!game.players.every(pid => clients.get(pid)?.game === game)) return;
+    vote.starting = true;
+    void (async () => {
+      game.phase = "rematch";
+      game.id = nextGameId++;                    // reports and rating history treat this as a fresh match
+      game.scores = [0, 0];
+      game.performerTeam = null;
+      game.watcherTeam = null;
+      game.rematch = null;
+      game.rematchClosed = false;
+      game.resultFinalized = false;
+      await announceMatch(game, "rematchStarted");
+      if (game.players.every(pid => clients.get(pid)?.game === game)) startIntro(game);
+    })().catch(err => {
+      console.error("rematch failed:", err.message);
+      for (const pid of game.players) send(pid, { type: "rematchUnavailable", reason: "failed" });
+    });
+  }
+
+  function requestRematch(id) {
+    const c = clients.get(id), game = c?.game;
+    if (!game || game.phase !== "result" || game.rematchClosed) {
+      send(id, { type: "rematchUnavailable", reason: game?.rematchClosed ? "declined" : "unavailable" });
+      return;
+    }
+    if (game.rematch) {
+      if (game.rematch.requester === id) {
+        send(id, { type: "rematchPending", accepted: game.rematch.accepted.size, total: game.players.length });
+      } else {
+        const from = clients.get(game.rematch.requester)?.name || "Opponent";
+        send(id, { type: "rematchRequested", from });
+      }
+      return;
+    }
+    game.rematch = { requester: id, accepted: new Set([id]), starting: false };
+    send(id, { type: "rematchPending", accepted: 1, total: game.players.length });
+    for (const pid of game.players) if (pid !== id) send(pid, { type: "rematchRequested", from: c.name });
+  }
+
+  function respondToRematch(id, accept) {
+    const c = clients.get(id), game = c?.game, vote = game?.rematch;
+    if (!game || game.phase !== "result" || !vote || vote.requester === id) {
+      send(id, { type: "rematchUnavailable", reason: "unavailable" });
+      return;
+    }
+    if (!accept) {
+      game.rematch = null;
+      game.rematchClosed = true;
+      for (const pid of game.players) send(pid, { type: "rematchDeclined", by: c.name });
+      return;
+    }
+    vote.accepted.add(id);
+    for (const pid of game.players)
+      send(pid, { type: "rematchProgress", accepted: vote.accepted.size, total: game.players.length });
+    maybeStartRematch(game);
+  }
+
   async function endGame(game) {
     clearTimeout(game.timer);
     game.phase = "result";
     game.timer = null;                            // finished matches persist until someone explicitly leaves
+    game.rematch = null;
+    game.rematchClosed = false;
+    game.resultFinalized = false;
     for (const id of game.players) {
       const mine = game.scores[teamOf(game, id)], theirs = game.scores[otherTeamOf(game, id)];
       send(id, { type: "gameState", phase: "result", seconds: null, role: null,
@@ -644,6 +711,8 @@ export async function startServer({ db, pool = null, port = PORT }) {
         } catch (e) { console.error("recordDuosRatings failed:", e.message); }
       }
     }
+    game.resultFinalized = true;
+    maybeStartRematch(game);                      // accepts can arrive while the rating write is finishing
   }
   function handleReaction(id, msg) {
     const game = clients.get(id)?.game;
@@ -675,7 +744,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
     return [];
   }
 
-  async function announceMatch(game) {
+  async function announceMatch(game, type = "matched") {
     const cards = new Map();
     await Promise.all(game.players.map(async pid => cards.set(pid, await playerCard(pid))));
     const roster = team => team.map(pid => cards.get(pid));
@@ -685,7 +754,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
         .filter(pid => pid !== id)
         .map(pid => ({ ...cards.get(pid), team: teamOf(game, pid) === mine ? "ally" : "enemy", initiator: id < pid }));
       send(id, {
-        type: "matched",
+        type,
         mode: game.mode,
         peerId: id,
         peers,
@@ -726,6 +795,30 @@ export async function startServer({ db, pool = null, port = PORT }) {
       const list = (await db.listFriendRequests(userId)).map(r => ({ id: r.id, name: r.name, rating: r.rating }));
       send(connId, { type: "friendRequests", list });
     } catch {}
+  }
+  async function addCurrentOpponent(id) {
+    const c = clients.get(id), game = c?.game;
+    if (!c?.userId || !game || game.phase !== "result") {
+      send(id, { type: "matchFriendResult", ok: false, reason: "unavailable" });
+      return;
+    }
+    const targetId = game.teams[otherTeamOf(game, id)]?.[0];
+    const target = clients.get(targetId);
+    if (!target?.userId || !target.friendCode) {
+      send(id, { type: "matchFriendResult", ok: false, reason: "unavailable" });
+      return;
+    }
+    const r = await db.requestFriend(c.userId, target.friendCode);
+    if (!r.ok) {
+      send(id, { type: "matchFriendResult", ok: false, reason: r.reason, to: target.name });
+      return;
+    }
+    send(id, { type: "matchFriendResult", ok: true, to: r.friend.name, accepted: !!r.accepted });
+    if (r.accepted) {
+      sendFriends(c.userId); sendFriends(r.friend.id); sendFriendRequests(c.userId); sendFriendRequests(r.friend.id);
+    } else {
+      sendFriendRequests(r.friend.id);
+    }
   }
   async function refreshFriendsOf(userId) {     // my online flag flipped -> push fresh lists to my online friends
     try { for (const f of await db.listFriends(userId)) if (online.has(String(f.id))) await sendFriends(f.id); } catch {}
@@ -824,6 +917,9 @@ export async function startServer({ db, pool = null, port = PORT }) {
       watcherTeam: null,
       phase: null,
       timer: null,
+      rematch: null,
+      rematchClosed: false,
+      resultFinalized: false,
     };
     for (const id of players) {
       const c = clients.get(id);
@@ -1007,7 +1103,7 @@ export async function startServer({ db, pool = null, port = PORT }) {
           send(id, { type: "nameError", reason: user.reason, suggestions: user.suggestions || [] });
           return;
         }
-        c.userId = user.id; c.name = user.name; c.rating = user.rating;
+        c.userId = user.id; c.name = user.name; c.rating = user.rating; c.friendCode = user.friend_code;
         c.isGuest = user.auth_id == null;         // guest vs account, used everywhere moderation branches
         c.consented = user.age_confirmed_at != null;   // 18+ & ToS/Privacy consent logged? gates matchmaking
         let form = [];
@@ -1035,6 +1131,10 @@ export async function startServer({ db, pool = null, port = PORT }) {
       } else if (msg.type === "leaveMatch") {
         leaveGame(id);
         send(id, { type: "gameReset" });
+      } else if (msg.type === "rematchRequest") {
+        requestRematch(id);
+      } else if (msg.type === "rematchResponse") {
+        respondToRematch(id, msg.accept);
       } else if (msg.type === "reaction") {
         handleReaction(id, msg);
       } else if (msg.type === "faceCue") {
@@ -1090,6 +1190,8 @@ export async function startServer({ db, pool = null, port = PORT }) {
           send(id, { type: "friendRequestSent", to: r.friend.name });
           sendFriendRequests(r.friend.id);                         // light their badge up live
         }
+      } else if (msg.type === "addMatchFriend" && c.userId) {
+        await addCurrentOpponent(id);
       } else if (msg.type === "acceptFriend" && c.userId) {
         const r = await db.acceptFriendRequest(c.userId, msg.fromId);
         if (!r.ok) { send(id, { type: "friendError", reason: r.reason }); sendFriendRequests(c.userId); }

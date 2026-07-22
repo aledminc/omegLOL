@@ -97,6 +97,10 @@ function unitTests() {
   assert.equal(validateMessage({ type: "report", target: 3, reason: "cheating" }), "report");
   assert.equal(validateMessage({ type: "report", target: 3, reason: "banana" }), null);
   assert.equal(validateMessage({ type: "reaction", delta: 999, tier: "nuke" }), null);
+  assert.equal(validateMessage({ type: "rematchRequest" }), "rematchRequest");
+  assert.equal(validateMessage({ type: "rematchResponse", accept: true }), "rematchResponse");
+  assert.equal(validateMessage({ type: "rematchResponse", accept: "yes" }), null);
+  assert.equal(validateMessage({ type: "addMatchFriend" }), "addMatchFriend");
   assert.equal(validateMessage({ type: "faceCue", tracked: true, active: false,
     points: [[61, 500], [200, 400], [500, 350], [800, 400], [939, 500], [500, 650]] }), "faceCue");
   assert.equal(validateMessage({ type: "faceCue", tracked: true, active: true, points: [[1, 2]] }), null);
