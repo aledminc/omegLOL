@@ -411,6 +411,25 @@
   .banner .big.time-up { display:flex; align-items:center; justify-content:center; gap:10px;
     font-size:clamp(24px,2.8vw,36px); color:var(--on-video); }
   .banner .big.time-up svg { width:clamp(25px,2.6vw,34px); height:clamp(25px,2.6vw,34px); color:var(--gold); }
+  .result-close, .result-leave { display:none; }
+  .banner[data-kind="result"] { padding:54px 12px 72px; pointer-events:auto; }
+  .banner[data-kind="result"] .big { font-size:clamp(28px,3.2vw,42px); }
+  .banner[data-kind="result"] .sub { margin-top:12px; font-family:var(--font-mono);
+    font-size:clamp(20px,2.2vw,28px); color:var(--on-video-dim); }
+  .banner[data-kind="result"] .delta { margin-top:18px; font-size:clamp(17px,1.8vw,22px); }
+  .banner[data-kind="result"] .delta[data-direction="up"] { color:var(--gold); }
+  .banner[data-kind="result"] .delta[data-direction="down"] { color:var(--lose); }
+  .banner[data-kind="result"] .result-close { position:absolute; top:10px; right:10px; z-index:2;
+    width:32px; height:32px; display:grid; place-items:center; padding:0; font-size:22px; line-height:1;
+    color:var(--on-video-dim); background:rgba(13,12,10,.66); border:1px solid var(--border-2);
+    border-radius:var(--r-sm); cursor:pointer; }
+  .banner[data-kind="result"] .result-close:hover { color:var(--on-video); border-color:var(--gold); }
+  .banner[data-kind="result"] .result-leave { position:absolute; left:12px; right:12px; bottom:12px;
+    width:calc(100% - 24px); min-height:46px; display:flex; align-items:center; justify-content:center;
+    padding:10px 14px; font:inherit; font-weight:700; color:var(--gold-ink); background:var(--gold);
+    border:1px solid transparent; border-radius:var(--r-sm); cursor:pointer; }
+  .banner[data-kind="result"] .result-leave:hover { background:var(--gold-2); }
+  .banner[data-kind="result"] .result-leave:disabled { opacity:.6; cursor:default; }
   @media (prefers-reduced-motion: no-preference) {
     .banner .big.time-up svg { animation:alarmWiggle .44s ease-in-out infinite; transform-origin:50% 62%; }
   }
@@ -1218,12 +1237,14 @@
       <!-- in a match the cams split apart and this column sits between them -->
       <div class="match-mid" id="matchMid">
         <div class="banner hidden" id="banner" aria-live="polite">
+          <button class="result-close" id="resultClose" type="button" aria-label="close result" title="close">×</button>
           <div class="banner-card">
             <div class="big" id="bannerBig"></div>
             <div class="count" id="bannerCount"></div>
             <div class="sub" id="bannerSub"></div>
             <div class="delta" id="bannerDelta"></div>
           </div>
+          <button class="result-leave" id="resultLeave" type="button">Leave Match</button>
         </div>
         <div class="vs-screen hidden" id="vsScreen" aria-hidden="true">
           <div class="vs-emblem">
@@ -2892,12 +2913,27 @@ function scoreLoop() {
 function showBanner(big, count, sub, kind = "") {
   banner.classList.remove("hidden");
   banner.dataset.kind = kind;
+  banner.dataset.outcome = "";
   $("bannerBig").className = "big";
   $("bannerCount").className = "count";
+  $("bannerDelta").dataset.direction = "";
   $("bannerBig").textContent = big || ""; $("bannerCount").textContent = count != null ? count : "";
   $("bannerSub").textContent = sub || ""; $("bannerDelta").textContent = "";
 }
 function hideBanner() { banner.classList.add("hidden"); banner.dataset.kind = ""; }
+function closeResultOverlay() {
+  if (document.body.dataset.phase !== "result") return;
+  hideBanner();
+  stageEl.classList.remove("introing");
+}
+function requestLeaveMatch() {
+  if (document.body.dataset.phase !== "result") return;
+  $("resultLeave").disabled = true;
+  $("next").disabled = true;
+  signal({ type: "leaveMatch" });
+}
+$("resultClose").addEventListener("click", closeResultOverlay);
+$("resultLeave").addEventListener("click", requestLeaveMatch);
 
 // searching overlay: spinner + a live elapsed clock so the queue feels like it's progressing
 let searchTimer = null, searchStart = 0;
@@ -3009,6 +3045,8 @@ function resetMatchUi() {
   closeBankTab();                // next match starts on the Chat tab
   closeSndTab();
   setMatchDock(false);           // toolbox starts collapsed each match
+  $("next").textContent = "Next";
+  $("resultLeave").disabled = false;
   matchClipOk = false; applyClipUi();   // clip button re-arms only when the next match consents
   clipCapture.stop();                   // tear down the rolling buffer + audio graph
   for (const pop of document.querySelectorAll(".pop")) pop.remove();
@@ -3121,7 +3159,11 @@ function applyGameState(msg) {
       stopRoundTimer();
       stageEl.classList.add("introing");            // dim the cams behind the result plates
       const word = msg.outcome === "win" ? "You win" : msg.outcome === "lose" ? "You lose" : "Draw";
-      showBanner(word, "", `${Math.round(msg.scores.you)} – ${Math.round(msg.scores.them)}`);
+      showBanner(word, "", `${Math.round(msg.scores.you)} – ${Math.round(msg.scores.them)}`, "result");
+      banner.dataset.outcome = msg.outcome || "draw";
+      $("next").textContent = "Leave Match";
+      $("next").disabled = false;
+      $("resultLeave").disabled = false;
       if (selfProfile && msg.outcome && currentMatchMode === "solo") {
         selfProfile.form = [msg.outcome, ...(selfProfile.form || [])];
         const key = msg.outcome === "win" ? "wins" : msg.outcome === "lose" ? "losses" : "draws";
@@ -3193,7 +3235,8 @@ ws.addEventListener("message", async (e) => {
       if (msg.tier !== "small") flashEdge("score");
       break;
     case "ranked":
-      $("bannerDelta").textContent = (msg.delta >= 0 ? "+" : "") + msg.delta + "  →  " + msg.rating;
+      $("bannerDelta").textContent = "Rating " + msg.rating + " (" + (msg.delta >= 0 ? "+" : "") + msg.delta + ")";
+      $("bannerDelta").dataset.direction = msg.delta >= 0 ? "up" : "down";
       if (selfProfile) { selfProfile.rating = msg.rating; renderCard("self", selfProfile); renderMeCard(selfProfile); }
       clipCapture.note("elo", { delta: msg.delta, rating: msg.rating });
       break;
@@ -3333,6 +3376,7 @@ $("find").addEventListener("click", async () => {
 });
 $("next").addEventListener("click", () => {
   if (bannedNow) return;
+  if (document.body.dataset.phase === "result") { requestLeaveMatch(); return; }
   const wasDuos = currentMatchMode === "duos";
   stopScoring(); endCall(); hideBanner(); resetMatchUi(); signal({ type: "next" });
   if (wasDuos) { $("next").disabled = true; updateModeUI(); setStatus("left duos match"); showSearching(false); return; }

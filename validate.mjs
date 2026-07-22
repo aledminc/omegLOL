@@ -59,6 +59,7 @@ const SCHEMA = {
   find:          () => true,
   cancelSearch:  () => true,
   next:          () => true,
+  leaveMatch:    () => true,
   friends:       () => true,
   leaveLobby:    () => true,
   queueDuos:     () => true,

@@ -90,6 +90,7 @@ function unitTests() {
   console.log("pure units");
   // validation
   assert.equal(validateMessage({ type: "find" }), "find");
+  assert.equal(validateMessage({ type: "leaveMatch" }), "leaveMatch");
   assert.equal(validateMessage({ type: "nope" }), null);
   assert.equal(validateMessage("hello"), null);
   assert.equal(validateMessage({ type: "report", target: 3, reason: "cheating" }), "report");

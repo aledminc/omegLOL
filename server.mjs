@@ -46,7 +46,6 @@ const dur = {
   countdown: (+process.env.T_COUNTDOWN || 5)  * SEC,
   round:     (+process.env.T_ROUND     || 30) * SEC,
   swap:      (+process.env.T_SWAP      || 8)  * SEC,
-  result:    (+process.env.T_RESULT    || 8)  * SEC,
 };
 
 // startServer takes an injected db so the whole stack (HTTP + WS) is testable
@@ -603,10 +602,12 @@ export async function startServer({ db, pool = null, port = PORT }) {
   function startRound2(game)    { setRoles(game, 1); setPhase(game, "round2",    dur.round,     endGame);     broadcast(game, "round2",    dur.round / SEC); }
 
   async function endGame(game) {
-    setPhase(game, "result", dur.result, resetGame);
+    clearTimeout(game.timer);
+    game.phase = "result";
+    game.timer = null;                            // finished matches persist until someone explicitly leaves
     for (const id of game.players) {
       const mine = game.scores[teamOf(game, id)], theirs = game.scores[otherTeamOf(game, id)];
-      send(id, { type: "gameState", phase: "result", seconds: dur.result / SEC, role: null,
+      send(id, { type: "gameState", phase: "result", seconds: null, role: null,
         scores: { you: mine, them: theirs }, outcome: mine > theirs ? "win" : mine < theirs ? "lose" : "draw" });
     }
     if (game.mode === "solo") {
@@ -634,14 +635,6 @@ export async function startServer({ db, pool = null, port = PORT }) {
       }
     }
   }
-  function resetGame(game) {
-    for (const id of game.players) {
-      const c = clients.get(id);
-      if (c) { c.state = "idle"; c.partner = null; c.game = null; }
-      send(id, { type: "gameReset" });
-    }
-  }
-
   function handleReaction(id, msg) {
     const game = clients.get(id)?.game;
     if (!game || (game.phase !== "round1" && game.phase !== "round2")) return;
@@ -1022,6 +1015,9 @@ export async function startServer({ db, pool = null, port = PORT }) {
         const wasDuos = c.game?.mode === "duos";
         leaveGame(id);
         if (!wasDuos) await findMatch(id);
+      } else if (msg.type === "leaveMatch") {
+        leaveGame(id);
+        send(id, { type: "gameReset" });
       } else if (msg.type === "reaction") {
         handleReaction(id, msg);
       } else if (msg.type === "chat" && c.userId) {

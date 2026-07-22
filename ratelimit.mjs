@@ -29,7 +29,7 @@ const LIMITS = {
 // Which category each message type draws from. Types absent here fall back to "light".
 const CATEGORY = {
   offer: "signaling", answer: "signaling", candidate: "signaling",
-  find: "matchmaking", cancelSearch: "matchmaking", next: "matchmaking",
+  find: "matchmaking", cancelSearch: "matchmaking", next: "matchmaking", leaveMatch: "matchmaking",
   queueDuos: "matchmaking", cancelDuos: "matchmaking",
   addFriend: "social", invite: "social", acceptInvite: "social", declineInvite: "social",
   leaveLobby: "social",

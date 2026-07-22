@@ -8,7 +8,6 @@ process.env.T_INTRO = "36000";
 process.env.T_COUNTDOWN = "36000";
 process.env.T_ROUND = "36000";
 process.env.T_SWAP = "36000";
-process.env.T_RESULT = "36000";
 delete process.env.BETTER_AUTH_SECRET;           // force guest/token-only mode
 
 import assert from "node:assert/strict";
