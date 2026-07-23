@@ -248,42 +248,42 @@
     .stage.split .scorebar .side { grid-column:1 !important; margin-top:-14px;
       border-top:0; border-radius:0 0 var(--r-lg) var(--r-lg); }
 
-    /* solo: your camera + score, chat/tools, then their camera + score */
+    /* solo: both camera + score units first, then chat/tools beneath them */
     .stage.split[data-cams="2"] #localTile { grid-row:1 !important;
       border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
     .stage.split[data-cams="2"] .scorebar .side:first-child { grid-row:2 !important; }
-    .stage.split[data-cams="2"] .match-mid { grid-row:3 !important; }
-    .stage.split[data-cams="2"] .remote-tile { grid-row:4 !important;
+    .stage.split[data-cams="2"] .remote-tile { grid-row:3 !important;
       border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
-    .stage.split[data-cams="2"] .scorebar .side:last-child { grid-row:5 !important; }
+    .stage.split[data-cams="2"] .scorebar .side:last-child { grid-row:4 !important; }
+    .stage.split[data-cams="2"] .match-mid { grid-row:5 !important; }
 
-    /* full duos: teammate above you, then your team score; opponents mirror that below chat */
+    /* full duos: both complete team units first, then chat/tools at the bottom */
     .stage.split[data-cams="4"] .remote-tile[data-team="ally"] { grid-row:1 !important; }
     .stage.split[data-cams="4"] #localTile { grid-row:2 !important;
       border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
     .stage.split[data-cams="4"] .scorebar .side:first-child { grid-row:3 !important; }
-    .stage.split[data-cams="4"] .match-mid { grid-row:4 !important; }
-    .stage.split[data-cams="4"] .remote-tile:nth-child(1 of .remote-tile:not([data-team="ally"])) { grid-row:5 !important; }
-    .stage.split[data-cams="4"] .remote-tile:nth-child(2 of .remote-tile:not([data-team="ally"])) { grid-row:6 !important;
+    .stage.split[data-cams="4"] .remote-tile:nth-child(1 of .remote-tile:not([data-team="ally"])) { grid-row:4 !important; }
+    .stage.split[data-cams="4"] .remote-tile:nth-child(2 of .remote-tile:not([data-team="ally"])) { grid-row:5 !important;
       border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
-    .stage.split[data-cams="4"] .scorebar .side:last-child { grid-row:7 !important; }
+    .stage.split[data-cams="4"] .scorebar .side:last-child { grid-row:6 !important; }
+    .stage.split[data-cams="4"] .match-mid { grid-row:7 !important; }
 
     /* resilient three-camera fallback while a duo peer is reconnecting. */
     .stage.split[data-cams="3"] #localTile { grid-row:1 !important;
       border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
     .stage.split[data-cams="3"] .scorebar .side:first-child { grid-row:2 !important; }
-    .stage.split[data-cams="3"] .match-mid { grid-row:3 !important; }
-    .stage.split[data-cams="3"] .remote-tile:nth-child(1 of .remote-tile:not([data-team="ally"])) { grid-row:4 !important; }
-    .stage.split[data-cams="3"] .remote-tile:nth-child(2 of .remote-tile:not([data-team="ally"])) { grid-row:5 !important;
+    .stage.split[data-cams="3"] .remote-tile:nth-child(1 of .remote-tile:not([data-team="ally"])) { grid-row:3 !important; }
+    .stage.split[data-cams="3"] .remote-tile:nth-child(2 of .remote-tile:not([data-team="ally"])) { grid-row:4 !important;
       border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
-    .stage.split[data-cams="3"] .scorebar .side:last-child { grid-row:6 !important; }
+    .stage.split[data-cams="3"] .scorebar .side:last-child { grid-row:5 !important; }
+    .stage.split[data-cams="3"] .match-mid { grid-row:6 !important; }
     .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .remote-tile[data-team="ally"] { grid-row:1 !important; }
     .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) #localTile { grid-row:2 !important; }
     .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .scorebar .side:first-child { grid-row:3 !important; }
-    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .match-mid { grid-row:4 !important; }
-    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .remote-tile:not([data-team="ally"]) { grid-row:5 !important;
+    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .remote-tile:not([data-team="ally"]) { grid-row:4 !important;
       border-bottom-left-radius:0 !important; border-bottom-right-radius:0 !important; }
-    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .scorebar .side:last-child { grid-row:6 !important; }
+    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .scorebar .side:last-child { grid-row:5 !important; }
+    .stage.split[data-cams="3"]:has(.remote-tile[data-team="ally"]) .match-mid { grid-row:6 !important; }
   }
 
   .remote-grid { display:contents; }
@@ -292,6 +292,19 @@
   #local { transform:scaleX(-1); }
   .mouth-cue { position:absolute; inset:0; z-index:5; display:block; width:100%; height:100%;
     pointer-events:none; }
+  .face-clear-warning { position:absolute; top:10px; left:50%; z-index:9; transform:translateX(-50%);
+    display:flex; align-items:center; justify-content:center; gap:7px; width:max-content; max-width:calc(100% - 128px);
+    min-height:32px; padding:6px 10px; color:var(--gold); background:rgba(17,18,20,.9);
+    border:1px solid rgba(255,211,77,.55); border-radius:var(--r-sm); box-shadow:0 4px 16px rgba(0,0,0,.34);
+    font-size:11px; font-weight:700; line-height:1.2; text-align:center; text-transform:uppercase;
+    pointer-events:none; backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); }
+  .face-clear-warning svg { width:16px; height:16px; flex:0 0 auto; }
+  .face-clear-warning[data-penalty="true"] { color:var(--lose); border-color:rgba(240,82,77,.7);
+    box-shadow:0 4px 16px rgba(0,0,0,.34), 0 0 12px rgba(240,82,77,.18); }
+  .face-clear-warning.hidden { display:none; }
+  @media (max-width:560px) {
+    .face-clear-warning { top:8px; max-width:calc(100% - 116px); padding:5px 8px; font-size:10px; }
+  }
 
   /* reaction edge-flash: a felt (not blinding) inner vignette pulse on every cam tile */
   .remote-tile::after, .local-tile::after { content:""; position:absolute; inset:0; z-index:4;
@@ -1264,6 +1277,10 @@
       <div class="local-tile" id="localTile">
         <video id="local" autoplay playsinline muted></video>
         <canvas class="mouth-cue" id="localMouthCue" aria-hidden="true"></canvas>
+        <div class="face-clear-warning hidden" id="faceClearWarning" role="status" aria-live="polite">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.06 12.35a1 1 0 0 1 0-.7C3.7 7.6 7.62 5 12 5c4.38 0 8.3 2.6 9.94 6.65a1 1 0 0 1 0 .7A10.8 10.8 0 0 1 20 15.5"/><path d="M14.7 14.7A3.8 3.8 0 0 1 9.3 9.3"/><path d="m3 3 18 18"/></svg>
+          <span>Keep your face visible</span>
+        </div>
         <div class="cam-card" id="selfCard">
           <span class="cc-name" id="selfName">—</span>
           <span class="cc-rank" id="selfRank">—</span>
@@ -1469,7 +1486,7 @@
       <li><b>Get matched.</b> You're paired live with another player, cam to cam.</li>
       <li><b>Know your role.</b> During the countdown you're told your role: the <b>joker</b> performs, the <b>reactor</b> tries to keep a straight face.</li>
       <li><b>Perform.</b> The joker has the round to make the reactor crack... bits, faces, impressions, whatever works.</li>
-      <li><b>The camera keeps score.</b> Smiles and laughs are detected on the reactor's own device and tallied in real time. Bigger reactions score more.</li>
+      <li><b>The camera keeps score.</b> Smiles and laughs are detected on the reactor's own device and tallied in real time. Keep your face and mouth visible during live rounds; sustained obstruction counts as a reaction.</li>
       <li><b>Swap.</b> Roles flip and the other side gets their shot.</li>
       <li><b>Win and climb.</b> Highest total wins the match, your Elo moves, and you climb the ranked ladder. Play solo 1v1 or invite a friend for duos.</li>
     </ol>
@@ -1505,7 +1522,7 @@
 </script>
 
 <script type="module">
-import { FaceLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12";
+import { FaceLandmarker, HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12";
 import { TIERS, rankFor } from "/js/ranks.mjs";
 
 const $ = id => document.getElementById(id);
@@ -1531,7 +1548,7 @@ loadIce();                                  // warm it at startup so TURN creds 
 
 const ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host);
 let peerConnections = new Map(), localStream = null, myPeerId = null, activePeers = [];
-let detector = null;
+let detector = null, handDetector = null, detectorPromise = null, handDetectorUnavailable = false;
 
 function signal(m) { ws.send(JSON.stringify(m)); }
 function setStatus(s) {
@@ -3118,6 +3135,7 @@ const clipCapture = (() => {
 
 // ---------- detector + the reaction beat (watcher side) ----------
 const MOUTH_LANDMARKS = [61, 0, 291, 314, 17, 84];
+const MOUTH_REGION_LANDMARKS = [61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84, 181, 91, 146];
 const FACE_CUE_SEND_MS = 80, FACE_CUE_STALE_MS = 420, REMOTE_CUE_DELAY_MS = 90;
 const mouthCueStates = new Map();
 let mouthCueRaf = null, mouthCueEpoch = 0, lastFaceCueSend = 0, lastFaceTracked = false;
@@ -3208,26 +3226,107 @@ function publishFaceCue(points, active, tracked, now) {
 }
 
 async function ensureDetector() {
-  if (detector) return;
-  const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm");
-  detector = await FaceLandmarker.createFromOptions(fileset, {
-    baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate: "GPU" },
-    outputFaceBlendshapes: true, runningMode: "VIDEO", numFaces: 1,
-  });
+  if (detector && (handDetector || handDetectorUnavailable)) return;
+  if (detectorPromise) return detectorPromise;
+  detectorPromise = (async () => {
+    const fileset = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm");
+    if (!detector) {
+      detector = await FaceLandmarker.createFromOptions(fileset, {
+        baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task", delegate: "GPU" },
+        outputFaceBlendshapes: true, outputFacialTransformationMatrixes: true,
+        runningMode: "VIDEO", numFaces: 1,
+      });
+    }
+    if (!handDetector && !handDetectorUnavailable) {
+      try {
+        handDetector = await HandLandmarker.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task", delegate: "GPU" },
+          runningMode: "VIDEO", numHands: 2,
+          minHandDetectionConfidence: .55, minHandPresenceConfidence: .55, minTrackingConfidence: .5,
+        });
+      } catch (err) {
+        handDetectorUnavailable = true;
+        console.warn("Hand visibility check unavailable; continuing with face and pose checks.", err);
+      }
+    }
+  })();
+  try { await detectorPromise; }
+  finally { detectorPromise = null; }
 }
 const TICK_MS = 450, BIG_TIER = 0.5, LAUGH_TIER = 1.3;
-let scoring = false, scoreAccum = 0, peakAmuse = 0, lastDetectMs = 0, lastVideoTime = -1, lastTickMs = 0;
+const FACE_WARNING_MS = 450, FACE_CLEAR_GRACE_MS = 1000, FACE_PENALTY_RAMP_MS = 1800;
+const HAND_CHECK_MS = 150, MAX_HEAD_YAW = 38, MAX_HEAD_PITCH = 34;
+const HIDDEN_FACE_AMUSEMENT = LAUGH_TIER + .2;
+let scoring = false, scoringEpoch = 0, scoreAccum = 0, peakAmuse = 0;
+let lastDetectMs = 0, lastVideoTime = -1, lastTickMs = 0, lastClearFaceMs = 0;
+let lastHandDetectMs = -Infinity, lastHandLandmarks = [], handDetectFailures = 0;
+
+function faceBounds(points, indices = null) {
+  const sample = indices ? indices.map(i => points?.[i]).filter(Boolean) : (points || []);
+  if (!sample.length) return null;
+  let minX = 1, minY = 1, maxX = 0, maxY = 0;
+  for (const p of sample) {
+    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x); maxY = Math.max(maxY, p.y);
+  }
+  return { minX, minY, maxX, maxY };
+}
+function mouthRegion(landmarks) {
+  const box = faceBounds(landmarks, MOUTH_REGION_LANDMARKS);
+  if (!box) return null;
+  const width = Math.max(.035, box.maxX - box.minX), height = Math.max(.018, box.maxY - box.minY);
+  const padX = Math.max(.014, width * .38), padY = Math.max(.025, height * 1.25);
+  return {
+    minX:Math.max(0, box.minX - padX), minY:Math.max(0, box.minY - padY),
+    maxX:Math.min(1, box.maxX + padX), maxY:Math.min(1, box.maxY + padY),
+  };
+}
+function handCoversMouth(hands, mouth) {
+  if (!mouth || !hands?.length) return false;
+  return hands.some(hand => {
+    const nearMouth = hand.filter(p => p.x >= mouth.minX && p.x <= mouth.maxX && p.y >= mouth.minY && p.y <= mouth.maxY).length;
+    if (nearMouth >= 2) return true;
+    const palm = hand[9];
+    if (!palm) return false;
+    const cx = (mouth.minX + mouth.maxX) / 2, cy = (mouth.minY + mouth.maxY) / 2;
+    const rx = Math.max(.001, (mouth.maxX - mouth.minX) * .7);
+    const ry = Math.max(.001, (mouth.maxY - mouth.minY) * .7);
+    return ((palm.x - cx) / rx) ** 2 + ((palm.y - cy) / ry) ** 2 <= 1;
+  });
+}
+function headPoseClear(matrix) {
+  const m = matrix?.data || matrix;
+  if (!m || m.length < 16) return true;
+  // MediaPipe returns the 4x4 transform column-major; its third column is face-forward.
+  const yaw = Math.atan2(m[8], m[10]) * 180 / Math.PI;
+  const pitch = Math.atan2(-m[9], Math.hypot(m[8], m[10])) * 180 / Math.PI;
+  return Number.isFinite(yaw) && Number.isFinite(pitch) && Math.abs(yaw) <= MAX_HEAD_YAW && Math.abs(pitch) <= MAX_HEAD_PITCH;
+}
+function setFaceClearWarning(show, penalizing = false) {
+  const warning = $("faceClearWarning");
+  warning.classList.toggle("hidden", !show);
+  warning.dataset.penalty = penalizing ? "true" : "false";
+  warning.querySelector("span").textContent = penalizing ? "Face hidden - points counting" : "Keep your face visible";
+}
+function liveWatcherRound() {
+  const phase = document.body.dataset.phase;
+  return (phase === "round1" || phase === "round2") && document.body.dataset.role === "watcher";
+}
 
 function startScoring() {
   if (scoring) return;
-  const phase = document.body.dataset.phase;
-  if ((phase !== "round1" && phase !== "round2") || document.body.dataset.role !== "watcher") return;
+  if (!liveWatcherRound()) return;
   scoring = true; scoreAccum = 0; peakAmuse = 0; lastVideoTime = -1;
-  lastDetectMs = performance.now(); lastTickMs = performance.now(); lastFaceCueSend = 0; lastFaceTracked = false;
-  requestAnimationFrame(scoreLoop);
+  const now = performance.now();
+  lastDetectMs = now; lastTickMs = now; lastClearFaceMs = now; lastHandDetectMs = -Infinity;
+  lastHandLandmarks = []; handDetectFailures = 0;
+  lastFaceCueSend = 0; lastFaceTracked = false; setFaceClearWarning(false);
+  const epoch = ++scoringEpoch;
+  requestAnimationFrame(() => scoreLoop(epoch));
 }
 function stopScoring() {
-  if (scoring) { scoring = false; reactionBeat(true); }
+  if (scoring) { scoring = false; scoringEpoch++; reactionBeat(true); }
+  lastHandLandmarks = []; setFaceClearWarning(false);
   updateMouthCue("local", null, false, false);
 }
 const tierOf = a => a > LAUGH_TIER ? "laugh" : a > BIG_TIER ? "big" : "small";
@@ -3239,14 +3338,34 @@ function reactionBeat(silent) {
   signal({ type: "reaction", tier, delta: scoreAccum });
   scoreAccum = 0; peakAmuse = 0;
 }
-function scoreLoop() {
-  if (!scoring) return;
+function scoreLoop(epoch) {
+  if (!scoring || epoch !== scoringEpoch) return;
+  if (!liveWatcherRound()) { stopScoring(); return; }
   const now = performance.now();
   if (detector && localVideo.currentTime !== lastVideoTime) {
     lastVideoTime = localVideo.currentTime;
     const res = detector.detectForVideo(localVideo, now);
     const shapes = res.faceBlendshapes;
     const landmarks = res.faceLandmarks?.[0];
+    const facePresent = !!landmarks?.length;
+    const poseClear = facePresent && headPoseClear(res.facialTransformationMatrixes?.[0]);
+    if (handDetector && now - lastHandDetectMs >= HAND_CHECK_MS) {
+      lastHandDetectMs = now;
+      try {
+        lastHandLandmarks = handDetector.detectForVideo(localVideo, now).landmarks || [];
+        handDetectFailures = 0;
+      } catch (err) {
+        lastHandLandmarks = [];
+        if (++handDetectFailures === 1) console.warn("Hand visibility check failed for this frame.", err);
+        if (handDetectFailures >= 3) {
+          try { handDetector.close(); } catch {}
+          handDetector = null; handDetectorUnavailable = true;
+          console.warn("Hand visibility check disabled after repeated inference failures.");
+        }
+      }
+    }
+    const faceClear = facePresent && poseClear && !handCoversMouth(lastHandLandmarks, mouthRegion(landmarks));
+    const dt = Math.min(.1, Math.max(0, (now - lastDetectMs) / 1000));
     let amusement = 0;
     if (shapes && shapes.length) {
       const m = {}; for (const c of shapes[0].categories) m[c.categoryName] = c.score;
@@ -3254,11 +3373,23 @@ function scoreLoop() {
       const jaw = m.jawOpen || 0;
       const above = Math.max(0, smile - SMILE_FLOOR);
       amusement = above * (1 + LAUGH_GAIN * Math.max(0, jaw - JAW_FLOOR));
-      const dt = Math.min(0.1, (now - lastDetectMs) / 1000);
+    }
+    if (faceClear) {
+      lastClearFaceMs = now;
       scoreAccum += amusement * dt * RATE;
       if (amusement > peakAmuse) peakAmuse = amusement;
+      setFaceClearWarning(false);
+    } else {
+      const unclearMs = now - lastClearFaceMs;
+      const penalizing = unclearMs > FACE_CLEAR_GRACE_MS;
+      setFaceClearWarning(unclearMs > FACE_WARNING_MS, penalizing);
+      if (penalizing) {
+        const ramp = Math.min(1, (unclearMs - FACE_CLEAR_GRACE_MS) / FACE_PENALTY_RAMP_MS);
+        scoreAccum += HIDDEN_FACE_AMUSEMENT * ramp * dt * RATE;
+        if (ramp > 0) peakAmuse = Math.max(peakAmuse, HIDDEN_FACE_AMUSEMENT);
+      }
     }
-    if (landmarks && MOUTH_LANDMARKS.every(i => landmarks[i])) {
+    if (faceClear && MOUTH_LANDMARKS.every(i => landmarks[i])) {
       const points = MOUTH_LANDMARKS.map(i => [
         Math.max(0, Math.min(1, landmarks[i].x)),
         Math.max(0, Math.min(1, landmarks[i].y)),
@@ -3268,7 +3399,7 @@ function scoreLoop() {
     lastDetectMs = now;
   }
   if (now - lastTickMs > TICK_MS) { reactionBeat(false); lastTickMs = now; }
-  requestAnimationFrame(scoreLoop);
+  requestAnimationFrame(() => scoreLoop(epoch));
 }
 
 // ---------- game UI ----------
