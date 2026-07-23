@@ -722,7 +722,9 @@ export async function startServer({ db, pool = null, port = PORT }) {
     const tier = msg.tier === "laugh" ? "laugh" : msg.tier === "big" ? "big" : "small";
     game.scores[game.performerTeam] += delta;       // the number: continuous + authoritative
     broadcastScores(game);                       // meters, to both players
-    for (const performer of game.teams[game.performerTeam]) send(performer, { type: "reaction", tier, delta });
+    if (msg.silent !== true) {
+      for (const performer of game.teams[game.performerTeam]) send(performer, { type: "reaction", tier, delta });
+    }
   }
   function handleFaceCue(id, msg) {
     const game = clients.get(id)?.game;

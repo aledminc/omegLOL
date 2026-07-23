@@ -70,7 +70,8 @@ const SCHEMA = {
   queueDuos:     () => true,
   cancelDuos:    () => true,
   reaction:      m => (m.delta === undefined || (typeof m.delta === "number" && Number.isFinite(m.delta))) &&
-                      (m.tier  === undefined || REACTION_TIERS.includes(m.tier)),
+                      (m.tier  === undefined || REACTION_TIERS.includes(m.tier)) &&
+                      (m.silent === undefined || typeof m.silent === "boolean"),
   faceCue:       m => typeof m.tracked === "boolean" && typeof m.active === "boolean" &&
                       cuePointsOk(m.points) && (m.tracked ? m.points.length === 6 : m.points.length === 0),
   chat:          m => strOk(m.text ?? "", CHAT_MAX * 4),   // generous pre-clean cap; cleanText trims to CHAT_MAX

@@ -97,6 +97,8 @@ function unitTests() {
   assert.equal(validateMessage({ type: "report", target: 3, reason: "cheating" }), "report");
   assert.equal(validateMessage({ type: "report", target: 3, reason: "banana" }), null);
   assert.equal(validateMessage({ type: "reaction", delta: 999, tier: "nuke" }), null);
+  assert.equal(validateMessage({ type: "reaction", delta: 2.5, tier: "laugh", silent: true }), "reaction");
+  assert.equal(validateMessage({ type: "reaction", delta: 2.5, silent: "yes" }), null);
   assert.equal(validateMessage({ type: "rematchRequest" }), "rematchRequest");
   assert.equal(validateMessage({ type: "rematchResponse", accept: true }), "rematchResponse");
   assert.equal(validateMessage({ type: "rematchResponse", accept: "yes" }), null);
