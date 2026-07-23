@@ -3003,6 +3003,19 @@ const clipCapture = (() => {
   // `lengthMs` of encoded chunks (trimmed back to a keyframe so the buffer always decodes cleanly).
   const WORKER_SRC = `
     const bufs = {};
+    function closeBuffer(b) {
+      if (!b) return;
+      b.stopped = true;
+      if (b.reader) {
+        try {
+          const canceling = b.reader.cancel();
+          if (canceling && canceling.catch) canceling.catch(() => {});
+        } catch {}
+      }
+      const enc = b._enc;
+      b._enc = null;
+      if (enc && enc.state !== "closed") { try { enc.close(); } catch {} }
+    }
     function trim(b, nowUs) {
       const cutUs = nowUs - b.lengthMs * 1000;
       let keep = 0;
@@ -3013,12 +3026,16 @@ const clipCapture = (() => {
       if (keep > 0) b.chunks.splice(0, keep);
     }
     async function pump(id, kind, config, lengthMs, keyMs, readable) {
-      const b = bufs[id] = { kind, chunks: [], lengthMs };
+      closeBuffer(bufs[id]);
+      const b = bufs[id] = { kind, chunks: [], lengthMs, stopped: false, reader: null, _enc: null };
       let enc = null, w = 0, h = 0, lastKeyUs = -1e15;
+      let retryAt = 0, softwareFallback = false;
       const Codec = kind === "video" ? VideoEncoder : AudioEncoder;
       function build(cfg) {
-        const e = new Codec({
+        let e = null;
+        e = new Codec({
           output: (chunk, meta) => {
+            if (b.stopped) return;
             // The AVC description arrives once (first output); persist it on the buffer so the
             // rolling trim can never discard it — otherwise late clips decode without a description.
             if (meta && meta.decoderConfig && meta.decoderConfig.description) {
@@ -3029,37 +3046,76 @@ const clipCapture = (() => {
             b.chunks.push({ timestamp: chunk.timestamp, duration: chunk.duration || 0, type: chunk.type, bytes });
             trim(b, chunk.timestamp);
           },
-          error: err => postMessage({ type: "err", id, msg: String(err) }),
+          error: err => {
+            if (enc === e) {
+              enc = null; b._enc = null;
+              retryAt = performance.now() + 1000;
+              if (kind === "video") softwareFallback = true;
+              b.chunks = []; delete b.desc;
+            }
+            postMessage({ type: "err", id, msg: String(err) });
+          },
         });
-        e.configure(cfg); return e;
+        try { e.configure(cfg); return e; }
+        catch (err) { try { e.close(); } catch {} throw err; }
       }
-      const reader = readable.getReader();
+      const reader = b.reader = readable.getReader();
       for (;;) {
         let res; try { res = await reader.read(); } catch { break; }
         if (res.done) break;
         const frame = res.value;
+        if (b.stopped) { frame.close(); break; }
         try {
           if (kind === "video") {
-            if (!enc || frame.codedWidth !== w || frame.codedHeight !== h) {   // (re)configure on size change
-              if (enc) { try { await enc.flush(); } catch {} enc.close(); }
-              w = frame.codedWidth; h = frame.codedHeight; lastKeyUs = -1e15;
-              enc = build({ ...config, width: w, height: h });
+            const sizeChanged = !!enc && (frame.codedWidth !== w || frame.codedHeight !== h);
+            if ((!enc || enc.state === "closed" || sizeChanged) && performance.now() >= retryAt) {
+              const old = enc; enc = null; b._enc = null;
+              if (old && old.state !== "closed") {
+                try { await old.flush(); } catch {}
+                try { old.close(); } catch {}
+              }
+              if (!b.stopped) {
+                if (sizeChanged) { b.chunks = []; delete b.desc; }
+                try {
+                  const nextW = frame.codedWidth, nextH = frame.codedHeight;
+                  const nextConfig = { ...config, width: nextW, height: nextH };
+                  if (softwareFallback) nextConfig.hardwareAcceleration = "prefer-software";
+                  enc = build(nextConfig);
+                  b._enc = enc; w = nextW; h = nextH; lastKeyUs = -1e15; retryAt = 0;
+                } catch (err) {
+                  softwareFallback = true;
+                  retryAt = performance.now() + 1000;
+                  postMessage({ type: "err", id, msg: String(err) });
+                }
+              }
             }
-            const key = (frame.timestamp - lastKeyUs) >= keyMs * 1000;
-            if (key) lastKeyUs = frame.timestamp;
-            if (enc.encodeQueueSize < 4) enc.encode(frame, { keyFrame: key });   // drop under backpressure
+            if (enc && enc.state === "configured" && enc.encodeQueueSize < 4) {
+              const key = (frame.timestamp - lastKeyUs) >= keyMs * 1000;
+              if (key) lastKeyUs = frame.timestamp;
+              enc.encode(frame, { keyFrame: key });   // drop under backpressure
+            }
           } else {
-            if (!enc) enc = build(config);
-            if (enc.encodeQueueSize < 8) enc.encode(frame);
+            if ((!enc || enc.state === "closed") && performance.now() >= retryAt) {
+              try { enc = build(config); b._enc = enc; retryAt = 0; }
+              catch (err) { retryAt = performance.now() + 1000; postMessage({ type: "err", id, msg: String(err) }); }
+            }
+            if (enc && enc.state === "configured" && enc.encodeQueueSize < 8) enc.encode(frame);
           }
-        } catch (err) { postMessage({ type: "err", id, msg: String(err) }); }
+        } catch (err) {
+          if (enc && enc.state === "closed") { enc = null; b._enc = null; retryAt = performance.now() + 1000; }
+          postMessage({ type: "err", id, msg: String(err) });
+        }
         frame.close();
       }
-      b._enc = enc;
+      b.reader = null;
+      if (!b.stopped) b._enc = enc;
     }
     onmessage = e => {
       const m = e.data;
-      if (m.cmd === "pump") pump(m.id, m.kind, m.config, m.lengthMs, m.keyMs, m.readable);
+      if (m.cmd === "pump") {
+        pump(m.id, m.kind, m.config, m.lengthMs, m.keyMs, m.readable)
+          .catch(err => postMessage({ type: "err", id: m.id, msg: String(err) }));
+      }
       else if (m.cmd === "snapshotFull") {
         // Copy (not transfer) the ring so live capture keeps running for a second clip.
         const out = {}, transfer = [];
@@ -3072,7 +3128,7 @@ const clipCapture = (() => {
         }
         postMessage({ type: "snapfull", data: out }, transfer);
       } else if (m.cmd === "reset") {
-        for (const id in bufs) { try { bufs[id]._enc && bufs[id]._enc.close(); } catch {} delete bufs[id]; }
+        for (const id in bufs) { closeBuffer(bufs[id]); delete bufs[id]; }
       }
     };
   `;
@@ -3130,7 +3186,10 @@ const clipCapture = (() => {
   return {
     get active() { return active; },
     start() { if (!clipEnabled()) return; active = true; remoteWired = false; startedAt = performance.now(); events = []; },
-    addRemoteStream(stream) { if (!active || remoteWired || !stream) return; remoteWired = true; beginEncoders(stream); },
+    addRemoteStream(stream) {
+      if (!active || remoteWired || !stream || !stream.getVideoTracks().length) return;
+      remoteWired = true; beginEncoders(stream);
+    },
     note(type, data) { if (active) events.push({ t: performance.now() - startedAt, type, data }); },
     snapshot(cb) {
       if (!worker || !active) { cb(null); return; }
